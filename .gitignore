@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit real secrets (.env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Generated Word documents / uploads
+uploads/
+generated/
+*.docx.tmp
