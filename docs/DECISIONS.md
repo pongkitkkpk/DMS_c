@@ -104,6 +104,13 @@ signing the returned `userInfo` into a JWT. Plus a local admin fallback via `ADM
 `ร่างคำขออนุมัติ`(73) → `ดำเนินการขออนุมัติ`(22) → `โครงการอนุมัติ`(14) →
 `เงินโครงการอนุมัติ`(13) → `ร่างสรุปผลโครงการ`(12) → `ดำเนินการสรุปผล`(3) → `ปิดโครงการ`(4)
 
+> **Correction (2026-08-12, Phase 0).** Those counts are **occurrences summed across three
+> tables** (`projects` + `status_project` + `logstatus_project`), not project counts — the
+> dump holds only **30 projects**. The state list and the Q40 decision are unaffected (all 7
+> states appear in real rows; the four `รอ…` states appear zero times), but note that
+> `ดำเนินการสรุปผล` **never appears as a current phase** — it is transient, seen only in the
+> transition log. Full breakdown: `schema-current.md` → "Correction to DECISIONS.md".
+
 The frontend also checks `รออนุมัติโครงการ`, `รออนุมัติ`, `รอเงินโครงการอนุมัติ`,
 `รอสรุปผลโครงการ` — **zero rows each. Decision: dropped (Q40).**
 
@@ -283,9 +290,30 @@ frontend is ~20 screens. Plan in **weeks**.
 
 ## Next steps
 
-1. `git init` in `DMS_c` (Q10) — before any code is written.
+1. ~~`git init` in `DMS_c` (Q10)~~ — **done**, commit `b8c7d31`.
 2. Phase 0: produce the five `docs/` files (Q23). `schema-current.md` is now a straight
    **extraction** from `usersystem.sql`, not a reconstruction.
+   - [x] `schema-current.md` — **done**. Also corrected the phase counts above and closed
+         the `p_budget` column-naming question (see below).
+   - [ ] `business-rules.md`
+   - [ ] `template-contract.md`
+   - [ ] `domain-model.md`
+   - [ ] `schema-target.md`
 3. Re-confirm the open items above.
 4. Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.
 5. Only then start building.
+
+### Phase 0 findings that change the picture
+
+From `schema-current.md`:
+
+- **`p_budget`'s 382 columns are fully decoded.** A budget line is
+  `(description, qty1, unit1, qty2, unit2, unit_price)`; every `list S*`/`listSS*` value is a
+  **derived** total, not input. This makes Q13's normalization concrete — and means the
+  stored totals must be recomputed on migration, not carried over.
+- **Money's comma formatting comes from the frontend**, which calls
+  `.toLocaleString("en-US")` before posting, and `parseInt`s its operands. Data is whole-baht
+  display strings. Directly affects Q37.
+- **There are no foreign keys anywhere**, and the history tables contain **dangling
+  references** to projects that no longer exist. The migration cannot assume referential
+  integrity — a decision is needed on orphaned log rows.
