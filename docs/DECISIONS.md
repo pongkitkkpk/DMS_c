@@ -308,6 +308,15 @@ Required by Q22 — each is an intentional departure, not a porting bug:
   categories**. The split is correct; they belong in an `award_category` table. No project
   references them and no code path reads them, so they are seed data for a feature that does
   not exist yet — build nothing until someone confirms it is wanted.
+- **Phase 0 is complete.** All five `docs/` files exist. Before Phase 1 starts, four
+  assumptions in `schema-target.md` need an explicit yes: **A1** = Q37 (money → `DECIMAL(12,2)`),
+  **A2** = Q38 (surrogate PKs), **A3** = Q41 (ledger built on `logstudentgetmoney`), and
+  **A4** = the Q39 revision below. A1–A3 were already "recommended, not objected to"; **A4 is
+  the only one that overturns a settled decision.**
+- **The orphaned-log-row question is now blocking.** `project_event.project_id` is a hard FK,
+  so `logstatus_project`'s 16 references to non-existent projects cannot be migrated as-is.
+  Decide: drop them, or create tombstone `project` rows. This was Phase 0's last open question
+  and it is now on the migration's critical path.
 - **Q39 must be revisited before the migration is written.** It calls the three `karoms` rows
   dirty data and prescribes a unique constraint on `users.id_student`. Rows 23 and 24 are
   genuinely identical, but **row 26 is the same person in a second, different role** (`AD` in
@@ -342,7 +351,8 @@ frontend is ~20 screens. Plan in **weeks**.
          question, and found the unauthenticated `server.js` route group below.
    - [x] `domain-model.md` — **done**. Verified Q35, corrected the `netprojectbudget` grain,
          and found that Q39 would destroy a real role (see below).
-   - [ ] `schema-target.md`
+   - [x] `schema-target.md` — **done**. 29 tables; every one of the 843 current columns is
+         mapped or named as dropped. Takes four assumptions (**A1–A4**) that need sign-off.
 3. Re-confirm the open items above.
 4. Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.
 5. Only then start building.
