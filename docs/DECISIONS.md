@@ -378,9 +378,36 @@ frontend is ~20 screens. Plan in **weeks**.
          mapped or named as dropped. Takes four assumptions (**A1–A4**) that need sign-off.
 3. ~~Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.~~ — **done**. It is now a
    6-phase build plan that points into the Phase 0 docs instead of restating them.
-4. Re-confirm the open items above — **A1–A4 and the stack table** in the build plan. This is
-   the only thing standing between here and Phase 1.
-5. Then start building.
+4. ~~Re-confirm the open items — A1–A4 and the stack table.~~ **Settled 2026-08-12**: stack =
+   the old stack (see the build plan); theme = standard Bootstrap 4, **no dark mode**;
+   A1–A3 proceeding as written. **A4 is the one still open** — see below.
+5. **Phase 1 — in progress.**
+   - [x] Repo scaffold: `backend/` (`frontend/` not started).
+   - [x] Schema — `backend/src/db/migrations/001_initial_schema.sql`. 30 tables, 1 view,
+         42 FKs. **Verified applied against MariaDB 10.4.**
+   - [x] Migration runner (`npm run db:migrate`, `--fresh`) and seed
+         (`npm run db:seed`, `--no-fixtures`, `--force`). Both run green.
+   - [x] Organisation seed from `setCode.json`, all four shapes, corrections logged.
+   - [x] Reference seed: 7 phases, 11 transitions, 8 tag sets / 56 tags.
+   - [x] Fixtures: one person per role, one project per phase.
+   - [ ] **NEXT: the `AuthProvider` seam** (Q3/Q17). `AUTH_PROVIDER=mock|icit`; mock returns
+         ICIT's real response shape; **the role is resolved by a `membership` lookup, never
+         from the provider** — see `business-rules.md` → "Why the token could not carry a
+         role". Then `GET /me` returning that resolved role, which is Phase 1's last
+         definition-of-done item.
+
+### Resume notes (2026-08-12)
+
+- **Local dev database**: MariaDB via XAMPP (`C:\xampp\mysql\bin`). It is **not running** —
+  start it from the XAMPP control panel. Database `dms`. Rebuild any time with
+  `cd backend && npm run db:reset`.
+- **`backend/.env`** exists locally with a generated `JWT_SECRET`. Gitignored — a fresh
+  clone copies `.env.example` and generates its own.
+- **Verified, not assumed**: the membership CHECK, both project-sequence unique keys, the
+  disbursement sign check, event FKs, and that `budget_line.amount` cannot be forced. The
+  pool sets `STRICT_ALL_TABLES` on connect because XAMPP does not.
+- **Still to decide**: **A4** — whether `person` and `membership` stay split. Everything
+  built so far assumes they do; collapsing them later is cheap, splitting later is not.
 
 ### Phase 0 findings that change the picture
 
