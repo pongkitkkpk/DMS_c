@@ -50,26 +50,38 @@ assembler's field map — but the riskiest workstream is gone.
 
 ---
 
-## Stack
+## Stack — decided 2026-08-12
 
-Inherited from the original strategy doc and **not re-decided** during Phase 0. Flagged here
-so it gets a deliberate yes or no before Phase 1 writes a `package.json`:
+**Keep the old stack.** The original strategy doc's TypeScript / Vite / Zustand proposal is
+dropped. Rebuilding on the stack the old system already uses keeps the port 1:1 — the old
+frontend is the behavioural spec (Q9), and matching its libraries means screens can be read
+across directly rather than re-derived.
 
-| Layer | Choice | Status |
+| Layer | Choice | From |
 | --- | --- | --- |
-| Language | TypeScript | inherited |
-| Frontend | React 18 + Vite | inherited (old system was CRA + React Router v5) |
-| State | Zustand | inherited |
-| Backend | Node + Express | inherited — matches the old system, so route porting is 1:1 |
-| Database | MariaDB / MySQL | **keep** — `schema-target.md` uses `GENERATED … STORED` columns |
-| Docs | `docxtemplater` + `pizzip` + **`angular-expressions`** | required, not optional — the templates embed JS expressions (`DECISIONS.md:152`) |
-| Repo | monorepo in `DMS_c` | Q10 |
+| Language | **JavaScript** (no TypeScript) | old `frontend/package.json` |
+| Frontend | React 18 + **CRA** (`react-scripts` 5) | same |
+| UI | **Bootstrap 4.6** + `reactstrap` 8 + `react-bootstrap` 2 + `sass` | same |
+| Routing | **React Router v5** | same |
+| State | React context (`AuthContext`) — no Zustand | same |
+| Alerts / HTTP | `sweetalert2`, `axios` | same |
+| Backend | Node + **Express 4** | old `backend/package.json` |
+| DB driver | `mysql2` | ⚠️ see note |
+| Auth | `jsonwebtoken` | same |
+| Docs | `docxtemplater` + `pizzip` + **`angular-expressions`** | same — required, the templates embed JS expressions |
+| Uploads / mail / API docs | `multer`, `nodemailer`, `swagger-jsdoc` + `swagger-ui-express` | same |
+| Database | MariaDB / MySQL | `schema-target.md` uses `GENERATED … STORED` |
+| Layout | `backend/` + `frontend/` in `DMS_c` | mirrors the old repo (Q10) |
 
-**Visual theme is deliberately unresolved.** The original doc specified role-based colours
-(Admin blue, Student green, Adviser amber, STUACT purple). That is a design decision the
-project owner wants to make — **do not carry those values forward and do not pick a palette
-without asking first.** Phase 5 builds structure and leaves theming as a token layer to be
-filled in.
+> **One substitution, stated rather than silent (Q22).** The old backend uses `mysql@2.18`,
+> which is unmaintained and cannot negotiate MySQL 8's default authentication. `mysql2` is the
+> drop-in successor with the same callback API plus promises. Nothing else changes.
+
+**Visual theme: standard for now, no dark mode** (decided 2026-08-12). Build against the
+stock Bootstrap 4 look. The original doc's role-based palette (Admin blue, Student green,
+Adviser amber, STUACT purple) is **not** carried forward — the visual direction is the project
+owner's call, and **no palette gets chosen without asking first.** Keep colour values in one
+place so a theme can be dropped in later without touching components.
 
 ---
 
@@ -80,7 +92,8 @@ domain-specific yet.
 
 **Build:**
 
-1. Monorepo scaffold (Q10). `apps/api`, `apps/web`, `packages/shared` for types.
+1. Repo scaffold (Q10): `backend/` and `frontend/`, mirroring the old layout so the port is
+   file-for-file.
 2. The 29 tables from `docs/schema-target.md`, as ordered migrations. FKs and `CHECK`
    constraints are part of the schema, not a later pass.
 3. Seed the reference data:
@@ -232,8 +245,9 @@ changes a previously settled answer.
 | **A3** | Q41 — disbursement ledger built on today's `logstudentgetmoney` shape | low |
 | **A4** | Q39 **revised** — `person` and `membership` split, so one person may hold several roles | **medium** — cheap to collapse later, expensive to split later |
 
-Plus the stack table above, and the confirmation that the visual theme is a separate
-conversation.
+The stack and the theme are **settled** (see "Stack" above). A1–A3 are proceeding as written —
+with no data to migrate the cost of being wrong is a schema edit, not a re-migration. **A4 is
+the one still worth a deliberate look**, because reversing it later is the expensive direction.
 
 ---
 
