@@ -86,6 +86,26 @@ five load-bearing premises are each contradicted by the code:
 7. **Project number generated client-side** — `CSD_detail.js` SELECTs the latest project,
    computes `yearly_count + 1`, and posts it. Concurrent submissions collide.
 
+> **Correction (2026-08-12, Phase 0).** Items 5–7 above were recorded from a first pass and
+> have now been verified line by line. **All three were understated**, and item 7 named the
+> wrong file:
+>
+> - **5** — the path parameter is real (`stuactRoutes.js:7-8`), but the deeper fact is that
+>   `req.user` is never used for an authorization decision *anywhere* in the backend, so every
+>   route is scoped by client input. The token also cannot carry a role: `server.js:110` reads
+>   `position` off the ICIT response, where it does not exist, so every real account is signed
+>   as `role: "user"`.
+> - **6** — not one endpoint but **14** `UPDATE … SET ?` sites. On `projects` (117 columns)
+>   this exposes `project_number`, `project_phase` and `allow_budget` to any caller.
+> - **7** — the generator is `ProjectDocument.js:89-123`, not `CSD_detail.js`. There are two
+>   sequences: `CSD_detail.js:369-398` issues the draft `yearly_countsketch` at creation, and
+>   `ProjectDocument.js` issues the official `yearly_count` / `project_number` at approval.
+>   The collision is worse than a race — the maximum is scoped by `project_name`, so two
+>   differently-named projects in one club deterministically receive the same number.
+>
+> Full tracing: `business-rules.md`. This also closes the `yearly_countsketch` vs
+> `yearly_count` question left open in `schema-current.md`.
+
 ### Roles
 
 - `users.account_type` = `students` | `personel` — the **ICIT identity type** (mirrors ICIT scopes `student,personel`). Not the app role.
@@ -297,7 +317,9 @@ frontend is ~20 screens. Plan in **weeks**.
          the `p_budget` column-naming question (see below).
    - [x] `template-contract.md` — **done**. Named the budget categories, closed three of
          `schema-current.md`'s open questions, and found the BT arity gap below.
-   - [ ] `business-rules.md`
+   - [x] `business-rules.md` — **done**. Verified defects 5–7 above (all three were
+         understated; see the correction), closed the `yearly_countsketch` / `yearly_count`
+         question, and found the unauthenticated `server.js` route group below.
    - [ ] `domain-model.md`
    - [ ] `schema-target.md`
 3. Re-confirm the open items above.
@@ -335,3 +357,26 @@ From `template-contract.md`:
   unvalidated strings and can emit `"Infinity%"` or `"NaN%"`.
 - **Do not treat current rendered Gantt charts as a correctness baseline** — the form mixes
   `&&` and `||` across cells that should test identically.
+
+From `business-rules.md`:
+
+- **A whole group of routes has no authentication at all.** `server.js:158-376` defines seven
+  handlers inline, outside every router, and none carries `verifyToken` — including
+  `PUT /updateState`, `POST /insertlogState`, `POST /studentgetmoney` and
+  `POST /updateprojectusebudget`. **The phase machine and the money ledger are writable with
+  no token.** This changes the security picture from "authorization is broken" to
+  "authentication is absent on the endpoints that matter".
+- **Six handlers never call `res.send()`**, so the browser hangs and the UI announces success
+  regardless (`ProjectDocument.js:248` fires its success alert before any response arrives).
+  No phase change or budget write in the current system can be trusted to have happened.
+- **The role gate is JSX over `sessionStorage`.** `ProjectDocument.js:286-364` is the only
+  written statement of who may advance which phase — worth porting as the specification, and
+  worthless as an enforcement mechanism. Note it also distinguishes club-scoped `Stuact` from
+  global `Admin`, a distinction the backend does not have.
+- **`netprojectbudget.allow_budget` is written by two endpoints with two different meanings**
+  (`adminRoutes.js:1663` overwrites it with one project's approved amount, keyed on
+  `project_name`; `server.js:342` overwrites it with the sum of disbursements). `use_budget`
+  is never written at all. There is no budget-ceiling check anywhere — Q37's rule is new work,
+  not a restoration.
+- **Email notification does not exist.** `server.js:64-83` hardcodes the recipient and sends
+  through `smtp.ethereal.email`, a disposable capture service. Treat as a requirement.

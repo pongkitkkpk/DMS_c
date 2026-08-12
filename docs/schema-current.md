@@ -283,8 +283,11 @@ One row in the dump. Kept under Q15.
 
 ## Cross-cutting defects
 
-Confirmed against the DDL and the data. Items 1–7 restate `DECISIONS.md:72-87` with
-citations; items 8–11 are **new findings from this extraction**.
+Confirmed against the DDL and the data. Items 1–7 restate `DECISIONS.md:72-87`; items 8–11
+are **new findings from this extraction**. Items 5–7 were the last three carried over
+unverified — they have now been checked against the source and **all three were wrong in
+detail**, each understating the problem. The corrections are inline below and the full
+tracing is in `business-rules.md`.
 
 1. **Money is text.** `projects.net_budget/allow_budget/use_budget`,
    `netprojectbudget.net_budget/allow_budget`, `logstudentgetmoney.remainingBudget`,
@@ -322,13 +325,28 @@ citations; items 8–11 are **new findings from this extraction**.
 4. **`netprojectbudget` joins on `project_name` (text).** Renaming a project silently detaches
    its budget line.
 
-5. **Client-supplied scope** — `stuactRoutes.js` reads `AgnecyGroupName` from the URL path.
-   *(To be re-verified with line citations in `business-rules.md`.)*
+5. **Client-supplied scope — verified, and far wider than recorded.** `stuactRoutes.js:7-8`
+   does read `AgnecyGroupName` straight from the URL path. But the real finding is that
+   `req.user` is **never read for an authorization decision anywhere in the backend** — the
+   only two references are `verifyToken` assigning it (`middleware/verifyToken.js:21`) and an
+   admin health-check echoing it (`adminRoutes.js:18`). Every scope in every query comes from
+   a client-supplied path parameter. See `business-rules.md` → "Authorization" for the route
+   inventory and the reason the JWT could not carry a role even if a route wanted one.
 
-6. **Mass assignment** — `UPDATE p_person SET ? WHERE id_projects = ?`.
-   *(Same — citations pending.)*
+6. **Mass assignment — verified, 14 sites, not one.** `UPDATE … SET ?` with `req.body` passed
+   whole is the house style for every edit endpoint: `studentRoutes.js:433`, `:451`, `:551`,
+   `:567`, `:688`, `:704`, `:729`, `:1474`, `:1507`, `:2531`, `:2570`, `:2639`, `:2692`,
+   `:2701`. The `p_person` case recorded in `DECISIONS.md:84` is `studentRoutes.js:451`.
+   Because `projects` is one 117-column row, `studentRoutes.js:433` alone lets a client write
+   `project_number`, `project_phase`, `allow_budget` and `codeclub` on any project id.
 
-7. **Project number generated client-side** in `CSD_detail.js`. *(Same.)*
+7. **Project number generated client-side — verified, but in a different file, and the
+   mechanism is worse than "concurrent submissions collide".** The generator is
+   `ProjectDocument.js:89-123`, not `CSD_detail.js`. `CSD_detail.js:369-398` generates the
+   *draft* sequence `yearly_countsketch`; the official `yearly_count` and `project_number` are
+   issued later, at the approval transition. Both are read-then-write races over an
+   unconstrained column. Full mechanism and the resulting duplicate-number defect:
+   `business-rules.md` → "Numbering". This also **closes open question 1** below.
 
 8. **NEW — no foreign keys at all, and almost no indexes.** Only 5 secondary indexes exist,
    all `KEY (id_projects)`. `projects.project_number`, `projects.codeclub`, `users.id_student`
@@ -425,14 +443,22 @@ Carried forward for the next Phase 0 document to resolve.
 - ~~`is_1basic..is_4basic` (4) vs the 5 recorded in `DECISIONS.md:119`.~~ **Closed** — both
   the template and the database have **four**. The decision record is off by one.
 
+**Resolved by `business-rules.md`:**
+
+- ~~`yearly_countsketch` vs `yearly_count`.~~ **Closed** — they are two different sequences
+  issued at two different moments. `yearly_countsketch` is the **draft** sequence, assigned to
+  every project the instant it is created (`CSD_detail.js:369-398`); `yearly_count` is the
+  **official** sequence, assigned only when the project reaches `โครงการอนุมัติ`
+  (`ProjectDocument.js:89-123`), and `project_number = codeclub + yearly_count`. The dump
+  agrees: all 30 projects carry a `yearly_countsketch`, and exactly the 6 that were approved
+  carry a `yearly_count` and a non-empty `project_number`. Child tables join on the draft
+  sequence because it is the only one that exists while the กนศ.04 is being filled in.
+
 **Still open:**
 
-1. **`yearly_countsketch` vs `yearly_count`.** Child tables join on `yearly_countsketch`
-   while `projects` carries both. The distinction (draft sequence vs final sequence?) is not
-   yet established and it matters for the migration's join strategy.
-2. **Orphaned log rows** (defect 9) — drop or preserve detached? A migration decision.
-3. **`listETC` / `listSETC`, `volume2..5`, `quality1..5`** — stored by the UI, printed by
+1. **Orphaned log rows** (defect 9) — drop or preserve detached? A migration decision.
+2. **`listETC` / `listSETC`, `volume2..5`, `quality1..5`** — stored by the UI, printed by
    neither template. Dead data, or an unfinished form? See `template-contract.md`.
-4. **`p_budget` capacity exceeds the form's.** `BT` holds 20 rows in the database but the
+3. **`p_budget` capacity exceeds the form's.** `BT` holds 20 rows in the database but the
    template prints only **12**. Today's behaviour is silent truncation. See
    `template-contract.md` → "Arity".
