@@ -16,17 +16,22 @@ they demand.
 Everything below was extracted mechanically from the `.docx` files (unzip → concatenate
 `<w:t>` runs in document order → match `{…}`), not read off the rendered page.
 
-**Sources**
+### Sources
 
-| What | Path |
-| --- | --- |
-| กนศ.04 template | `…\Student-activity-system-DMS\backend\src\templateDoc\temp04.docx` |
-| กนศ.06 template | `…\backend\src\templateDoc\temp06.docx` |
-| Render call sites | `…\backend\src\studentRoutes.js` |
+**The templates now live in this repo** — `templates/temp04.docx` and
+`templates/temp06.docx`, copied byte-for-byte from the old system on 2026-08-12 and verified
+by MD5 and by re-extraction. See `templates/README.md` for checksums and provenance. Build
+against the in-repo copies; the paths below are the origin, kept for traceability.
 
-Two superseded files sit alongside them — `temp04(oldversion).docx`,
-`temp06(oldversion).docx`. **Ignore them**; the live code loads only `temp04.docx`
-(`studentRoutes.js:1169`) and `temp06.docx` (`:1332`).
+| What | In-repo | Origin |
+| --- | --- | --- |
+| กนศ.04 template | `templates/temp04.docx` | `…\Student-activity-system-DMS\backend\src\templateDoc\temp04.docx` |
+| กนศ.06 template | `templates/temp06.docx` | `…\backend\src\templateDoc\temp06.docx` |
+| Render call sites | — | `…\backend\src\studentRoutes.js` |
+
+Two superseded files sit beside the originals — `temp04(oldversion).docx`,
+`temp06(oldversion).docx`. **They were deliberately not copied**; the live code loads only
+`temp04.docx` (`studentRoutes.js:1169`) and `temp06.docx` (`:1332`).
 
 ---
 
@@ -212,7 +217,7 @@ temp04 expands a 15-row × 12-month grid **inline**, as 630 unique expression ta
 | `startM_n <= m && endM_n <= m` | 4 | — |
 | `startM_n <= m \|\| endM_n <= m` | 12 | — |
 | `startM_n == m` | 4 | — |
-| `startM_n < endM_n`, `> `, `== ` | 15 each | bar direction guards |
+| `startM_n < endM_n`, and the `>` and `==` variants | 15 each | bar direction guards |
 | `topic_table_n !== null` | 15 | row-present guard |
 | `thaistart_duration_table_n !== null` | 15 | |
 | `responsibleTable_n_str !== null` | 15 | |
@@ -248,7 +253,8 @@ New findings, to be carried into `business-rules.md` and the deviations list.
    non-numeric it is `NaN` → **`"NaN%"`**. There is no guard. The assembler must handle
    zero/absent planned counts explicitly.
 
-3. **`{ grandTypeETC }` is written with inner spaces** in temp06. docxtemplater tolerates it,
+3. **The `grandTypeETC` tag is written with inner spaces** — literally `{`, space,
+   `grandTypeETC`, space, `}` — in temp06. docxtemplater tolerates it,
    but any hand-rolled tag matching will not — noted so the assembler's field list is built
    from trimmed names.
 
