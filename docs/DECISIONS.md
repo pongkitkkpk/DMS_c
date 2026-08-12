@@ -69,6 +69,10 @@ five load-bearing premises are each contradicted by the code:
 | `netprojectbudget` | 8 | annual budget **plan lines** |
 | `historyeditproject`, `logstatus_project`, `status_project`, `login`, `p_addfile`, `p_finalbudget` | 4–8 | audit / support |
 
+> **Correction (2026-08-12, Phase 0).** `netprojectbudget` is **one plan line per project**,
+> not an annual allocation — see `domain-model.md` → "Money". The per-agency yearly ceiling
+> Q20/Q25 requires does not exist in the current schema in any form.
+
 **Critical defects found in the existing schema:**
 
 1. **Money is stored as `text` / `varchar(255)`** — `net_budget`, `allow_budget`,
@@ -152,13 +156,15 @@ Maps onto the two-document lifecycle: states 1–3 = กนศ.04 proposal, 4 = 
 **Requires `expressionParser` (angular-expressions)** — the templates embed JS expressions.
 The strategy doc's `package.json` omits it.
 
-Render call to port: `studentRoutes.js:~1174` —
+Render call to port: `studentRoutes.js:1179` —
 `doc.render({detail, person, timestep, indicator, budget, user, userSH})`.
 temp04 used at `studentRoutes.js:1169`, temp06 at `:1332`.
 
 ### Project number format — confirmed against live data
 
-Assembled in `TableAddPersonel.js:160-166` and `CSD_detail.js`:
+Assembled in `TableAddPersonel.js:162-168` (the club code, stored as `users.codebooksome`,
+copied onto `projects.codeclub` at `CSD_detail.js:341`) and completed at
+`ProjectDocument.js:105`:
 
 ```
 campus.substring(0,1)              // "Bangkok" → "B"      1 char
@@ -174,10 +180,13 @@ campus.substring(0,1)              // "Bangkok" → "B"      1 char
 Verified: `B670410100` = `B` + `67` + `04` + `101` + `00`.
 A `codebooksomeoutyear` variant substitutes `"yy"` for the year.
 
-### Org taxonomy — `setcode.json`
+### Org taxonomy — `setCode.json`
 
 Division `D01`–`D12` → Agency `A001`…`A421` → WorkGroup `G01`–`G10`.
-`D01`–`D05` are org units; **`D06`–`D12` are student award categories**, not agencies.
+`D01`–`D05` are org units; **`D06`–`D12` are student award categories**, not agencies
+(verified — see the Q35 entry under "Open items").
+The `Agency` level has **four different shapes** across the divisions; see
+`domain-model.md` → "The organisation".
 Campus appears three inconsistent ways: nested inside `D04` (Bangkok/Prachin/Rayong), as a
 separate column, and encoded as workgroups (`D01/A001/G07`, `G08`).
 Known data typos: `วิศวกรรมเตมี`→`เคมี`, `เทคโนโลยรสารสนเทศ`, `ปราจียนบุรี`→`ปราจีนบุรี`,
@@ -293,7 +302,18 @@ Required by Q22 — each is an intentional departure, not a porting bug:
 ## Open items
 
 - **Q37, Q38, Q41** — recommended and not objected to, but never explicitly confirmed. Re-confirm before implementing.
-- **Q35** — assumed `D06`–`D12` are project classifications. Never verified against a workflow; only the codes were visible.
+- ~~**Q35** — assumed `D06`–`D12` are project classifications.~~ **Closed by `domain-model.md`.**
+  Their `name` fields in `setCode.json` name *students*, not units or projects
+  (`ผู้นำองค์กรนักศึกษา…`, `นักศึกษาที่มีความประพฤติดีเด่น`, …). They are **student award
+  categories**. The split is correct; they belong in an `award_category` table. No project
+  references them and no code path reads them, so they are seed data for a feature that does
+  not exist yet — build nothing until someone confirms it is wanted.
+- **Q39 must be revisited before the migration is written.** It calls the three `karoms` rows
+  dirty data and prescribes a unique constraint on `users.id_student`. Rows 23 and 24 are
+  genuinely identical, but **row 26 is the same person in a second, different role** (`AD` in
+  `สภานักศึกษา มจพ.กรุงเทพฯ`, versus `Stuact` in `กองกิจการนักศึกษา`). The constraint as written
+  would delete a real fact. `users` is a `(person, role, club, year)` enrolment, not a person
+  table. See `domain-model.md` → "Person vs. account".
 - **Agency allocation has no historical data.** Allocations start empty; staff enter the first year by hand.
 - **The code-format PDF was never read** (`เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf`) — no PDF renderer on this machine. The format was derived from code and verified against live data instead, so this is low-risk, but the PDF may document rules the code doesn't implement.
 
@@ -320,7 +340,8 @@ frontend is ~20 screens. Plan in **weeks**.
    - [x] `business-rules.md` — **done**. Verified defects 5–7 above (all three were
          understated; see the correction), closed the `yearly_countsketch` / `yearly_count`
          question, and found the unauthenticated `server.js` route group below.
-   - [ ] `domain-model.md`
+   - [x] `domain-model.md` — **done**. Verified Q35, corrected the `netprojectbudget` grain,
+         and found that Q39 would destroy a real role (see below).
    - [ ] `schema-target.md`
 3. Re-confirm the open items above.
 4. Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.
@@ -380,3 +401,29 @@ From `business-rules.md`:
   not a restoration.
 - **Email notification does not exist.** `server.js:64-83` hardcodes the recipient and sends
   through `smtp.ethereal.email`, a disposable capture service. Treat as a requirement.
+
+From `domain-model.md`:
+
+- **`setCode.json`'s `Agency` has four different shapes**, not one. `D01`–`D03` are a list of
+  named groups split by code range (`A0xx` = org unit, `A1xx` = the student body of that same
+  unit); `D04` is a list of five club groups each nested by campus; `D05` and `D06`–`D12` are
+  plain dicts. Q34's seed importer has to handle all four, and the `A0xx`/`A1xx` pairing is a
+  **relationship**, not two unrelated rows — otherwise every faculty appears twice in every
+  dropdown.
+- **`AgnecyGroupName` is the `D04` group name** — five values, of which the dump uses three.
+  This is the layer `Stuact` is scoped to.
+- **`users.agencyGroupName` and `users.ClubGroup` are opposites, not duplicates.** The first
+  is the group the person's own club belongs to (set for `SH`/`AD`); the second is the group a
+  `Stuact` officer has jurisdiction over. They are mutually exclusive in the dump. Merging
+  them — the obvious cleanup — would make every officer a member of the group they oversee.
+- **The club-code width invariant is already broken in live data.** `TableAddPersonel.js:167`
+  interpolates a 4-digit `yearly` (initialised to `2667` at `:37`), so two rows carry a
+  **12-character** `codebooksome` (`B26670100101`) instead of 10. A project under that club
+  would produce a 14-char `project_number` and be silently truncated by `varchar(12)`.
+  Reinforces Q18/Q29 and adds: the year must be a derived 2-digit rendering of a typed
+  4-digit year, and `codeclub` must be composed from FKs, not copied as a string.
+- **`netprojectbudget` is one plan line per *project*, not an annual agency allocation.** Four
+  dump rows share one agency and year with four different `net_budget` values. Q27 already
+  assumes this; the "annual" wording elsewhere in this file is loose. **Consequence: the
+  per-agency yearly ceiling in Q20/Q25 layer (c) has no table today at all** — it is new
+  construction, not a re-typing of this one.
