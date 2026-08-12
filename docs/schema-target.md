@@ -43,10 +43,11 @@ Recorded so they can be challenged cheaply later. Each is marked **[A*n*]** at i
   parallel structure. *Same status.*
 - **[A4]** Q39 is **revised**, not applied as written. `person` and `membership` are separate
   tables and the unique constraint lands on `(person_id, academic_year, club_id, role)`, not on
-  `id_student` alone — because the dump's third `karoms` row is a real second role, not a
-  duplicate (`domain-model.md` → "Person vs. account"). *This departs from a decision that was
-  explicitly recorded; it needs sign-off, and it is the one item here that changes a settled
-  answer rather than filling a gap.*
+  `id_student` alone. *Status: the data half is settled — the `karoms` rows were confirmed as
+  mock data on 2026-08-12 and are dropped rather than migrated. The modelling half is
+  deliberately kept: one person may hold several memberships. Collapsing `membership` into
+  `person` later is cheap; splitting it later is not.* See `domain-model.md` →
+  "Person vs. account".
 
 ---
 
@@ -658,15 +659,27 @@ Ordered by how much they can cost if missed. Detail in Phase 1.
 3. **Name-based joins become FKs.** `netprojectbudget.project_name`,
    `projects.advisor_name` → `users.name_student`, `responsible_agency` → `clubName`. Each will
    have unmatched rows. Every one needs a reconciliation report, not a silent NULL.
-4. **The `karoms` rows** — collapse 23/24, keep 26 as a second membership **[A4]**.
-5. **The 12-character `codebooksome`.** Two rows carry `B26670100101` from a 4-digit year. The
-   migration must parse the year as 2 *or* 4 digits and normalise to 4
-   (`domain-model.md` → "The width invariant is already broken").
-6. **`yearly` = 2667** on those same rows — out of range for `SMALLINT` sanity checks and
-   almost certainly 2567. Report, do not guess.
-7. **`historyeditproject.edit_at` is `'0000-00-00'` in every row.** Use `edit_time`.
-8. **Phase strings → codes.** Exact-match the seven Thai strings (Q14); anything unmatched is
+4. **Unknown actors in the logs.** `project_event.actor_person_id` is a `NOT NULL` FK, and the
+   current logs name **six actors that do not exist in `users`**: `rathaniny` (8 rows),
+   `s6516021620016` (3), `phollakritw` (3), `s6503051624076` (1), `s6603051613057` (1) in
+   `logstatus_project.editor_name`, plus `'admin'` in `status_project` (8) and
+   `historyeditproject` (2), and one `NULL`. This is the same shape as hazard 2 and has the
+   same three options: drop the rows, create placeholder `person` records, or relax the FK.
+   It was not visible until the `karoms` deletion prompted a reference sweep.
+5. **Dropping the `karoms` rows** (decided 2026-08-12 — mock data) removes the dump's only
+   `personel` records, so the migrated dataset has **no `Stuact` and no `AD` user**, and
+   12 of 30 projects lose their adviser link. Seed replacement staff; do not ship an empty
+   staff table as a fixture.
+6. **`historyeditproject.edit_at` is `'0000-00-00'` in every row.** Use `edit_time`.
+7. **Phase strings → codes.** Exact-match the seven Thai strings (Q14); anything unmatched is
    an error, not a default.
+
+**Retired by the `karoms` deletion.** Both of these applied only to those rows, so dropping
+them removes the hazard from *this dataset* — the input validation is still worth writing,
+because the bug that produced them is in `TableAddPersonel.js:37` and is still live:
+
+- ~~The 12-character `codebooksome` (`B26670100101`) from a 4-digit year interpolation.~~
+- ~~`yearly` = 2667, almost certainly a typo for 2567.~~
 
 ---
 

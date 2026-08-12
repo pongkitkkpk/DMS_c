@@ -317,12 +317,20 @@ Required by Q22 — each is an intentional departure, not a porting bug:
   so `logstatus_project`'s 16 references to non-existent projects cannot be migrated as-is.
   Decide: drop them, or create tombstone `project` rows. This was Phase 0's last open question
   and it is now on the migration's critical path.
-- **Q39 must be revisited before the migration is written.** It calls the three `karoms` rows
-  dirty data and prescribes a unique constraint on `users.id_student`. Rows 23 and 24 are
-  genuinely identical, but **row 26 is the same person in a second, different role** (`AD` in
-  `สภานักศึกษา มจพ.กรุงเทพฯ`, versus `Stuact` in `กองกิจการนักศึกษา`). The constraint as written
-  would delete a real fact. `users` is a `(person, role, club, year)` enrolment, not a person
-  table. See `domain-model.md` → "Person vs. account".
+- ~~**Q39 must be revisited before the migration is written.**~~ **Data half settled
+  (2026-08-12): the three `karoms` rows are mock data and are dropped, not migrated.** The
+  modelling half is kept as designed — `person` and `membership` stay separate, so one person
+  may hold several memberships. Deleting the evidence does not answer whether that happens in
+  reality, and collapsing the two tables later is cheap while splitting them later is not.
+  **Consequence to plan for:** those were the dump's only `personel` rows, so the migrated
+  dataset has **no `Stuact` and no `AD` user**, and 12 of 30 projects lose their adviser link.
+  Seed replacement staff. See `domain-model.md` → "What dropping `karoms` costs".
+- **Unknown actors in the logs — a second blocker of the same shape as the orphaned rows.**
+  Sweeping the references before deleting `karoms` turned up **six editors named in the logs
+  who do not exist in `users`** (`rathaniny` ×8, `s6516021620016` ×3, `phollakritw` ×3,
+  `s6503051624076`, `s6603051613057`, plus `'admin'` ×10 and one NULL).
+  `project_event.actor_person_id` is a `NOT NULL` FK, so this needs the same decision as the
+  orphaned log rows: drop, placeholder, or relax the FK.
 - **Agency allocation has no historical data.** Allocations start empty; staff enter the first year by hand.
 - **The code-format PDF was never read** (`เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf`) — no PDF renderer on this machine. The format was derived from code and verified against live data instead, so this is low-risk, but the PDF may document rules the code doesn't implement.
 

@@ -130,13 +130,36 @@ proves it: `karoms` appears three times.
 | 24 | `Stuact` | กองกิจการนักศึกษา | ชมรมฝ่ายศิลปวัฒนธรรม | NULL | 2667 |
 | 26 | `AD` | สภานักศึกษา มจพ.กรุงเทพฯ | NULL | องค์กรนักศึกษาส่วนกลาง | 2567 |
 
-**Correction to Q39.** Q39 calls all three "dirty data" and prescribes de-duplication plus a
-unique constraint on `id_student`. Rows 23 and 24 are genuinely identical and should collapse.
-**Row 26 is not a duplicate** — it is the same person holding a second, different role in a
-different club. A blanket unique constraint on `id_student` would delete a real fact. The
-model needs `person` (unique by `id_student`) separate from `membership`
-(`person × club × role × year`), with the uniqueness on `(id_student, yearly)` at most. Q39
-should be revisited before the migration is written.
+**Decision (2026-08-12): the `karoms` rows are mock data and are dropped, not migrated.**
+That settles the *data* question. It does not settle the *modelling* question, and the two
+should not be confused:
+
+- **As data** — all three rows go. They are the dump's only `personel` rows, so the migrated
+  dataset will contain **no `Stuact` and no `AD` user at all**; both roles have to come from
+  seed or from real staff records. See "What dropping `karoms` costs" below.
+- **As a model** — the question Q39 raises stands on its own. Rows 23/24 (identical) and row 26
+  (`AD` in a different club) are the only evidence in the dump either way, and deleting the
+  evidence does not answer whether a real person may hold two roles. The design keeps `person`
+  (unique by `id_student`) separate from `membership` (`person × club × role × year`) because
+  a university officer plausibly advises one club while administering another, and because the
+  split costs nothing if it turns out to be unused. If the rule really is "one role per person,
+  ever", `membership` collapses into `person` later — a cheap change in that direction, an
+  expensive one in reverse.
+
+### What dropping `karoms` costs
+
+The rows are referenced by name from three places, so the deletion is not free:
+
+| Referencing | Rows affected | Effect |
+| --- | ---: | --- |
+| `projects.advisor_name = 'คารมย์ สินนอก'` | **12 of 30** | `project.advisor_person_id` goes NULL |
+| `projects.AgencyAdvisor = 'กฟน'` | 7 | orphaned advisor detail |
+| `logstudentgetmoney.namestuact_receive` | **3 of 7** | the issuing officer is unknown |
+
+None of this blocks the migration — `advisor_person_id` is nullable and `disbursement`
+stores the issuer as a name, not an FK — but 40% of the projects lose their adviser link, so
+the result is not a realistic test fixture. Worth seeding replacement staff rather than
+migrating into an empty staff table.
 
 ### Roles
 
