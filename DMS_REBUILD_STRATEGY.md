@@ -1,967 +1,249 @@
-# DMS Student Activity - Complete Rebuild Strategy
+# DMS Rebuild — Build Plan
 
-**Project**: Rebuild DMS Frontend (Light theme + Role-based colors)  
-**Base**: Old codebase analysis (React 18, Express, Docxtemplater)  
-**Design**: Light theme with Admin (Blue), Student (Green), Adviser (Amber), STUACT (Purple)
-
----
-
-## 📋 Overview
-
-This document contains **5 phases** with complete, copy-paste-ready prompts for Claude/AI.
-
-Each phase includes:
-- **Objectives** - What gets built
-- **Assumptions** - Defaults if not specified
-- **The Prompt** - Use this verbatim with Claude
-- **Expected Output** - What you should receive
-- **Validation** - How to verify it works
+**Status**: Phase 0 complete. Phase 1 ready to start.
+**Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
+**Last updated**: 2026-08-12
 
 ---
 
-## 🎯 Assumptions (Can override)
+## How to use this file
 
-- **Database**: MySQL (keep existing)
-- **State Mgmt**: Zustand (simpler than Redux)
-- **Deployment**: Local dev first
-- **Node Version**: 18+
-- **Package Manager**: npm
-- **Frontend Build**: Vite (faster than CRA)
+This is the **executable spec** Q1 asked for: what to build, in what order, and how to know
+each step is finished. It is not a set of copy-paste prompts, and it does not restate the
+research — every phase points into the Phase 0 documents instead.
 
----
+**Read these first. They are the specification; this file is only the ordering.**
 
-# PHASE 1: Setup & Project Structure
+| Document | What it settles |
+| --- | --- |
+| `docs/DECISIONS.md` | every decision (Q1–Q41), the deliberate-deviations list, open items |
+| `docs/schema-current.md` | what the old database actually contains — 15 tables, 843 columns, 11 defects |
+| `docs/business-rules.md` | what the old system actually enforces, with `file:line` |
+| `docs/domain-model.md` | the vocabulary and the entities |
+| `docs/schema-target.md` | the schema being built — 29 tables, full coverage map |
+| `docs/template-contract.md` | the Word forms' 1,426 + 241 tags and their arity |
 
-**Duration**: 30 mins  
-**Complexity**: ⭐ (Easy)
+Two standing rules from the decision record govern every phase:
 
-## Objectives
-
-✅ Create folder structure  
-✅ Generate package.json (frontend + backend)  
-✅ Setup environment templates  
-✅ Create README with quick-start  
-
----
-
-## The Prompt (Copy entire block)
-
-```
-# PHASE 1: DMS Rebuild - Project Setup
-
-You are building a complete Student Activity Management System from scratch, inspired by an old codebase but rebuilt modern.
-
-## PROJECT INFO
-- Name: DMS 2024 (Student Activity Management)
-- Language: TypeScript + React 18
-- Build: Vite
-- State: Zustand
-- Backend: Express + Node
-- Design: Light theme, role-based colors (Admin: #1F40AF Blue, Student: #22C55E Green, Adviser: #F59E0B Amber, STUACT: #8B5CF6 Purple)
-
-## TASK: Create complete project structure + config files
-
-### 1. Frontend Folder Structure
-```
-dms-frontend/
-├── public/
-├── src/
-│   ├── components/
-│   │   ├── ui/                  (Button, Card, Badge, Input, Modal, etc)
-│   │   ├── layout/              (Header, Sidebar, Footer)
-│   │   └── features/            (ProjectList, ProjectDetail, Dashboard, etc)
-│   ├── pages/                   (Role-based: /admin, /student, /adviser, /stuact)
-│   ├── stores/                  (Zustand - auth, projects, budget, ui state)
-│   ├── hooks/                   (useAuth, useProject, useBudget, etc)
-│   ├── types/                   (TypeScript interfaces)
-│   ├── utils/                   (helpers, formatters, API client)
-│   ├── styles/                  (CSS variables, global styles)
-│   ├── App.tsx
-│   └── main.tsx
-├── .env.example
-├── .gitignore
-├── package.json                 (with Vite, React 18, TailwindCSS, Zustand)
-├── tsconfig.json
-├── vite.config.ts
-└── tailwind.config.js
-```
-
-### 2. Backend Folder Structure
-```
-dms-backend/
-├── src/
-│   ├── routes/
-│   │   ├── admin.ts            (admin-only endpoints)
-│   │   ├── student.ts          (student project endpoints + Word gen)
-│   │   ├── adviser.ts          (review & approval endpoints)
-│   │   ├── stuact.ts           (coordinator endpoints)
-│   │   └── auth.ts             (login, token, refresh)
-│   ├── middleware/
-│   │   ├── verifyToken.ts
-│   │   ├── errorHandler.ts
-│   │   └── cors.ts
-│   ├── controllers/
-│   │   ├── projectController.ts
-│   │   ├── budgetController.ts
-│   │   ├── wordGenController.ts
-│   │   └── authController.ts
-│   ├── services/
-│   │   ├── projectService.ts
-│   │   ├── wordGenService.ts    (Docxtemplater logic)
-│   │   └── authService.ts
-│   ├── templates/
-│   │   └── project-template.docx
-│   ├── config/
-│   │   ├── database.ts
-│   │   └── env.ts
-│   ├── types/
-│   │   └── index.ts
-│   ├── app.ts
-│   └── server.ts
-├── .env.example
-├── .gitignore
-├── package.json                (Express, TypeScript, Docxtemplater, MySQL2)
-├── tsconfig.json
-└── README.md
-```
-
-### 3. Create package.json files
-
-**Frontend package.json:**
-```json
-{
-  "name": "dms-frontend",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint src",
-    "type-check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.15.0",
-    "zustand": "^4.4.0",
-    "axios": "^1.6.7",
-    "date-fns": "^2.30.0"
-  },
-  "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.0.0",
-    "vite": "^4.5.0",
-    "typescript": "^5.2.0",
-    "tailwindcss": "^3.3.0",
-    "postcss": "^8.4.30",
-    "autoprefixer": "^10.4.15"
-  }
-}
-```
-
-**Backend package.json:**
-```json
-{
-  "name": "dms-backend",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "node --loader ts-node/esm src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "lint": "eslint src"
-  },
-  "dependencies": {
-    "express": "^4.18.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "mysql2": "^3.6.0",
-    "jsonwebtoken": "^9.1.0",
-    "bcryptjs": "^2.4.3",
-    "docxtemplater": "^3.42.0",
-    "pizzip": "^3.2.0",
-    "axios": "^1.6.7"
-  },
-  "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.8.0",
-    "typescript": "^5.2.0",
-    "ts-node": "^10.9.1"
-  }
-}
-```
-
-### 4. Environment Templates
-
-**.env.example (Frontend):**
-```
-VITE_API_URL=http://localhost:3000/api
-VITE_APP_NAME=DMS 2024
-VITE_THEME=light
-```
-
-**.env.example (Backend):**
-```
-PORT=3000
-NODE_ENV=development
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=dms_db
-JWT_SECRET=your_jwt_secret_key_here
-JWT_EXPIRY=7d
-```
-
-### 5. README Template
-
-Create both frontend/README.md and backend/README.md with:
-- Quick start (npm install → npm run dev)
-- Environment setup
-- API endpoints list
-- Project structure explanation
-- Troubleshooting
-
-## DELIVERABLES
-
-Generate:
-1. ✅ Complete folder structure commands (mkdir -p ...)
-2. ✅ All config files (tsconfig.json, vite.config.ts, tailwind.config.js)
-3. ✅ Complete package.json for frontend + backend
-4. ✅ .env.example files
-5. ✅ README.md with quick start guide
-6. ✅ .gitignore files
-7. ✅ Create a setup-guide.md with step-by-step local setup
-
-## OUTPUT FORMAT
-
-Provide:
-- Code blocks for each file (clearly labeled)
-- Setup commands to run in order
-- Validation checklist (how to verify setup worked)
-- Next phase pointer (Phase 2 preview)
-```
+- **Q2 — the old code is the behavioural spec.** When this plan and the old system disagree
+  about *behaviour*, the old system wins unless the difference is on the deviations list.
+- **Q22 — security and correctness defects are fixed and listed, never fixed silently.** The
+  list is in `DECISIONS.md` → "Deliberate deviations from old behavior". Anything added to it
+  during the build gets added there, not here.
 
 ---
 
-## Expected Output
+## What changed since the original strategy doc
 
-Claude will generate:
-- ✅ All folder structures
-- ✅ Complete config files
-- ✅ package.json (both frontend & backend)
-- ✅ Environment templates
-- ✅ README with quick-start
-- ✅ Setup commands to copy-paste
+| Original claim | Reality |
+| --- | --- |
+| 3 tables | **15 tables, 843 columns** → 29 in the target |
+| `POST /auth/login` with bcrypt | **ICIT SSO**; no password store anywhere |
+| Flat 4-state status | **7-state Thai phase machine** |
+| One generic `template.docx` | **two government forms**; temp04 has 1,426 tags |
+| 5 phases, ~6 hours | 6 phases, **weeks** |
+| "Migrate the existing data" | **there is no data** — the dump is entirely mock (2026-08-12) |
 
----
-
-## Validation Checklist
-
-After Phase 1, run these:
-
-```bash
-# 1. Frontend setup
-cd dms-frontend
-npm install
-npm run build        # Should succeed
-npm run dev          # Should start Vite server on 5173
-
-# 2. Backend setup
-cd ../dms-backend
-npm install
-npm run build        # Should compile TS → JS
-
-# 3. Environment check
-ls -la .env.example  # Both folders should have this
-```
-
-✅ **Phase 1 Complete when**: Both folders have dependencies installed and configs validated.
+The last line is the newest and the largest: Phase 1 creates and seeds a schema rather than
+migrating one. The extraction work is not wasted — it is the behavioural spec and the
+assembler's field map — but the riskiest workstream is gone.
 
 ---
 
-# PHASE 2: React Component Library
+## Stack
 
-**Duration**: 1.5 hours  
-**Complexity**: ⭐⭐ (Medium)
+Inherited from the original strategy doc and **not re-decided** during Phase 0. Flagged here
+so it gets a deliberate yes or no before Phase 1 writes a `package.json`:
 
-## Objectives
+| Layer | Choice | Status |
+| --- | --- | --- |
+| Language | TypeScript | inherited |
+| Frontend | React 18 + Vite | inherited (old system was CRA + React Router v5) |
+| State | Zustand | inherited |
+| Backend | Node + Express | inherited — matches the old system, so route porting is 1:1 |
+| Database | MariaDB / MySQL | **keep** — `schema-target.md` uses `GENERATED … STORED` columns |
+| Docs | `docxtemplater` + `pizzip` + **`angular-expressions`** | required, not optional — the templates embed JS expressions (`DECISIONS.md:152`) |
+| Repo | monorepo in `DMS_c` | Q10 |
 
-✅ Create reusable UI components  
-✅ Setup TailwindCSS with role colors  
-✅ Create layout components (Header, Sidebar, Footer)  
-✅ Setup routing structure  
-✅ Create Zustand stores  
-
----
-
-## The Prompt (Copy entire block)
-
-```
-# PHASE 2: DMS Rebuild - React Component Library
-
-You are building the frontend component library and state management for the DMS project.
-
-## CONTEXT
-- Design: Light theme with role colors (Admin: #1F40AF, Student: #22C55E, Adviser: #F59E0B, STUACT: #8B5CF6)
-- State: Zustand
-- Styling: TailwindCSS
-- Router: React Router v6
-
-## TASK 1: Create TailwindCSS Config with Role Colors
-
-Generate tailwind.config.js that:
-- Extends with role color palette (admin-blue, student-green, adviser-amber, stuact-purple)
-- Adds each color in 50-900 shades
-- Exports CSS variables for light theme
-- Includes custom utilities for role badges, buttons
-
-Example color usage:
-```
-bg-admin-600 text-white  (Admin button)
-bg-student-500 text-white (Student button)
-border-adviser-400 (Adviser accent)
-```
-
-## TASK 2: Create UI Component Library
-
-Generate React components in src/components/ui/:
-
-### Required components:
-
-**Button.tsx**
-- Variants: primary, secondary, danger, ghost
-- Sizes: sm, md, lg
-- Role-aware coloring (admin/student/adviser/stuact)
-- Props: onClick, disabled, loading, icon, fullWidth
-
-**Card.tsx**
-- Default surface styling (light background)
-- Variants: elevated (shadow), flat (border)
-- Props: title, subtitle, children, padding, borderColor
-
-**Badge.tsx**
-- For status display (Approved, Draft, In Review, Executing)
-- Colors tied to role colors
-- Icon support
-
-**Input.tsx** (text, email, number)
-- Label + helper text
-- Role-focused (blue border on focus)
-- Error state
-- Accessible labels
-
-**Select.tsx**
-- Dropdown component
-- Option groups
-- Searchable variant
-- Clear button
-
-**Modal.tsx**
-- Header, body, footer slots
-- Close button
-- Role-colored header accent
-- Backdrop blur
-
-**Tabs.tsx**
-- Tab navigation with underline
-- Active tab highlighted in role color
-- Content panels
-
-**ProgressBar.tsx**
-- Linear progress bar
-- Percentage display
-- Color: student green (matches old project)
-
-**Avatar.tsx**
-- Initials circle
-- Role-colored background
-- Size variants
-
-**Toast/Alert.tsx**
-- Success, warning, danger, info variants
-- Auto-dismiss option
-- Role-aware colors
-
-## TASK 3: Create Layout Components
-
-Generate in src/components/layout/:
-
-**Header.tsx**
-- Logo + app name "DMS 2024"
-- Search bar (placeholder: "Search projects...")
-- Profile dropdown (role indicator)
-- Mobile menu toggle
-
-**Sidebar.tsx**
-- Role-specific navigation (Admin vs Student vs Adviser vs STUACT)
-- Collapsible on mobile
-- Menu items with role colors
-- Active state highlighting
-
-**Footer.tsx**
-- Copyright
-- Links
-- Year
-
-**MainLayout.tsx**
-- Combines Header + Sidebar + Footer
-- Children wrapper
-- Responsive (sidebar hidden on mobile)
-
-## TASK 4: Setup Zustand Stores
-
-Generate in src/stores/:
-
-**authStore.ts**
-- State: user, isLogged, role, token
-- Actions: login, logout, setUser, refreshToken
-- Persist to localStorage
-
-**projectStore.ts**
-- State: projects[], currentProject, filters
-- Actions: fetchProjects, createProject, updateProject, deleteProject
-- Loading/error states
-
-**budgetStore.ts**
-- State: budgets[], totalBudget, spent
-- Actions: fetchBudgets, addBudget, updateBudget
-
-**uiStore.ts**
-- State: sidebarOpen, theme (light/dark), role
-- Actions: toggleSidebar, setTheme, setRole
-
-## TASK 5: Setup React Router
-
-Generate src/App.tsx with:
-- Route structure (guest, admin, student, adviser, stuact layouts)
-- Protected routes
-- Redirect logic
-- 404 fallback
-
-Structure:
-```
-/
-├── /guest/login
-├── /admin/* (admin-only)
-├── /student/* (student-only)
-├── /adviser/* (adviser-only)
-└── /stuact/* (stuact-only)
-```
-
-## DELIVERABLES
-
-1. ✅ Complete UI components (Button, Card, Badge, Input, Select, Modal, Tabs, etc)
-2. ✅ Layout components (Header, Sidebar, Footer, MainLayout)
-3. ✅ Zustand stores (auth, project, budget, ui)
-4. ✅ Router config (App.tsx)
-5. ✅ TailwindCSS config with role colors
-6. ✅ Type definitions (types/index.ts)
-7. ✅ Example usage for each component
-
-## OUTPUT FORMAT
-
-Provide each component as:
-- ✅ Complete TSX file
-- ✅ Props interface
-- ✅ Example usage
-- ✅ Dark mode consideration (if applicable)
-
-Note: Use TypeScript throughout. No JavaScript files.
-```
+**Visual theme is deliberately unresolved.** The original doc specified role-based colours
+(Admin blue, Student green, Adviser amber, STUACT purple). That is a design decision the
+project owner wants to make — **do not carry those values forward and do not pick a palette
+without asking first.** Phase 5 builds structure and leaves theming as a token layer to be
+filled in.
 
 ---
 
-## Expected Output
+## Phase 1 — Foundation
 
-Claude will generate:
-- ✅ All UI components (Button, Card, Badge, Input, Select, Modal, Tabs, etc.)
-- ✅ Layout components (Header, Sidebar, Footer)
-- ✅ Zustand stores (authStore, projectStore, budgetStore, uiStore)
-- ✅ React Router setup
-- ✅ TailwindCSS config with role colors
-- ✅ Type definitions
+**Goal:** a running skeleton with the real schema, real seed data, and an auth seam — nothing
+domain-specific yet.
 
----
+**Build:**
 
-## Validation Checklist
+1. Monorepo scaffold (Q10). `apps/api`, `apps/web`, `packages/shared` for types.
+2. The 29 tables from `docs/schema-target.md`, as ordered migrations. FKs and `CHECK`
+   constraints are part of the schema, not a later pass.
+3. Seed the reference data:
+   - `campus`, `division`, `agency`, `work_group`, `club_group`, `club`, `award_category`
+     from `frontend/src/views/setCode.json` (Q34). The importer must handle **all four shapes**
+     that file uses — see `domain-model.md` → "The organisation".
+   - Fix the known taxonomy typos during seed and **log every correction** (Q36).
+   - `phase` (7 rows, Q40) and `phase_transition`, seeded from the gate table in
+     `business-rules.md` → "Where the rules actually live".
+   - `tag_set` / `tag` for the 8 checkbox vocabularies.
+4. `AuthProvider` interface with `AUTH_PROVIDER=mock|icit` (Q3, Q17). Mock returns ICIT's real
+   response shape. **The role comes from a `membership` lookup, never from the provider** —
+   see `business-rules.md` → "Why the token could not carry a role".
+5. Fixture data: one user per role with a realistic club and year (Q17), plus enough projects
+   to put at least one in each of the seven phases.
 
-After Phase 2:
+**Done when:** the schema applies from empty, the seed runs idempotently, `GET /me` returns a
+role resolved from the database, and every FK in `schema-target.md` exists. No project
+endpoints yet.
 
-```bash
-cd dms-frontend
-npm install tailwindcss postcss autoprefixer
-npm run dev
-
-# In browser: http://localhost:5173
-# Should show: Basic layout with sidebar, header, footer
-# No errors in console
-```
-
----
-
-# PHASE 3: Backend Routes & API
-
-**Duration**: 1.5 hours  
-**Complexity**: ⭐⭐ (Medium-Hard)
-
-## Objectives
-
-✅ Refactor Express routes (admin, student, adviser, stuact)  
-✅ Create controllers for business logic  
-✅ Setup database connection  
-✅ Create API endpoints (CRUD projects, budgets, users)  
-✅ Implement JWT authentication  
+**Watch for:** Rayong has zero clubs in `setCode.json` (`domain-model.md` open question 4) —
+the seed should report that rather than silently produce an empty campus.
 
 ---
 
-## The Prompt
+## Phase 2 — Projects and the lifecycle
 
-```
-# PHASE 3: DMS Rebuild - Backend Routes & API
+**Goal:** create, read, edit and advance a project, with the rules enforced on the server.
 
-You are building the Express backend for DMS with role-based endpoints.
+**Build:**
 
-## REFERENCE
-Old codebase analysis:
-- adminRoutes.js (64KB)
-- studentRoutes.js (101KB) - Contains Word generation logic
-- stuactRoutes.js (819 bytes)
-- Pattern: Express router with MySQL queries, Docxtemplater in studentRoutes
+1. Project CRUD against the normalized tables. **Explicit field allow-lists on every write** —
+   this replaces the 14 `UPDATE … SET ?` sites listed in `business-rules.md` (deviation 2).
+2. **Scope from the token, never from a path parameter** (Q16, deviation 1). Every list and
+   fetch resolves the club or club-group from the caller's `membership`.
+3. Server-side numbering (Q18/Q29, deviation 3): `draft_sequence` at creation,
+   `project_sequence` + `project_number` at `PROJECT_APPROVED`, both issued inside the
+   transaction that needs them, both `UNIQUE (club_id, academic_year)`.
+4. The phase machine as a real transition table with guards, replacing "the next element of
+   the array". Every transition writes `project_event` in the **same transaction** as the
+   phase change (Q15, Q28).
+5. Every handler responds. Six of the old ones never called `res.send()`
+   (`business-rules.md` → "Transitions"); the UI announced success regardless.
 
-## TASK: Create complete backend with routes, controllers, services
-
-### 1. Database Connection (config/database.ts)
-
-Generate:
-- MySQL connection pool using mysql2
-- Singleton pattern
-- Connection error handling
-- Query helper functions
-
-### 2. Authentication Routes (routes/auth.ts)
-
-Endpoints:
-- POST /api/auth/login (email, password) → token + user role
-- POST /api/auth/refresh (refresh_token) → new token
-- POST /api/auth/logout
-- GET /api/auth/me (verify token) → user info
-
-### 3. Admin Routes (routes/admin.ts)
-
-Endpoints:
-- GET /api/admin/projects (all projects)
-- GET /api/admin/projects/:id
-- POST /api/admin/projects (create)
-- PUT /api/admin/projects/:id (update)
-- DELETE /api/admin/projects/:id
-- GET /api/admin/budget (all budgets)
-- POST /api/admin/budget (add)
-- GET /api/admin/users (list all users)
-- GET /api/admin/reports (export stats)
-
-### 4. Student Routes (routes/student.ts)
-
-Endpoints:
-- GET /api/student/projects (my projects)
-- POST /api/student/projects (create new)
-- PUT /api/student/projects/:id (edit)
-- GET /api/student/projects/:id (details)
-- POST /api/student/projects/:id/submit (submit for review)
-- POST /api/student/projects/:id/generate-doc (DOCXTEMPLATER CALL)
-- GET /api/student/projects/:id/document/:docId (download)
-- GET /api/student/budget/:projectId
-- POST /api/student/budget/:projectId (add budget line)
-
-### 5. Adviser Routes (routes/adviser.ts)
-
-Endpoints:
-- GET /api/adviser/review-queue (pending reviews)
-- GET /api/adviser/review-queue/:id (review details)
-- POST /api/adviser/review-queue/:id/approve (approve + feedback)
-- POST /api/adviser/review-queue/:id/reject (reject + feedback)
-- GET /api/adviser/projects (all assigned projects)
-
-### 6. STUACT Routes (routes/stuact.ts)
-
-Endpoints:
-- GET /api/stuact/dashboard (overview stats)
-- GET /api/stuact/projects (all projects filter by year/status)
-- GET /api/stuact/budget-summary (total budget usage)
-- GET /api/stuact/reports (generate reports)
-- POST /api/stuact/export (export to Excel)
-
-### 7. Controllers (src/controllers/)
-
-Create:
-- projectController.ts (createProject, getProjects, updateProject, deleteProject)
-- budgetController.ts (manageBudget)
-- wordGenController.ts (generateDocument - CALLS wordGenService)
-- authController.ts (login, logout, refresh)
-
-### 8. Services (src/services/)
-
-Create:
-- projectService.ts (DB queries, business logic)
-- budgetService.ts
-- wordGenService.ts (Docxtemplater integration - SEE PHASE 4)
-- authService.ts (JWT token generation, password hashing)
-
-### 9. Middleware
-
-Create:
-- verifyToken.ts (JWT validation, extract role)
-- errorHandler.ts (centralized error response)
-- cors.ts (CORS configuration)
-
-### 10. Main App File (src/app.ts)
-
-Setup:
-- Express initialization
-- Middleware (cors, bodyParser, errorHandler)
-- Routes mounting
-- 404 handler
-
-## REFERENCE DATA STRUCTURES
-
-Based on old codebase:
-
-**Project Table:**
-```
-id, project_name, description, responsible_agency, location, 
-start_date, end_date, status, budget, created_by, created_at, updated_at
-```
-
-**Budget Table:**
-```
-id, project_id, category, amount, spent, approved_by, created_at
-```
-
-**User Table:**
-```
-id, email, password_hash, account_type (admin/student/adviser/stuact), 
-club_code, name, created_at
-```
-
-## DELIVERABLES
-
-1. ✅ Database connection setup
-2. ✅ Authentication service (JWT + bcrypt)
-3. ✅ All routes (admin, student, adviser, stuact)
-4. ✅ All controllers
-5. ✅ All services
-6. ✅ Middleware (auth, error, cors)
-7. ✅ Type definitions (request/response interfaces)
-8. ✅ app.ts setup
-9. ✅ server.ts entry point
-
-## IMPORTANT
-
-- Reference old project logic but structure cleanly
-- Separate business logic to services
-- Use TypeScript throughout
-- Add try-catch in controllers
-- Return consistent JSON format: { success, data, error, message }
-- For Word generation endpoints, leave a TODO comment - will be implemented in Phase 4
-```
+**Done when:** a project can be walked 1 → 7 by the correct roles and cannot be walked by the
+wrong ones; a wrong-role or wrong-scope attempt returns 403 from the server with the frontend
+disabled; two projects in one club-year cannot receive the same number; and the event log
+replays into the current phase.
 
 ---
 
-## Expected Output
+## Phase 3 — Budget
 
-Claude will generate:
-- ✅ All route files
-- ✅ All controllers
-- ✅ All services (with TODO for Word gen)
-- ✅ Database setup
-- ✅ Middleware
-- ✅ Type definitions
+**Goal:** the enforcement that has never existed. This is a subsystem, not a feature.
 
----
+**Build:**
 
-# PHASE 4: Docxtemplater Integration
+1. `budget_line` write paths for both variants, with `amount` left to the `GENERATED` column.
+2. `agency_allocation` entry for Admin and STUACT (Q30); Adviser and Student read-only.
+3. The three checks (Q20/Q25/Q32), each with its own message:
+   - (a) `requested_total ≤ planned_amount`
+   - (b) `disbursed_total ≤ approved_amount` and `actual_total ≤ approved_amount`
+   - (c) `Σ approved_amount over the club-year ≤ agency_allocation.amount`
+4. **Warn** on draft submit; **hard-block** at the three transitions flagged
+   `requires_budget_check`; **re-check on every budget write**, not only on transitions (Q26).
+5. Layer (c) takes `SELECT … FOR UPDATE` on the allocation row inside the approving
+   transaction (Q28). Lowering an allocation below committed spend stays allowed, loudly (Q33).
+6. `disbursement` is append-only. `remaining` is a subtraction over the view, never a column.
 
-**Duration**: 45 mins  
-**Complexity**: ⭐⭐ (Medium)
-
-## Objectives
-
-✅ Analyze old Word template  
-✅ Create wordGenService with Docxtemplater  
-✅ Implement document generation endpoints  
-✅ Setup download functionality  
+**Done when:** each of the three limits can be demonstrated to block, with distinct errors;
+concurrent approvals against one allocation cannot both succeed; and no stored total exists
+that could disagree with its components.
 
 ---
 
-## The Prompt
+## Phase 4 — Document assembly
 
-```
-# PHASE 4: DMS Rebuild - Docxtemplater Integration
+**Goal:** produce กนศ.04 and กนศ.06 that a government office would accept.
 
-You are implementing Word document generation for DMS project reports.
+**Build:**
 
-## REFERENCE
-Old implementation (from studentRoutes.js ~line 1174):
-```
-const PizZip = require("pizzip");
-const Docxtemplater = require("docxtemplater");
-const zip = new PizZip(content);
-const doc = new Docxtemplater(zip, {
-  parser: expressionParser,
-  paragraphLoop: true,
-  linebreaks: true,
-});
-doc.render({
-  detail: result[0],
-  person: resultp_person[0],
-  timestep: resultp_timestep[0],
-  indicator: resultp_indicator[0],
-  budget: resultp_budget[0],
-  user: resultuser[0],
-  userSH: resultuserSH[0],
-});
-const buf = doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" });
-```
+1. The assembler: domain objects → the flat ~433-field payload the templates expect (Q4/Q7).
+   `docs/template-contract.md` is the field map. The templates themselves are **untouched**.
+2. Derive at render time everything the old schema stored: Thai date strings (41 columns),
+   Gantt `startM`/`endM` indices (30 columns), and every subtotal.
+3. **Arity validation** (Q8): error clearly when a project exceeds what a form can print
+   rather than truncating. The known live case is `BT` — 20 rows stored, 12 printed.
+4. Fix the three render-path defects in `template-contract.md` → "Defects found in the render
+   path": the missing `budget` key that blanks the approved total on every กนศ.06, the
+   unguarded division that emits `Infinity%` / `NaN%`, and the malformed `grandTypeETC` tag.
+5. Downloads are authorized and phase-checked. The old routes had neither
+   (`business-rules.md` → "Document generation").
 
-## TASK: Create wordGenService
+**Done when:** both forms render fully populated from a fixture project, every tag in the
+contract is either filled or deliberately blank, and an over-capacity project produces an
+error naming the category and the limit.
 
-### 1. Template Structure
-
-Create template.docx with placeholders for:
-```
-{detail.project_name}
-{detail.description}
-{detail.location}
-{detail.start_date} - {detail.end_date}
-{user.name} | {user.email}
-{person.list[*]} (loop through personnel)
-{budget.items[*]} (loop through budget)
-{timestep.items[*]} (loop through timeline)
-{indicator.items[*]} (loop through indicators)
-```
-
-### 2. Service File (services/wordGenService.ts)
-
-Generate:
-- Function: generateDocument(projectId, projectData) → Buffer
-- Function: saveDocumentToDisk(buffer, filename) → filepath
-- Error handling for template not found
-- Validation of data structure
-- Support for multiple template versions (temp04.docx, temp06.docx)
-
-### 3. Controller Update (controllers/wordGenController.ts)
-
-Endpoints:
-- POST /api/student/projects/:id/generate-doc
-  - Fetch project data from DB
-  - Call wordGenService
-  - Return download link or stream buffer
-  
-- GET /api/student/projects/:id/download/:docId
-  - Verify user owns document
-  - Stream file to client
-
-### 4. Data Assembly
-
-Create function to gather all project data:
-```
-{
-  detail: { project_name, description, location, dates, budget },
-  person: [ { name, role, email }, ... ],
-  timestep: [ { step, date, status }, ... ],
-  budget: [ { category, amount, spent }, ... ],
-  indicator: [ { name, target, actual }, ... ],
-  user: { name, email, role }
-}
-```
-
-## IMPLEMENTATION NOTES
-
-- Use async/await for file operations
-- Stream large buffers instead of loading to memory
-- Cache templates in memory (don't reload each request)
-- Validate data before rendering to catch template errors
-- Log errors clearly (template syntax issues)
-
-## DELIVERABLES
-
-1. ✅ wordGenService.ts with generateDocument()
-2. ✅ wordGenController.ts with POST generate and GET download
-3. ✅ Database query to gather project data
-4. ✅ Template file (copy/create template.docx)
-5. ✅ Error handling for common template issues
-6. ✅ Unit test examples
-
-## DATA FLOW
-
-User clicks "Export to Word" 
-  → POST /api/student/projects/:id/generate-doc
-  → Controller fetches project + all related data
-  → wordGenService.generateDocument(data)
-  → Docxtemplater renders
-  → Buffer returned
-  → Save to disk OR stream to client
-  → Client downloads file
-```
+**Watch for:** `angular-expressions` must be installed — the templates embed JS. Its absence
+was the original strategy doc's most concrete omission.
 
 ---
 
-## Expected Output
+## Phase 5 — Frontend
 
-Claude will generate:
-- ✅ wordGenService.ts (complete)
-- ✅ wordGenController.ts (complete)
-- ✅ Data assembly function
-- ✅ Template placeholder guide
-- ✅ Error handling examples
+**Goal:** parity with the old screens, in the new stack.
 
----
+The old frontend is the behavioural spec (Q9). Its real screen list — not the original doc's
+invented component list — is in `DECISIONS.md` → "Old frontend screens":
 
-# PHASE 5: Integration & Testing
+`AllProject`, `Dashboard`, `ProjectDocument`, `NewProjectDocument`, `DetailBudget`
+(+ Admin/Student variants), `DAddSplitBudget`, `DTableAddBudget`, `TableAdd/ListStudent`,
+`TableAdd/ListPersonel`, `Login`, `UserProfile`, `ArrowProgressBar`.
 
-**Duration**: 1 hour  
-**Complexity**: ⭐⭐⭐ (Hard)
+**Build:** three roles to parity first — Student, STUACT, Admin. Adviser is one read-only
+screen (Q5); the **review queue is new scope and is out of v1**.
 
-## Objectives
+Thai UI copy, English identifiers, no i18n framework (Q11).
 
-✅ Connect frontend to backend API  
-✅ Test all role-based flows  
-✅ Verify Word generation  
-✅ Create demo data  
-✅ Document API  
+**Theming: stop and ask before choosing any palette.** Build against CSS custom properties so
+the palette is a token file, and leave that file unfilled pending the owner's decision.
+
+**Done when:** every screen above works for its roles against the real API, and no screen
+relies on `sessionStorage` for an authorization decision.
 
 ---
 
-## The Prompt
+## Phase 6 — Hardening
 
-```
-# PHASE 5: DMS Rebuild - Full Integration & Testing
-
-You are doing final integration between frontend and backend.
-
-## TASK 1: API Client Setup
-
-Create src/utils/api.ts:
-- Axios instance with BASE_URL
-- Request interceptor (attach JWT token)
-- Response interceptor (handle 401, refresh token)
-- Typed responses
-- Error handling
-
-## TASK 2: Connect Zustand to API
-
-Update stores:
-- authStore: call /auth/login, /auth/logout
-- projectStore: call /projects endpoints
-- budgetStore: call /budget endpoints
-- Show loading states
-
-## TASK 3: Test Matrix
-
-Create test scenarios:
-
-**Admin Flow:**
-- Login as admin
-- View dashboard (all projects, stats)
-- Create project
-- Approve student submission
-
-**Student Flow:**
-- Login as student
-- Create project (form filled)
-- Submit for review
-- Generate Word document
-- Download document
-
-**Adviser Flow:**
-- Login as adviser
-- View review queue
-- Approve/reject project
-- Add feedback
-
-**STUACT Flow:**
-- Login as stuact
-- View all projects
-- View budget overview
-- Export report
-
-## TASK 4: Demo Data
-
-Generate SQL to insert:
-- 4 test users (admin, student, adviser, stuact)
-- 5 sample projects (various statuses)
-- Budget data
-- Timeline data
-
-## TASK 5: Documentation
-
-Create:
-- API documentation (all endpoints)
-- Setup guide (local dev)
-- Troubleshooting common issues
-- Deployment checklist
-
-## DELIVERABLES
-
-1. ✅ API client (axios config)
-2. ✅ Zustand store API calls
-3. ✅ Test scenarios (manual testing list)
-4. ✅ Demo data SQL
-5. ✅ API docs (markdown)
-6. ✅ Setup guide
-```
+1. Remove the double router mount and the inline `server.js` route group — the seven
+   unauthenticated handlers at `server.js:158-376` have no equivalent in the new API and must
+   not be recreated by accident.
+2. Attachment serving behind authorization, relative paths only (Q21).
+3. Real email notification. The old one hardcoded a recipient and used a disposable mailbox;
+   treat it as a new requirement, not a port (`business-rules.md` → "Notifications").
+4. Indexes and an `EXPLAIN` pass. The old schema had five secondary indexes total.
+5. Re-read `DECISIONS.md` → "Deliberate deviations" and confirm each is both done and listed.
 
 ---
 
-## Expected Output
+## Before Phase 1 starts
 
-Claude will generate:
-- ✅ API client setup
-- ✅ Updated stores
-- ✅ Test scenarios
-- ✅ Demo data SQL
-- ✅ Documentation
+Four assumptions in `schema-target.md` need an explicit yes or no. Three are low-risk; one
+changes a previously settled answer.
 
----
+| | What | Risk if wrong |
+| --- | --- | --- |
+| **A1** | Q37 — money is `DECIMAL(12,2)` | low; no data to convert |
+| **A2** | Q38 — surrogate `INT` PKs, `project_number` a separate business key | low |
+| **A3** | Q41 — disbursement ledger built on today's `logstudentgetmoney` shape | low |
+| **A4** | Q39 **revised** — `person` and `membership` split, so one person may hold several roles | **medium** — cheap to collapse later, expensive to split later |
 
-## 🚀 How to Use This Strategy
-
-**For Each Phase:**
-
-1. Copy the prompt from the section above
-2. Paste into Claude chat
-3. Request file by file if output is too large
-4. Save outputs to correct folders
-5. Run validation checklist
-6. Move to next phase
-
-**Timeline:**
-- Phase 1: 30 mins (setup)
-- Phase 2: 1.5 hrs (components)
-- Phase 3: 1.5 hrs (backend)
-- Phase 4: 45 mins (Word gen)
-- Phase 5: 1 hr (integration)
-
-**Total: ~6 hours of work**
+Plus the stack table above, and the confirmation that the visual theme is a separate
+conversation.
 
 ---
 
-## ⚠️ If Something Goes Wrong
+## What is explicitly not in v1
 
-**Problem**: Components won't compile  
-**Solution**: Check TypeScript errors → Ask Claude to fix types
+Recorded so the gaps are decisions, not oversights.
 
-**Problem**: API calls 404  
-**Solution**: Verify backend running on :3000 → Check route paths
-
-**Problem**: Word generation fails  
-**Solution**: Validate template placeholders → Check data structure
-
----
-
-## 📞 Questions?
-
-Each phase has a validation section. Follow it step-by-step.
-
-**Next**: Pick Phase 1 above, copy the prompt, and send to Claude! 🎯
+- The **review queue** (Q5) — adviser stays a single read-only screen.
+- **Award categories** `D06`–`D12` — seeded, no workflow, pending confirmation the feature is
+  wanted (`domain-model.md` open question 2).
+- **Soft delete** — `DELETE FROM project` cascades.
+- **Database-level row security** — scope is an application invariant enforced from the token.
+- **i18n** — Thai copy, hardcoded (Q11).

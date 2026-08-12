@@ -647,7 +647,13 @@ clearest single illustration of why the club code becomes a composition rather t
 
 ## Migration hazards
 
-Ordered by how much they can cost if missed. Detail in Phase 1.
+> **Superseded (2026-08-12): the entire dump is mock data and nothing is being migrated.**
+> This section is kept because every item names a **live bug in the code being replaced**, so
+> it is now the **input-validation checklist** for the new write paths rather than a migration
+> plan. Read "the migration must…" as "the new API must…". Items 2, 4 and 5 concerned carrying
+> existing rows across and are closed outright.
+
+Ordered by how much they can cost if missed.
 
 1. **Money strings.** Strip `,`, parse as `en-US`, and **report** anything unparseable rather
    than coercing to 0 **[A1]**. Any value with a decimal part is a red flag — the old client

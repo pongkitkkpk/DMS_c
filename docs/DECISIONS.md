@@ -2,7 +2,7 @@
 
 **Status**: Design settled, implementation not started
 **Last updated**: 2026-08-12
-**Supersedes**: `DMS_REBUILD_STRATEGY.md` (kept for reference, but its premises are wrong — see "Why the strategy doc is obsolete")
+**Relationship to `DMS_REBUILD_STRATEGY.md`**: that file has been **rewritten** against these docs and is now the build plan — what to build and in what order. This file remains the record of *why*. The section "Why the strategy doc is obsolete" below refers to its **original** version (commit `b8c7d31`) and is kept as the reason the rewrite was needed.
 
 ---
 
@@ -308,6 +308,21 @@ Required by Q22 — each is an intentional departure, not a porting bug:
   categories**. The split is correct; they belong in an `award_category` table. No project
   references them and no code path reads them, so they are seed data for a feature that does
   not exist yet — build nothing until someone confirms it is wanted.
+- **The entire dump is mock data (confirmed 2026-08-12). There is no data migration.** This
+  removes a whole workstream: `schema-target.md`'s "Migration hazards" section no longer
+  describes work to be done, and the orphaned-log-row and unknown-actor blockers above are
+  **closed** — nothing is being carried across. Phase 1 becomes *create schema + seed*, not
+  *migrate*. Three things do **not** change:
+  1. The extraction was still necessary — the old code is the behavioural spec (Q2), and the
+     843-column inventory is what the template assembler is written against.
+  2. The **input validation** those hazards implied is still required, because the bugs that
+     produced the bad values are live in the code being replaced (money as formatted strings,
+     `TableAddPersonel.js:37`'s 4-digit year, `'0000-00-00'` dates).
+  3. The seed still needs realistic fixtures — one user per role (Q17), the `setCode.json`
+     taxonomy (Q34), and enough projects to exercise all seven phases.
+- **Effort estimate revises downward.** "Plan in weeks" was partly driven by moving live data
+  out of 843 denormalized columns. That is gone. The assembler (~433 field mappings), budget
+  enforcement, and ~20 screens are unchanged and still dominate.
 - **Phase 0 is complete.** All five `docs/` files exist. Before Phase 1 starts, four
   assumptions in `schema-target.md` need an explicit yes: **A1** = Q37 (money → `DECIMAL(12,2)`),
   **A2** = Q38 (surrogate PKs), **A3** = Q41 (ledger built on `logstudentgetmoney`), and
@@ -361,9 +376,11 @@ frontend is ~20 screens. Plan in **weeks**.
          and found that Q39 would destroy a real role (see below).
    - [x] `schema-target.md` — **done**. 29 tables; every one of the 843 current columns is
          mapped or named as dropped. Takes four assumptions (**A1–A4**) that need sign-off.
-3. Re-confirm the open items above.
-4. Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.
-5. Only then start building.
+3. ~~Rewrite `DMS_REBUILD_STRATEGY.md` against the extracted docs.~~ — **done**. It is now a
+   6-phase build plan that points into the Phase 0 docs instead of restating them.
+4. Re-confirm the open items above — **A1–A4 and the stack table** in the build plan. This is
+   the only thing standing between here and Phase 1.
+5. Then start building.
 
 ### Phase 0 findings that change the picture
 
