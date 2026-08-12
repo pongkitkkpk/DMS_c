@@ -413,19 +413,26 @@ Carried forward for the next Phase 0 document to resolve.
 - ~~`listTNBT1..20` is an orphan family of the wrong width.~~ **Closed** — it is BT's
   second unit-label column, correctly 20 wide, declared at `CSD_budget.js:589`.
 
+**Resolved by `template-contract.md`:**
+
+- ~~What are the expense categories `A`/`BT`/`BNT`/`C`?~~ **Closed** — the form names them:
+  `A` = `หมวดค่าตอบแทน` (remuneration), `BT`+`BNT` = `หมวดค่าใช้สอย` (operating expenses),
+  `C` = `หมวดค่าวัสดุ` (materials). The form prints **three** categories; the database splits
+  B in two.
+- ~~`p_finalbudget.listSSB` — a subtotal of what?~~ **Closed** — `listSSB = BT + BNT`. It is
+  emitted immediately after the BNT block closes. Correspondingly, **`listSSBT` and
+  `listSSBNT` appear in neither template and are dead columns.**
+- ~~`is_1basic..is_4basic` (4) vs the 5 recorded in `DECISIONS.md:119`.~~ **Closed** — both
+  the template and the database have **four**. The decision record is off by one.
+
 **Still open:**
 
-1. **What are the four expense categories `A` / `BT` / `BNT` / `C`?** The column structure is
-   now understood but the categories' *meaning* is not. `A` is people × hours × rate, so it
-   is plausibly ค่าตอบแทน (remuneration); `BT`/`BNT` may be ค่าใช้สอย split by some
-   taxable/non-taxable or travel/non-travel distinction; `C` may be ค่าวัสดุ. **Confirm from
-   the temp04 section headings** — the government form names these categories explicitly.
-2. **`is_1basic..is_4basic` (4) vs the 5 recorded in `DECISIONS.md:119`.** Resolve against
-   the actual temp04 tag list.
-3. **`yearly_countsketch` vs `yearly_count`.** Child tables join on `yearly_countsketch`
+1. **`yearly_countsketch` vs `yearly_count`.** Child tables join on `yearly_countsketch`
    while `projects` carries both. The distinction (draft sequence vs final sequence?) is not
    yet established and it matters for the migration's join strategy.
-4. **`p_finalbudget.listSSB`** — `p_budget` has `listSSA/BT/BNT/C` **and** `listSSB`.
-   What is `listSSB` a subtotal of, given there is no `B` category family? Most likely
-   `BT + BNT` (a combined "B" bucket that the form prints as one line), but unconfirmed.
-5. **Orphaned log rows** (defect 9) — drop or preserve detached? A migration decision.
+2. **Orphaned log rows** (defect 9) — drop or preserve detached? A migration decision.
+3. **`listETC` / `listSETC`, `volume2..5`, `quality1..5`** — stored by the UI, printed by
+   neither template. Dead data, or an unfinished form? See `template-contract.md`.
+4. **`p_budget` capacity exceeds the form's.** `BT` holds 20 rows in the database but the
+   template prints only **12**. Today's behaviour is silent truncation. See
+   `template-contract.md` → "Arity".

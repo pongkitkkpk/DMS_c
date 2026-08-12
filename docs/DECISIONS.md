@@ -295,8 +295,9 @@ frontend is ~20 screens. Plan in **weeks**.
    **extraction** from `usersystem.sql`, not a reconstruction.
    - [x] `schema-current.md` — **done**. Also corrected the phase counts above and closed
          the `p_budget` column-naming question (see below).
+   - [x] `template-contract.md` — **done**. Named the budget categories, closed three of
+         `schema-current.md`'s open questions, and found the BT arity gap below.
    - [ ] `business-rules.md`
-   - [ ] `template-contract.md`
    - [ ] `domain-model.md`
    - [ ] `schema-target.md`
 3. Re-confirm the open items above.
@@ -317,3 +318,20 @@ From `schema-current.md`:
 - **There are no foreign keys anywhere**, and the history tables contain **dangling
   references** to projects that no longer exist. The migration cannot assume referential
   integrity — a decision is needed on orphaned log rows.
+
+From `template-contract.md`:
+
+- **Q8 has a live victim.** `p_budget` stores **20** `BT` (ค่าใช้สอย) rows but temp04 prints
+  only **12** — all seven BT tag families stop at index 12. The current system **silently
+  truncates**. This belongs on the deliberate-deviations list: the assembler must error, not
+  drop rows.
+- **The budget categories are named by the form**: `A` = ค่าตอบแทน, `BT`+`BNT` = ค่าใช้สอย,
+  `C` = ค่าวัสดุ. The form prints three categories; the DB splits B in two. `listSSBT` and
+  `listSSBNT` are dead columns — the form only ever prints the combined `listSSB`.
+- **`DECISIONS.md:119` is off by one**: the checkbox bank is `is_1..4basic`, not `is_1..5basic`.
+- **A shipping bug in กนศ.06**: temp06 renders `{#budget}{listSAll}{/budget}` — the approved
+  project total — but the render payload never passes a `budget` key, so **that amount prints
+  blank on every final report**. Also, the attendance-percentage object `persen` divides
+  unvalidated strings and can emit `"Infinity%"` or `"NaN%"`.
+- **Do not treat current rendered Gantt charts as a correctness baseline** — the form mixes
+  `&&` and `||` across cells that should test identically.
