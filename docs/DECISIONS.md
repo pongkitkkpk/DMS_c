@@ -296,11 +296,27 @@ Required by Q22 — each is an intentional departure, not a porting bug:
 8. Attachment downloads authorized
 9. One role per user; duplicate user rows de-duplicated
 10. Money columns converted from text to `DECIMAL(12,2)`
+11. **The token carries no role.** The old system signed one (`server.js:107`) and never
+    checked it; a signed role is also stale the moment a membership changes. Scope is resolved
+    from `membership` on every request instead — **fixes a role that was decorative**
+12. **A broken identity provider is a 502, not a 401.** The old client could not tell the two
+    apart — **stops an SSO outage being reported to students as a wrong password**
+13. **Routers are mounted once, and no route is defined outside a router.** Removes the
+    duplicate root mount (`server.js:23-25`) and the unauthenticated inline group
+    (`server.js:158-376`) by construction, not by remembering to add `verifyToken`
 
 ---
 
 ## Open items
 
+- **Academic year boundary — new, opened 2026-08-13 by the auth seam.** Roles are scoped by
+  `membership.academic_year`, so resolving a role requires knowing which academic year "now"
+  belongs to. The old system stored it per user (`users.yearly`) and initialised it to a
+  literal `2667` in one place, so **there is no rule to port**. `src/config.js` derives it as
+  "a new Buddhist-era year starts in June" and lets `ACADEMIC_YEAR` override it; the override
+  is what development actually uses. **Someone who knows the university calendar should
+  confirm the June boundary** — and separately, whether a person's memberships should really
+  vanish at the rollover or carry forward until re-enrolled.
 - **Q37, Q38, Q41** — recommended and not objected to, but never explicitly confirmed. Re-confirm before implementing.
 - ~~**Q35** — assumed `D06`–`D12` are project classifications.~~ **Closed by `domain-model.md`.**
   Their `name` fields in `setCode.json` name *students*, not units or projects
@@ -390,17 +406,56 @@ frontend is ~20 screens. Plan in **weeks**.
    - [x] Organisation seed from `setCode.json`, all four shapes, corrections logged.
    - [x] Reference seed: 7 phases, 11 transitions, 8 tag sets / 56 tags.
    - [x] Fixtures: one person per role, one project per phase.
-   - [ ] **NEXT: the `AuthProvider` seam** (Q3/Q17). `AUTH_PROVIDER=mock|icit`; mock returns
-         ICIT's real response shape; **the role is resolved by a `membership` lookup, never
-         from the provider** — see `business-rules.md` → "Why the token could not carry a
-         role". Then `GET /me` returning that resolved role, which is Phase 1's last
-         definition-of-done item.
+   - [x] **The `AuthProvider` seam** (Q3/Q17) — **done, verified end to end.**
+         `AUTH_PROVIDER=mock|icit` (`src/auth/providers/`); both providers return ICIT's
+         response shape and share one normalizer (`src/auth/identity.js`), so the mock
+         exercises the real mapping. `POST /api/auth/login` and `GET /me` both answer with the
+         role resolved from `membership` — the token carries `sub` + `uid` and no role at all.
+   - [x] **Phase 1 is complete.** Schema applies from empty, seed re-runs, `GET /me` returns a
+         database-resolved role, every FK exists.
 
-### Resume notes (2026-08-12)
+### Phase 1 close-out (2026-08-13) — what the auth seam actually does
 
-- **Local dev database**: MariaDB via XAMPP (`C:\xampp\mysql\bin`). It is **not running** —
-  start it from the XAMPP control panel. Database `dms`. Rebuild any time with
-  `cd backend && npm run db:reset`.
+- **Layout.** `server.js` (listen) → `src/app.js` (the app) → `src/routes/auth.js`.
+  Supporting: `src/config.js`, `src/auth/{identity,tokens}.js`,
+  `src/auth/providers/{index,mock,icit}.js`, `src/services/identityService.js`,
+  `src/middleware/requireAuth.js`, `src/lib/httpError.js`.
+- **The contract is two lines.** `authenticate(username, password)` returns the provider's own
+  payload, `null` for a bad credential, and **throws** when the provider itself is broken. The
+  route turns those into 200 / 401 / 502, so a failing SSO is never reported to a student as a
+  wrong password. No implementation may return a role.
+- **Identity and role are separated in code, not just in prose.** `upsertPerson` writes only
+  `person` columns (named, never `SET ?`); role comes from `loadMemberships(person, year)`.
+  Authenticating successfully while holding no membership is a supported state: `role: null`,
+  permitted nothing. Verified by logging in against a year with no memberships.
+- **`GET /me` returns `memberships[]` plus a primary `membership`/`role`**, picked by
+  precedence `ADMIN > STUACT > AD > SH`. That precedence exists only because **A4** allows one
+  person to hold several memberships in a year; if A4 collapses, every list is length 1 and it
+  becomes a no-op. The client is never left guessing whether it saw all of them.
+- **The local admin fallback is kept and defanged.** It supplies identity only, so
+  `ADMIN_USERNAME` must hold a real `membership` to be able to do anything — the backdoor
+  cannot mint privileges that are not in the database. `config.assertValid()` refuses to boot
+  if it is set in production, or if `AUTH_PROVIDER=mock` is, or if `JWT_SECRET` is missing or
+  under 32 characters.
+- **Verified, not assumed:** forged-secret, expired, malformed and absent tokens all 401; a
+  valid token for a deleted person 401s; repeated logins upsert rather than duplicate;
+  `login_attempt` records both outcomes (Q15); all four fixture roles resolve with the right
+  club / jurisdiction scope.
+- **Untested by construction: `src/auth/providers/icit.js`.** There is still no ICIT access
+  (Q3), and the old `src/login.js` is no longer on disk, so both the request shape and the
+  field names in `src/auth/identity.js` are reconstructed from this file and
+  `schema-current.md`. They are **unverified** and marked as such in both files. The mapping is
+  confined to one function so correcting it is a single edit.
+
+### Resume notes (2026-08-13)
+
+- **Local dev database**: MariaDB via XAMPP (`C:\xampp\mysql\bin`). Start it from the XAMPP
+  control panel. Database `dms`. Rebuild any time with `cd backend && npm run db:reset`.
+- **Running the API**: `cd backend && npm run dev`. It prints the provider, the academic year
+  and the CORS origin at startup. `GET /api/health` reports database reachability.
+- **`ACADEMIC_YEAR=2567` is now required in `.env`** and is in `.env.example`. Roles are scoped
+  by academic year, and the fixtures seed 2567; without the override the derived year is 2569
+  and every fixture login resolves to `role: null`. See the open item below.
 - **`backend/.env`** exists locally with a generated `JWT_SECRET`. Gitignored — a fresh
   clone copies `.env.example` and generates its own.
 - **Verified, not assumed**: the membership CHECK, both project-sequence unique keys, the

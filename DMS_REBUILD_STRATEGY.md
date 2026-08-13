@@ -1,8 +1,8 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phase 0 complete. Phase 1 ready to start.
+**Status**: Phases 0 and 1 complete. Phase 2 ready to start.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
-**Last updated**: 2026-08-12
+**Last updated**: 2026-08-13
 
 ---
 
@@ -113,6 +113,13 @@ domain-specific yet.
 **Done when:** the schema applies from empty, the seed runs idempotently, `GET /me` returns a
 role resolved from the database, and every FK in `schema-target.md` exists. No project
 endpoints yet.
+
+> **Phase 1 is complete (2026-08-13).** All four conditions verified. The auth seam's shape,
+> what was tested, and the one part that could not be tested (`icit.js` — no API access) are
+> written up in `docs/DECISIONS.md` → "Phase 1 close-out". Two things Phase 2 inherits:
+> `req.actor` (person + memberships + primary role, resolved per request by
+> `src/middleware/requireAuth.js`) is what routes authorize from — never a path parameter —
+> and roles are scoped by academic year, which is now an open item in the same file.
 
 **Watch for:** Rayong has zero clubs in `setCode.json` (`domain-model.md` open question 4) —
 the seed should report that rather than silently produce an empty campus.
