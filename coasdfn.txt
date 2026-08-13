@@ -1,0 +1,22 @@
+Today's session
+
+Phase 0 → complete. Verified defects 5–7 (all three understated; #7 named the wrong file), then wrote business-rules.md, domain-model.md, and schema-target.md. Along the way: closed Q35, corrected the netprojectbudget grain, found the unauthenticated server.js route group, and flagged that Q39 would have deleted a real role.
+
+Strategy doc → rewritten as a 6-phase build plan pointing into the Phase 0 docs.
+
+Phase 1 → database half done and verified. 30 tables, 1 view, 42 FKs applying cleanly to MariaDB 10.4; migrate + seed both green; constraints tested to actually reject rather than assumed to.
+
+State I left behind
+
+- MySQL stopped — I started it only to verify, so I shut it down. One click in the XAMPP control panel to bring it back; npm run db:reset rebuilds everything.
+- backend/.env exists locally with a generated secret, gitignored.
+- coasdfn.txt untouched and untracked.
+- Resume notes are in docs/DECISIONS.md → "Next steps", so a cold start doesn't have to rediscover the setup.
+
+Picking up next time
+
+Next item is the AuthProvider seam — AUTH_PROVIDER=mock|icit, with the role resolved from a membership lookup rather than from the identity provider. That plus GET /me closes Phase 1.
+
+One decision still open: A4 — whether person and membership stay split. Everything built so far assumes they do, and that's the cheap direction to reverse, so it's not blocking — but worth a look before Phase 2 builds on it.
+
+พักผ่อนนะครับ 👋
