@@ -167,6 +167,41 @@ async function seedFixtures(conn, log) {
     }
   }
 
+  // --- a second club, in a DIFFERENT club group ---
+  //
+  // Scope is the invariant Phase 2 turns on, and a single-club fixture set
+  // cannot demonstrate it: with one club there is no request that *should* be
+  // refused. This club sits outside the STUACT's jurisdiction and outside the
+  // first club entirely, so "SH cannot see another club" and "STUACT cannot see
+  // outside its group" become things the seed can prove rather than assert.
+  const otherClub = await one(conn, `
+    SELECT c.id, c.name_th, cg.id AS club_group_id
+      FROM club c
+      JOIN campus cam    ON cam.id = c.campus_id
+      JOIN club_group cg ON cg.id = c.club_group_id
+     WHERE cg.code = 'SPORT' AND cam.code = 'Bangkok'
+     ORDER BY c.code LIMIT 1`);
+
+  const otherStudent = { id_student: 'fixture.otherstudent', full_name_th: 'สมปอง ต่างชมรม', account_type: 'students', email: 'other@example.test' };
+  otherStudent.id = await insert(conn, 'person', otherStudent);
+  await insert(conn, 'membership', {
+    person_id: otherStudent.id, role: 'SH', academic_year: ACADEMIC_YEAR, club_id: otherClub.id,
+  });
+
+  const otherProjectId = await insert(conn, 'project', {
+    club_id: otherClub.id,
+    owner_person_id: otherStudent.id,
+    academic_year: ACADEMIC_YEAR,
+    name: 'โครงการของชมรมอื่น (ใช้ทดสอบขอบเขตสิทธิ์)',
+    draft_sequence: 1,
+    phase_id: phases[0].id,
+    is_new_project: 1,
+  });
+  await insert(conn, 'project_event', {
+    project_id: otherProjectId, event_type: 'CREATED',
+    to_phase_id: phases[0].id, actor_person_id: otherStudent.id,
+  });
+
   // An allocation generous enough that the fixtures sit inside it — the point is
   // to have a ceiling present, not to trip it.
   await insert(conn, 'agency_allocation', {
@@ -185,9 +220,10 @@ async function seedFixtures(conn, log) {
   }
 
   log(`  club          ${club.name_th} (${club.code})  club_code ${clubCode}`);
-  log(`  person 4 · membership 4 · project ${projectIds.length} (one per phase)`);
+  log(`  out of scope  ${otherClub.name_th} — 1 club, 1 SH, 1 project, different club group`);
+  log(`  person 5 · membership 5 · project ${projectIds.length + 1} (one per phase, plus the out-of-scope one)`);
   log(`  numbered projects: ${approvedSequence} (phases 3-7), first ${buildProjectNumber(clubCode, 1)}`);
-  log(`  logins: ${Object.values(people).map((p) => p.id_student).join(', ')}`);
+  log(`  logins: ${[...Object.values(people), otherStudent].map((p) => p.id_student).join(', ')}`);
 }
 
 module.exports = { seedFixtures, ACADEMIC_YEAR };

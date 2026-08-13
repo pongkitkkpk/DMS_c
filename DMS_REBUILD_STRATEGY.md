@@ -1,6 +1,6 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0 and 1 complete. Phase 2 ready to start.
+**Status**: Phases 0, 1 and 2 complete. Phase 3 (budget) ready to start.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
 **Last updated**: 2026-08-13
 
@@ -149,6 +149,15 @@ the seed should report that rather than silently produce an empty campus.
 wrong ones; a wrong-role or wrong-scope attempt returns 403 from the server with the frontend
 disabled; two projects in one club-year cannot receive the same number; and the event log
 replays into the current phase.
+
+> **Phase 2 is complete (2026-08-13).** All four conditions verified by
+> `backend/scripts/check-phase2.js` (`npm run check:phase2`) — 54 checks against a live
+> server. Details, and the one rule that is a judgement call rather than a port, are in
+> `docs/DECISIONS.md` → "Phase 2 close-out". Two notes for Phase 3: the
+> `requires_budget_check` transitions are currently permitted and say so in their response
+> (`budgetCheckPending`), and the hook to fill is marked in
+> `src/services/phaseService.js`. Wrong **scope** answers 404 rather than the 403 written
+> above — deliberately, so a refusal cannot confirm that another club's project exists.
 
 ---
 

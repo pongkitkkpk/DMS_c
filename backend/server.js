@@ -24,7 +24,7 @@ const server = createApp().listen(config.port, () => {
   console.log(`DMS API listening on http://localhost:${config.port}`);
   console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? '  (any password is accepted)' : ''}`);
   console.log(`  academic year   ${config.academicYear}`);
-  console.log(`  cors origin     ${config.corsOrigin}`);
+  console.log(`  cors origins    ${config.corsOrigins.join(', ')}${config.isProduction ? '' : '  (+ any http://localhost:* in development)'}`);
   if (config.localAdmin.enabled) {
     console.log(`  local admin     ${config.localAdmin.username}  (non-production fallback)`);
   }

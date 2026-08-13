@@ -28,7 +28,22 @@ const isProduction = process.env.NODE_ENV === 'production';
 const config = {
   isProduction,
   port: Number(process.env.PORT || 3001),
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  /**
+   * Allowed browser origins, comma-separated.
+   *
+   * `localhost:3000` and `127.0.0.1:3000` are the same server to a person and
+   * two different origins to a browser, and CRA prints a LAN URL as a
+   * suggestion — so a single-origin default turns an ordinary way of opening
+   * the app into a blocked request that reaches the user as
+   * "ติดต่อเซิร์ฟเวอร์ไม่ได้", with the API perfectly healthy. Development
+   * therefore allows both loopback spellings; production must name its origins
+   * explicitly (see `assertValid`) and gets no default at all.
+   */
+  corsOrigins: (process.env.CORS_ORIGIN ||
+    (isProduction ? '' : 'http://localhost:3000,http://127.0.0.1:3000'))
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
 
   academicYear: Number(process.env.ACADEMIC_YEAR || currentAcademicYear()),
 
@@ -54,6 +69,24 @@ const config = {
     },
   },
 };
+
+/** Any port on the loopback host, e.g. `http://localhost:3002`. */
+const LOOPBACK_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+/**
+ * May this browser origin call the API?
+ *
+ * Outside production the answer is "any loopback origin". A dev server whose
+ * port is already taken silently moves to the next one — 3000 becomes 3002 —
+ * and pinning the allowed origin to a port turns that ordinary event into a
+ * blocked request that looks exactly like the API being down. In production
+ * only the explicit `CORS_ORIGIN` list is honoured: loopback means nothing
+ * there, and a wildcard would let any site spend a signed-in user's token.
+ */
+function isOriginAllowed(origin) {
+  if (config.corsOrigins.includes(origin)) return true;
+  return !config.isProduction && LOOPBACK_ORIGIN.test(origin);
+}
 
 /** Throws on anything that would otherwise fail silently or unsafely at runtime. */
 function assertValid() {
@@ -83,6 +116,13 @@ function assertValid() {
     problems.push(`ACADEMIC_YEAR must be a 4-digit Buddhist-era year, got ${config.academicYear}.`);
   }
 
+  if (!config.corsOrigins.length) {
+    problems.push('CORS_ORIGIN is not set — no browser origin may call this API. In production it must be listed explicitly.');
+  }
+  if (config.corsOrigins.includes('*')) {
+    problems.push('CORS_ORIGIN=* would let any site call this API with a user\'s token. List the origins instead.');
+  }
+
   if (process.env.ADMIN_USERNAME && config.isProduction) {
     problems.push('ADMIN_USERNAME is set in production — the local admin fallback is non-production only (Q17).');
   }
@@ -92,4 +132,4 @@ function assertValid() {
   }
 }
 
-module.exports = { config, assertValid, currentAcademicYear };
+module.exports = { config, assertValid, currentAcademicYear, isOriginAllowed };

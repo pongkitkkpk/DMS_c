@@ -209,7 +209,7 @@ Stack: CRA + Bootstrap 4/reactstrap + React Router **v5** + `AuthContext` + swee
 | # | Decision |
 | --- | --- |
 | Q1 | Convert to an **executable spec** for Claude Code. Strip the copy-paste-prompt framing. |
-| Q2 | Old code is the **authoritative behavioral spec**, but a rules-**extraction step comes first**. |
+| Q2 | Old code is the **authoritative behavioral spec**, but a rules-**extraction step comes first**. **Narrowed 2026-08-14 by the project owner** — see below. |
 | Q22 | Security defects are **fixed and listed** as deliberate deviations — never fixed silently. |
 | Q23 | Phase 0 produces `docs/`: `domain-model.md`, `schema-current.md`, `schema-target.md`, `business-rules.md` (with `file:line` citations), `template-contract.md`. Then rewrite the strategy doc against them. |
 
@@ -282,6 +282,25 @@ Stack: CRA + Bootstrap 4/reactstrap + React Router **v5** + `AuthContext` + swee
 
 ---
 
+## How far Q2 reaches — settled by the owner, 2026-08-14
+
+The project owner wrote the original system themselves, and has said plainly that they were
+still learning at the time. Their instruction: **anything that looks unsafe or oddly written
+may be changed, including variable and identifier names, without asking each time.**
+
+So Q2 governs **what the system does** — the seven-phase machine, the numbering format, the
+budget rules, what the government forms must contain. It does **not** make the old code's
+*shape* authoritative. Bad names, unsafe patterns, and structures that exist only because of
+how the original was written are replaceable on sight.
+
+Two limits remain, and they are not the owner second-guessing the work:
+
+1. **Behavioural deviations are still listed, never silent** (Q22 — the list below). "The code
+   reads better now" needs no entry; "the system now refuses something it used to allow" does.
+2. **Changes to what a *user of the system* experiences are still worth raising**, because the
+   owner knows the process and the university's requirements in a way the code never stated.
+   Renaming `AgnecyGroupName` needs no discussion; changing who may approve a project does.
+
 ## Deliberate deviations from old behavior
 
 Required by Q22 — each is an intentional departure, not a porting bug:
@@ -304,6 +323,14 @@ Required by Q22 — each is an intentional departure, not a porting bug:
 13. **Routers are mounted once, and no route is defined outside a router.** Removes the
     duplicate root mount (`server.js:23-25`) and the unauthenticated inline group
     (`server.js:158-376`) by construction, not by remembering to add `verifyToken`
+14. **Edit rights exist at all.** The old system let any token edit any project in any phase.
+    The rule now enforced is an assumption, written out under "Phase 2 close-out → Editing
+    rights" and awaiting confirmation — **fixes unrestricted editing**
+15. **An out-of-scope read answers 404, not 403.** A 403 would confirm that a project with
+    that id exists in a club the caller may not see — **closes the cross-club leak's last form**
+16. **Ordinals are assigned server-side** from array position, never accepted from the client:
+    a client-chosen ordinal decides which box a line prints in on a government form
+    (`docs/template-contract.md`), so it is not the client's to choose
 
 ---
 
@@ -317,6 +344,10 @@ Required by Q22 — each is an intentional departure, not a porting bug:
   is what development actually uses. **Someone who knows the university calendar should
   confirm the June boundary** — and separately, whether a person's memberships should really
   vanish at the rollover or carry forward until re-enrolled.
+- **Editing rights — new, opened 2026-08-13 by Phase 2.** Who may edit a project, and in which
+  phases, had no answer in the old system. The rule now implemented is written out under
+  "Phase 2 close-out → Editing rights"; it needs confirmation from someone who runs the
+  process, and it is cheap to change because it lives in one file.
 - **Q37, Q38, Q41** — recommended and not objected to, but never explicitly confirmed. Re-confirm before implementing.
 - ~~**Q35** — assumed `D06`–`D12` are project classifications.~~ **Closed by `domain-model.md`.**
   Their `name` fields in `setCode.json` name *students*, not units or projects
@@ -413,6 +444,9 @@ frontend is ~20 screens. Plan in **weeks**.
          role resolved from `membership` — the token carries `sub` + `uid` and no role at all.
    - [x] **Phase 1 is complete.** Schema applies from empty, seed re-runs, `GET /me` returns a
          database-resolved role, every FK exists.
+6. **Phase 2 — complete (2026-08-13).** Project CRUD, scope, server-side numbering and the
+   phase machine. See "Phase 2 close-out" below. Reproduce with
+   `npm run db:reset`, `npm run dev`, `npm run check:phase2` — 54 checks, all passing.
 
 ### Phase 1 close-out (2026-08-13) — what the auth seam actually does
 
@@ -446,6 +480,81 @@ frontend is ~20 screens. Plan in **weeks**.
   field names in `src/auth/identity.js` are reconstructed from this file and
   `schema-current.md`. They are **unverified** and marked as such in both files. The mapping is
   confined to one function so correcting it is a single edit.
+
+### Phase 2 close-out (2026-08-13)
+
+- **Layout.** `src/routes/projects.js` and `src/routes/reference.js` over
+  `src/services/{projectService,phaseService,scope}.js`, with `src/lib/validate.js` for field
+  allow-lists. `backend/scripts/check-phase2.js` is the acceptance run.
+- **Scope is a SQL fragment, not a filter.** `scope.visibilityClause` is applied inside the
+  query, so a caller cannot page past their scope and the database never assembles rows they
+  may not see. ADMIN sees all; STUACT sees its `jurisdiction_club_group_id`; SH and AD see
+  their own club; no membership sees nothing.
+- **Out of scope answers 404, not 403.** A 403 would confirm that a project with that id
+  exists in another club, which is the cross-club leak in a smaller form. Genuine
+  in-scope permission failures are still 403 and name who may act.
+- **The fixtures gained a second club** (`fixture.otherstudent`, ชมรมฟุตบอล, a different club
+  group). With a single club there is no request that *should* be refused, so scope could be
+  asserted but not demonstrated. Now it is seeded.
+- **Numbering needs two things, and it took a concurrency test to find the second.** Ten
+  simultaneous creates in one club-year first produced deadlocks, then — after a club-row lock
+  was added — duplicate-key errors. The cause of the second is that InnoDB's REPEATABLE READ
+  fixes a transaction's snapshot at its *first* read, which happens before it starts waiting
+  for the lock, so a plain `SELECT MAX(...)` after the wait still cannot see the row the
+  previous holder just committed. Both the club-row lock (serializes) and `FOR UPDATE` on the
+  aggregate (forces a current read) are required. Ten concurrent creates and ten concurrent
+  approvals now issue ten distinct sequences and ten distinct project numbers. Written up in
+  `src/services/projectService.js` → `lockClubForNumbering`.
+- **Contention is a 409, not a 500.** `transaction(fn, { retries })` retries transient errors,
+  and anything that outlives its retries is reported as "try again", because that is what it
+  is. Double-advancing one project also 409s: the transition re-reads the row under its lock
+  and refuses if the phase moved since the read that authorized the request.
+- **Verified, not assumed:** all 54 checks in `check-phase2.js`, covering the full 1 → 7 walk
+  by the correct roles, wrong-role 403s, impossible and backwards transitions as 400s,
+  mass-assignment rejection naming the offending fields, `'0000-00-00'` rejected, per-group
+  ordinals in `project_attendance`, tag de-duplication, and an event log that chains from
+  `DRAFT_PROPOSAL` into the project's current phase.
+- **Deferred to Phase 3 and marked in code**: the `requires_budget_check` transitions are
+  currently allowed. `phaseService.js` carries the hook and the response returns
+  `budgetCheckPending: true`, rather than silently implying a limit is being enforced.
+
+#### Editing rights — an assumption, not a port
+
+The old system had no edit rule at all: every edit endpoint accepted any token for any project
+in any phase. Something had to be chosen, and `src/services/scope.js` implements the
+conservative reading of the gate table in `business-rules.md`:
+
+- nothing is editable once `CLOSED`;
+- `SH` may edit their own club's project only in `DRAFT_PROPOSAL` or `DRAFT_REPORT`;
+- `STUACT` and `ADMIN` may edit anything in scope, in any phase before `CLOSED`;
+- `AD` may not edit at all (Q5 — the adviser is a viewer in v1);
+- deleting is narrower than editing: an owner may delete their own unsubmitted draft, and
+  otherwise only `ADMIN`, because delete cascades to every child table.
+
+**This needs a yes or no from someone who runs the process.** It is the one part of Phase 2
+that is a judgement call rather than a port, and the likeliest correction is whether STUACT
+should be able to edit a student's content at all, as opposed to only advancing it.
+
+### Frontend first slice (2026-08-13) — deliberately out of order
+
+`frontend/` now runs: CRA + React 18 + Bootstrap 4.6 + reactstrap + React Router v5, the stack
+the build plan settled on. It is **not** Phase 5 — it is three screens (login, project list,
+one project with its phase strip, transition buttons, child lists and event log) built to
+answer "can I start the whole thing and watch it work". Phase 5 still comes after Phases 3
+and 4, because the remaining screens are budget screens and document downloads.
+
+Two disciplines it establishes early, both from `business-rules.md`:
+
+- **The role never comes from the browser.** The token sits in `sessionStorage` because it
+  must sit somewhere; the role and the available transitions are read from `GET /me` and
+  `GET /projects/:id`. The old frontend rendered every transition control from
+  `storedUser.position` against endpoints that checked nothing.
+- **Success is announced only after the server answers**, replacing the old screen's four
+  unawaited calls and immediate `Swal.fire("สำเร็จ!")`.
+
+**No palette has been chosen.** `src/theme.css` holds every colour as a `--dms-*` custom
+property, all stock Bootstrap or neutral, so a real theme is one file's worth of edits when
+the owner decides. See the build plan, Phase 5, "Theming".
 
 ### Resume notes (2026-08-13)
 

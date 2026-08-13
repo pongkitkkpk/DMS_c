@@ -19,6 +19,16 @@ const DIRECTORY = {
     LEVEL_DESC: 'ปริญญาตรี',
     STU_STATUS_DESC: 'กำลังศึกษา',
   },
+  // A student head in a different club and a different club group — the account
+  // scope rules are meant to refuse.
+  'fixture.otherstudent': {
+    displayname: 'สมปอง ต่างชมรม',
+    prefix_th: 'นาย',
+    email: 'other@example.test',
+    type: 'students',
+    LEVEL_DESC: 'ปริญญาตรี',
+    STU_STATUS_DESC: 'กำลังศึกษา',
+  },
   'fixture.advisor': {
     displayname: 'สมหญิง ที่ปรึกษา',
     prefix_th: 'นางสาว',

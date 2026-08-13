@@ -16,15 +16,24 @@
 const express = require('express');
 const cors = require('cors');
 
-const { config } = require('./config');
-const { pool } = require('./db/pool');
+const { config, isOriginAllowed } = require('./config');
+const { pool, isTransient } = require('./db/pool');
 const { HttpError } = require('./lib/httpError');
 const authRoutes = require('./routes/auth');
+const projectRoutes = require('./routes/projects');
+const referenceRoutes = require('./routes/reference');
 
 function createApp() {
   const app = express();
 
-  app.use(cors({ origin: config.corsOrigin, credentials: true }));
+  // A request with no Origin is not a browser (curl, a health probe, a
+  // server-to-server call) and CORS has nothing to say about it. An unlisted
+  // origin is refused by omitting the header rather than by throwing, so the
+  // browser reports a CORS failure instead of the API reporting a 500.
+  app.use(cors({
+    origin: (origin, callback) => callback(null, !origin || isOriginAllowed(origin)),
+    credentials: true,
+  }));
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
 
@@ -38,6 +47,8 @@ function createApp() {
   });
 
   app.use('/api', authRoutes);
+  app.use('/api', referenceRoutes);
+  app.use('/api', projectRoutes);
 
   app.use((req, res, next) => next(HttpError.notFound(`ไม่พบเส้นทาง ${req.method} ${req.path}`)));
 
@@ -48,6 +59,14 @@ function createApp() {
     if (err instanceof HttpError) {
       return res.status(err.status).json({ error: err.message, ...(err.detail || {}) });
     }
+
+    // Contention that outlived its retries is the caller's to retry, not a
+    // server fault: 409, with the database's own advice.
+    if (isTransient(err)) {
+      console.warn(`${req.method} ${req.originalUrl}: ${err.code} after retries`);
+      return res.status(409).json({ error: 'ระบบกำลังมีการใช้งานพร้อมกัน กรุณาลองใหม่อีกครั้ง' });
+    }
+
     console.error(`${req.method} ${req.originalUrl} failed:`, err);
     res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในระบบ' });
   });
