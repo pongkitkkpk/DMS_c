@@ -7,9 +7,10 @@
  */
 import React from 'react';
 import { BrowserRouter, Switch, Route, Redirect, Link, useHistory } from 'react-router-dom';
-import { Navbar, NavbarBrand, Nav, NavItem, Button, Spinner, Badge } from 'reactstrap';
+import { Button } from 'reactstrap';
 
 import { AuthProvider, useAuth } from './AuthContext';
+import { Avatar, Pill, Skeleton } from './components/ui';
 import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectPage from './pages/ProjectPage';
@@ -17,33 +18,60 @@ import ProjectPage from './pages/ProjectPage';
 /** Renders nothing until the session is known, so a reload cannot flash the login screen. */
 function RequireAuth({ children }) {
   const { session, loading } = useAuth();
-  if (loading) return <div className="text-center p-5"><Spinner /></div>;
+  if (loading) {
+    return <div className="card-x card-x__body" style={{ padding: 'var(--s-6)' }}><Skeleton rows={5} /></div>;
+  }
   if (!session) return <Redirect to="/login" />;
   return children;
 }
 
-function Header() {
+function AppBar() {
   const { session, logout } = useAuth();
   const history = useHistory();
   if (!session) return null;
 
+  const scope =
+    (session.membership &&
+      (session.membership.club_name || session.membership.club_group_name || session.membership.agency_name)) ||
+    null;
+
   return (
-    <Navbar light expand="md" className="mb-4" style={{ background: 'var(--dms-surface)', borderBottom: '1px solid var(--dms-border)' }}>
-      <NavbarBrand tag={Link} to="/projects">ระบบจัดการโครงการกิจกรรมนักศึกษา</NavbarBrand>
-      <Nav className="ml-auto align-items-center" navbar>
-        <NavItem className="mr-3">
-          <span>{session.person.fullNameTh} </span>
+    <header className="app-bar">
+      <div className="app-bar__inner">
+        <Link to="/projects" className="app-brand">
+          <span className="app-brand__mark">มจพ</span>
+          <span>
+            ระบบจัดการโครงการกิจกรรมนักศึกษา
+            <span className="d-block u-small u-dim" style={{ fontWeight: 400, lineHeight: 1.2 }}>
+              ปีการศึกษา {session.academicYear}
+            </span>
+          </span>
+        </Link>
+
+        <div className="u-spacer" />
+
+        <div className="user-chip">
+          <Avatar name={session.person.fullNameTh} />
+          <span className="u-small d-none d-md-block">
+            {session.person.fullNameTh}
+            <span className="d-block u-dim">{scope || 'ไม่ได้สังกัดหน่วยงาน'}</span>
+          </span>
           {/* The role is whatever the server resolved from `membership`. */}
-          <Badge color="secondary">{session.role || 'ไม่มีสิทธิ์'}</Badge>
-          {session.membership && session.membership.club_name && (
-            <span className="dms-muted ml-2">{session.membership.club_name}</span>
-          )}
-        </NavItem>
-        <NavItem>
-          <Button size="sm" outline onClick={() => { logout(); history.push('/login'); }}>ออกจากระบบ</Button>
-        </NavItem>
-      </Nav>
-    </Navbar>
+          <Pill tone={session.role ? 'brand' : 'neutral'} plain>
+            {session.role || 'ไม่มีสิทธิ์'}
+          </Pill>
+        </div>
+
+        <Button
+          size="sm"
+          outline
+          color="secondary"
+          onClick={() => { logout(); history.push('/login'); }}
+        >
+          ออกจากระบบ
+        </Button>
+      </div>
+    </header>
   );
 }
 
@@ -51,15 +79,15 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Header />
-        <div className="container pb-5">
+        <AppBar />
+        <main className="app-main">
           <Switch>
             <Route path="/login" component={LoginPage} />
             <Route path="/projects/:id" render={() => <RequireAuth><ProjectPage /></RequireAuth>} />
             <Route path="/projects" render={() => <RequireAuth><ProjectsPage /></RequireAuth>} />
             <Redirect to="/projects" />
           </Switch>
-        </div>
+        </main>
       </BrowserRouter>
     </AuthProvider>
   );

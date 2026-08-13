@@ -1,47 +1,546 @@
 /*
- * Colour tokens — deliberately unfilled.
+ * The design system.
  *
- * The build plan says the visual direction is the project owner's call and that
- * no palette gets chosen without asking first. So every value here is either a
- * stock Bootstrap 4 colour or a neutral, and they all live in this one file:
- * dropping a real theme in later means editing this block and nothing else.
+ * Chosen 2026-08-14 at the owner's request: generous whitespace, hairline
+ * borders and soft shadows — the modern admin look, rather than stock
+ * Bootstrap 4.
  *
- * Components must use var(--dms-*) rather than hard-coded colours.
+ * The accent is #AC3520, KMUTNB's own colour, given by the owner. The greys are
+ * warmed slightly to sit with it: a neutral-cool grey next to a brick red reads
+ * as two unrelated palettes.
+ *
+ * One consequence worth knowing: the brand colour is a red, and red is also the
+ * conventional colour of an error. They are kept apart by depth — errors use a
+ * darker, less orange red than the accent — and by never using the accent for
+ * a warning. An alert is also identified by its position and its wording, not
+ * by hue alone.
+ *
+ * Light only, per the decision recorded in DMS_REBUILD_STRATEGY.md ("no dark
+ * mode"). The tokens are structured so a dark set could be added later without
+ * touching a component.
+ *
+ * Everything below is either a token or an override of a Bootstrap/reactstrap
+ * class. Components must not hard-code a colour, a radius or a shadow.
  */
+
 :root {
-  --dms-page-bg: #f8f9fa;      /* bootstrap $gray-100 */
-  --dms-surface: #ffffff;
-  --dms-border: #dee2e6;       /* bootstrap $gray-300 */
-  --dms-text: #212529;         /* bootstrap $gray-900 */
-  --dms-text-muted: #6c757d;   /* bootstrap $gray-600 */
-  --dms-accent: #007bff;       /* bootstrap $primary — placeholder, not a choice */
+  /* --- ground and ink: warm greys, to sit with the brick accent --- */
+  --c-bg: #f8f7f6;
+  --c-surface: #ffffff;
+  --c-surface-2: #f3f1ef;
+  --c-border: #eae6e3;
+  --c-border-strong: #d9d2ce;
+  --c-text: #1c1917;
+  --c-text-2: #5f5852;
+  --c-text-3: #928982;
+
+  /* --- accent: KMUTNB #AC3520. The only brand colour in the file. --- */
+  --c-accent: #ac3520;
+  --c-accent-hover: #8e2a19;
+  --c-accent-soft: #fbeeea;
+  --c-accent-ink: #7c2412;
+
+  /* --- status tones --- */
+  --c-ok: #146c43;
+  --c-ok-soft: #e7f4ec;
+  --c-warn: #92620a;
+  --c-warn-soft: #fcf3e3;
+  /* Deeper and cooler than the accent, so an error is not read as branding. */
+  --c-danger: #8a1c12;
+  --c-danger-soft: #fbe9e7;
+  /* Finished work: settled, not celebratory. */
+  --c-archive: #4a4744;
+  --c-archive-soft: #eceae8;
+
+  /* --- shape --- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-md: 0 4px 14px -4px rgba(16, 24, 40, 0.1), 0 2px 4px -2px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 16px 40px -12px rgba(16, 24, 40, 0.18);
+
+  /* --- rhythm --- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+
+  --font: 'IBM Plex Sans Thai', 'Noto Sans Thai', system-ui, -apple-system,
+    'Segoe UI', Roboto, sans-serif;
 }
+
+/* -------------------------------------------------------------------------
+   Base
+   ------------------------------------------------------------------------- */
 
 body {
-  background: var(--dms-page-bg);
-  color: var(--dms-text);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
-.dms-card {
-  background: var(--dms-surface);
-  border: 1px solid var(--dms-border);
-  border-radius: 4px;
-}
-
-.dms-muted {
-  color: var(--dms-text-muted);
-}
-
-/* The phase strip on the project page. Numbers only — no colour coding, since
-   that would be a palette decision. */
-.dms-phase-step {
-  border: 1px solid var(--dms-border);
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.85rem;
-}
-
-.dms-phase-step--current {
-  border-color: var(--dms-text);
+h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--c-text);
+}
+
+a {
+  color: var(--c-accent);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--c-accent-hover);
+  text-decoration: none;
+}
+
+.u-muted { color: var(--c-text-2); }
+.u-dim   { color: var(--c-text-3); }
+.u-mono  { font-variant-numeric: tabular-nums; }
+.u-small { font-size: 0.85rem; }
+.u-stack { display: flex; flex-direction: column; gap: var(--s-4); }
+.u-row   { display: flex; align-items: center; gap: var(--s-3); }
+.u-spacer { margin-left: auto; }
+
+/* -------------------------------------------------------------------------
+   App shell
+   ------------------------------------------------------------------------- */
+
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.app-bar__inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: var(--s-3) var(--s-5);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-weight: 600;
+  color: var(--c-text);
+}
+.app-brand:hover { color: var(--c-text); }
+
+.app-brand__mark {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(135deg, var(--c-accent), #d4553c);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-main {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-5) var(--s-7);
+}
+
+/* The signed-in person. The role badge is whatever the server resolved. */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1);
+  border-radius: var(--r-pill);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: none;
+}
+
+/* -------------------------------------------------------------------------
+   Surfaces
+   ------------------------------------------------------------------------- */
+
+.card-x {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-x__head {
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-weight: 600;
+}
+
+.card-x__body { padding: var(--s-5); }
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-4);
+  margin-bottom: var(--s-5);
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Pills — phase state and roles
+   ------------------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.pill--neutral { background: var(--c-surface-2); color: var(--c-text-2); border-color: var(--c-border); }
+.pill--active  { background: var(--c-warn-soft); color: var(--c-warn); }
+.pill--go      { background: var(--c-ok-soft); color: var(--c-ok); }
+.pill--done    { background: var(--c-archive-soft); color: var(--c-archive); }
+.pill--brand   { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.pill--plain::before { display: none; }
+
+/* -------------------------------------------------------------------------
+   Stepper — the seven phases
+   ------------------------------------------------------------------------- */
+
+.stepper {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: var(--s-2);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 92px;
+  flex: 1;
+  position: relative;
+  text-align: center;
+}
+
+/* The rail runs behind the dots, drawn from each step to the next. */
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 13px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--c-border-strong);
+}
+
+.step--done:not(:last-child)::after { background: var(--c-accent); }
+
+.step__dot {
+  position: relative;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--c-surface);
+  border: 2px solid var(--c-border-strong);
+  color: var(--c-text-3);
+}
+
+.step--done .step__dot {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: #fff;
+}
+
+.step--current .step__dot {
+  background: var(--c-surface);
+  border-color: var(--c-accent);
+  color: var(--c-accent-ink);
+  box-shadow: 0 0 0 4px var(--c-accent-soft);
+}
+
+.step__label {
+  font-size: 0.76rem;
+  color: var(--c-text-3);
+  line-height: 1.35;
+  padding: 0 var(--s-1);
+}
+
+.step--current .step__label { color: var(--c-text); font-weight: 600; }
+.step--done .step__label { color: var(--c-text-2); }
+
+/* -------------------------------------------------------------------------
+   Data table
+   ------------------------------------------------------------------------- */
+
+.table-x {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-x th {
+  text-align: left;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-text-3);
+  padding: var(--s-3) var(--s-5);
+  background: var(--c-surface-2);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.table-x th:first-child { border-top-left-radius: var(--r-md); }
+.table-x th:last-child  { border-top-right-radius: var(--r-md); }
+
+.table-x td {
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: middle;
+}
+
+.table-x tbody tr:last-child td { border-bottom: 0; }
+.table-x tbody tr { transition: background 0.12s ease; }
+.table-x tbody tr:hover { background: var(--c-surface-2); }
+
+.table-x__title {
+  font-weight: 500;
+  color: var(--c-text);
+}
+.table-x__title:hover { color: var(--c-accent); }
+
+/* -------------------------------------------------------------------------
+   Stats — the budget panel
+   ------------------------------------------------------------------------- */
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--s-3) 0;
+  border-bottom: 1px dashed var(--c-border);
+}
+.stat-row:last-child { border-bottom: 0; }
+.stat-row__label { color: var(--c-text-2); font-size: 0.88rem; }
+.stat-row__value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* -------------------------------------------------------------------------
+   Timeline — the event log
+   ------------------------------------------------------------------------- */
+
+.timeline { position: relative; padding-left: var(--s-5); }
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--c-border);
+}
+
+.tl-item { position: relative; padding-bottom: var(--s-4); }
+.tl-item:last-child { padding-bottom: 0; }
+
+.tl-item::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--s-5) + 1px);
+  top: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c-surface);
+  border: 2px solid var(--c-border-strong);
+}
+
+.tl-item--phase::before { background: var(--c-accent); border-color: var(--c-accent); }
+
+.tl-item__title { font-size: 0.9rem; }
+.tl-item__meta { font-size: 0.78rem; color: var(--c-text-3); }
+
+/* -------------------------------------------------------------------------
+   Empty and loading states
+   ------------------------------------------------------------------------- */
+
+.empty {
+  text-align: center;
+  padding: var(--s-7) var(--s-5);
+  color: var(--c-text-2);
+}
+.empty__mark {
+  font-size: 1.6rem;
+  margin-bottom: var(--s-3);
+  opacity: 0.5;
+}
+
+/* A skeleton says "a table is coming" — a bare spinner says only "wait". */
+.skel {
+  background: linear-gradient(90deg, var(--c-surface-2) 25%, #e9ecf2 37%, var(--c-surface-2) 63%);
+  background-size: 400% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+  border-radius: var(--r-sm);
+  height: 14px;
+}
+@keyframes skel {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}
+
+/* -------------------------------------------------------------------------
+   Bootstrap / reactstrap overrides
+   ------------------------------------------------------------------------- */
+
+.btn {
+  border-radius: var(--r-sm);
+  font-weight: 500;
+  font-size: 0.92rem;
+  padding: 0.45rem 1rem;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: none !important;
+}
+
+.btn-primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:not(:disabled):not(.disabled):active {
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+}
+.btn-primary:focus-visible { box-shadow: 0 0 0 4px var(--c-accent-soft) !important; }
+
+.btn-outline-secondary,
+.btn-secondary.btn-outline {
+  color: var(--c-text-2);
+  border-color: var(--c-border-strong);
+  background: var(--c-surface);
+}
+.btn-outline-secondary:hover {
+  background: var(--c-surface-2);
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+}
+
+.btn-link { color: var(--c-text-2); }
+
+.form-control,
+.custom-select {
+  border-radius: var(--r-sm);
+  border-color: var(--c-border-strong);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  height: auto;
+  color: var(--c-text);
+  background-color: var(--c-surface);
+}
+
+.form-control:focus,
+.custom-select:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 4px var(--c-accent-soft);
+}
+
+.form-control::placeholder { color: var(--c-text-3); }
+
+label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--c-text-2);
+  margin-bottom: var(--s-2);
+}
+
+.alert {
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-size: 0.92rem;
+}
+.alert-danger {
+  background: var(--c-danger-soft);
+  border-color: #f2c7c2;
+  color: var(--c-danger);
+  border-left: 3px solid var(--c-danger);
+}
+
+/* SweetAlert2 — it renders outside the React tree, so it is themed here. */
+.swal2-popup {
+  border-radius: var(--r-lg) !important;
+  font-family: var(--font) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+.swal2-title { font-size: 1.15rem !important; color: var(--c-text) !important; }
+.swal2-html-container { color: var(--c-text-2) !important; font-size: 0.95rem !important; }
+.swal2-styled.swal2-confirm {
+  background: var(--c-accent) !important;
+  border-radius: var(--r-sm) !important;
+  font-weight: 500 !important;
+}
+.swal2-styled.swal2-cancel {
+  background: var(--c-surface) !important;
+  color: var(--c-text-2) !important;
+  border: 1px solid var(--c-border-strong) !important;
+  border-radius: var(--r-sm) !important;
+  font-weight: 500 !important;
 }

@@ -1,5 +1,5 @@
 /**
- * One project: the phase strip, the transition controls, the child lists and
+ * One project: the phase stepper, the transition controls, the child lists and
  * the event log.
  *
  * The transition buttons come from `GET /projects/:id` → `transitions`, which
@@ -11,10 +11,11 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Button, Alert, Spinner, Table, Badge } from 'reactstrap';
+import { Button, Alert } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
+import { Card, PhasePill, PhaseStepper, Skeleton, money } from '../components/ui';
 
 const SECTION_LABELS = {
   objectives: 'วัตถุประสงค์',
@@ -36,6 +37,26 @@ const EVENT_LABELS = {
   ATTACHMENT_ADDED: 'แนบไฟล์',
 };
 
+const date = (value) => (value ? String(value).slice(0, 10) : '—');
+
+/** One row of a child list, rendered from whichever fields that section has. */
+function SectionRow({ row }) {
+  const text = row.content || row.topic || row.problem || row.expected_result || row.label || '—';
+  return (
+    <li style={{ marginBottom: 'var(--s-2)' }}>
+      <span>{text}</span>
+      {row.resolution && <div className="u-small u-dim">แนวทางแก้ไข: {row.resolution}</div>}
+      {row.start_on && (
+        <div className="u-small u-dim">{date(row.start_on)} — {date(row.end_on)}</div>
+      )}
+      {row.headcount !== undefined && (
+        <span className="u-small u-dim"> · {row.attendee_type} {row.headcount} คน</span>
+      )}
+      {row.volume_target && <div className="u-small u-dim">เป้าหมาย: {row.volume_target}</div>}
+    </li>
+  );
+}
+
 export default function ProjectPage() {
   const { id } = useParams();
   const [project, setProject] = useState(null);
@@ -55,12 +76,15 @@ export default function ProjectPage() {
 
   const advance = async (transition) => {
     const confirmed = await Swal.fire({
-      title: `เปลี่ยนสถานะเป็น "${transition.toPhaseNameTh}"?`,
-      text: transition.requiresBudgetCheck ? 'ขั้นตอนนี้จะมีการตรวจสอบงบประมาณ (ยังไม่เปิดใช้งาน)' : undefined,
+      title: `เปลี่ยนสถานะเป็น “${transition.toPhaseNameTh}”?`,
+      text: transition.requiresBudgetCheck
+        ? 'ขั้นตอนนี้จะมีการตรวจสอบงบประมาณ (ยังไม่เปิดใช้งาน)'
+        : undefined,
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'ยืนยัน',
       cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
     });
     if (!confirmed.isConfirmed) return;
 
@@ -72,7 +96,7 @@ export default function ProjectPage() {
       const result = await api.transition(id, transition.toPhaseCode);
       await Swal.fire({
         icon: 'success',
-        title: `สถานะเป็น "${result.toPhase.nameTh}" แล้ว`,
+        title: `สถานะเป็น “${result.toPhase.nameTh}” แล้ว`,
         text: result.projectNumber ? `เลขที่โครงการ ${result.projectNumber}` : undefined,
       });
       load();
@@ -83,110 +107,155 @@ export default function ProjectPage() {
     }
   };
 
-  if (error) return <Alert color="danger">{error} <Link to="/projects">กลับไปรายการโครงการ</Link></Alert>;
-  if (!project) return <div className="text-center p-5"><Spinner /></div>;
+  if (error) {
+    return (
+      <Alert color="danger">
+        {error} <Link to="/projects">กลับไปรายการโครงการ</Link>
+      </Alert>
+    );
+  }
+  if (!project) return <div className="card-x card-x__body"><Skeleton rows={6} /></div>;
 
   const available = project.transitions.filter((t) => t.allowedForCaller);
   const blocked = project.transitions.filter((t) => !t.allowedForCaller);
 
   return (
     <>
-      <Link to="/projects" className="dms-muted">← รายการโครงการ</Link>
+      <Link to="/projects" className="u-small u-muted">← รายการโครงการ</Link>
 
-      <div className="dms-card p-4 mt-2 mb-3">
-        <h5>{project.name}</h5>
-        <div className="dms-muted mb-3">
-          {project.club.nameTh} · ปีการศึกษา {project.academicYear} ·{' '}
-          {project.projectNumber ? `เลขที่ ${project.projectNumber}` : `ร่างที่ ${project.draftSequence} (ยังไม่ออกเลข)`}
-        </div>
-
-        <div className="d-flex flex-wrap mb-3" style={{ gap: '0.4rem' }}>
-          {phases.map((p) => (
-            <span
-              key={p.code}
-              className={`dms-phase-step${p.ordinal === project.phase.ordinal ? ' dms-phase-step--current' : ''}`}
-            >
-              {p.ordinal}. {p.name_th}
+      <div className="card-x mt-2 mb-4">
+        <div className="card-x__body">
+          <div className="u-row mb-2" style={{ flexWrap: 'wrap' }}>
+            <PhasePill code={project.phase.code}>{project.phase.nameTh}</PhasePill>
+            <span className="u-small u-dim u-mono">
+              {project.projectNumber || `ร่างที่ ${project.draftSequence} · ยังไม่ออกเลขที่`}
             </span>
-          ))}
+          </div>
+
+          <h1 style={{ fontSize: '1.4rem', marginBottom: 'var(--s-2)' }}>{project.name}</h1>
+
+          <div className="u-small u-muted mb-4">
+            {project.club.nameTh} · ปีการศึกษา {project.academicYear}
+            {project.owner && ` · ผู้รับผิดชอบ ${project.owner.nameTh}`}
+            {project.advisor && ` · ที่ปรึกษา ${project.advisor.nameTh}`}
+          </div>
+
+          <PhaseStepper phases={phases} currentOrdinal={project.phase.ordinal} />
         </div>
 
-        {available.map((t) => (
-          <Button key={t.toPhaseCode} color="primary" className="mr-2" disabled={busy} onClick={() => advance(t)}>
-            เปลี่ยนเป็น “{t.toPhaseNameTh}”
-          </Button>
-        ))}
-        {available.length === 0 && blocked.length > 0 && (
-          <div className="dms-muted">
-            ขั้นตอนถัดไป “{blocked[0].toPhaseNameTh}” ทำได้โดย {blocked[0].allowedRoles.join(', ')} เท่านั้น
+        {(available.length > 0 || blocked.length > 0) && (
+          <div
+            className="card-x__body u-row"
+            style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-surface-2)', flexWrap: 'wrap' }}
+          >
+            {available.map((t) => (
+              <Button key={t.toPhaseCode} color="primary" disabled={busy} onClick={() => advance(t)}>
+                เปลี่ยนเป็น “{t.toPhaseNameTh}” →
+              </Button>
+            ))}
+            {available.length === 0 && blocked.length > 0 && (
+              <span className="u-small u-muted">
+                ขั้นตอนถัดไป “{blocked[0].toPhaseNameTh}” ทำได้โดย {blocked[0].allowedRoles.join(', ')} เท่านั้น
+              </span>
+            )}
+            {available.some((t) => t.requiresBudgetCheck) && (
+              <span className="u-small u-dim">ขั้นตอนนี้จะตรวจงบประมาณเมื่อทำ Phase 3 เสร็จ</span>
+            )}
           </div>
         )}
-        {project.transitions.length === 0 && <div className="dms-muted">โครงการปิดแล้ว</div>}
       </div>
 
       <div className="row">
-        <div className="col-md-7">
-          {Object.entries(SECTION_LABELS).map(([key, label]) => {
-            const rows = project.sections[key] || [];
-            if (!rows.length) return null;
-            return (
-              <div className="dms-card p-3 mb-3" key={key}>
-                <div className="mb-2"><strong>{label}</strong> <span className="dms-muted">({rows.length})</span></div>
-                <ol className="mb-0 pl-3">
-                  {rows.map((row) => (
-                    <li key={row.id}>
-                      {row.content || row.topic || row.problem || row.expected_result || row.label}
-                      {row.headcount !== undefined && <span className="dms-muted"> — {row.headcount} คน ({row.attendee_type})</span>}
-                      {row.start_on && <span className="dms-muted"> — {String(row.start_on).slice(0, 10)} ถึง {String(row.end_on).slice(0, 10)}</span>}
-                    </li>
-                  ))}
-                </ol>
+        <div className="col-lg-7">
+          <div className="u-stack">
+            <Card title="กำหนดการ">
+              <div className="stat-row">
+                <span className="stat-row__label">เตรียมงาน</span>
+                <span className="stat-row__value u-small">{date(project.prepareStartOn)} — {date(project.prepareEndOn)}</span>
               </div>
-            );
-          })}
+              <div className="stat-row">
+                <span className="stat-row__label">จัดกิจกรรม</span>
+                <span className="stat-row__value u-small">{date(project.eventStartOn)} — {date(project.eventEndOn)}</span>
+              </div>
+              {project.contacts.length > 0 && (
+                <div className="stat-row">
+                  <span className="stat-row__label">ผู้ประสานงาน</span>
+                  <span className="stat-row__value u-small">
+                    {project.contacts.map((c) => `${c.name || '—'} ${c.phone || ''}`.trim()).join(', ')}
+                  </span>
+                </div>
+              )}
+            </Card>
 
-          {project.sections.tags.length > 0 && (
-            <div className="dms-card p-3 mb-3">
-              <div className="mb-2"><strong>แท็ก</strong></div>
-              {project.sections.tags.map((t) => (
-                <Badge key={t.id} color="light" className="mr-1 mb-1">{t.tag_set_code} {t.ordinal}: {t.name_th}</Badge>
-              ))}
-            </div>
-          )}
+            {Object.entries(SECTION_LABELS).map(([key, label]) => {
+              const rows = project.sections[key] || [];
+              if (!rows.length) return null;
+              return (
+                <Card key={key} title={label} aside={`${rows.length} รายการ`}>
+                  <ol className="mb-0 pl-3">
+                    {rows.map((row) => <SectionRow key={row.id} row={row} />)}
+                  </ol>
+                </Card>
+              );
+            })}
+
+            {project.sections.tags.length > 0 && (
+              <Card title="แท็ก" aside={`${project.sections.tags.length} รายการ`}>
+                <div className="u-row" style={{ flexWrap: 'wrap', gap: 'var(--s-2)' }}>
+                  {project.sections.tags.map((t) => (
+                    <span key={t.id} className="pill pill--neutral pill--plain">
+                      {t.tag_set_code} {t.ordinal}: {t.name_th}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
         </div>
 
-        <div className="col-md-5">
-          {project.budget && (
-            <div className="dms-card p-3 mb-3">
-              <div className="mb-2"><strong>งบประมาณ</strong> <span className="dms-muted">(อ่านอย่างเดียว — Phase 3)</span></div>
-              <Table size="sm" borderless className="mb-0">
-                <tbody>
-                  <tr><td className="dms-muted">ขอมา</td><td className="text-right">{project.budget.requested_total}</td></tr>
-                  <tr><td className="dms-muted">ตามแผน</td><td className="text-right">{project.budget.planned_amount ?? '—'}</td></tr>
-                  <tr><td className="dms-muted">อนุมัติ</td><td className="text-right">{project.budget.approved_amount ?? '—'}</td></tr>
-                  <tr><td className="dms-muted">เบิกแล้ว</td><td className="text-right">{project.budget.disbursed_total}</td></tr>
-                  <tr><td className="dms-muted">ใช้จริง</td><td className="text-right">{project.budget.actual_total}</td></tr>
-                </tbody>
-              </Table>
-            </div>
-          )}
+        <div className="col-lg-5">
+          <div className="u-stack">
+            {project.budget && (
+              <Card title="งบประมาณ" aside="อ่านอย่างเดียว · Phase 3">
+                <div className="stat-row">
+                  <span className="stat-row__label">ขอมา</span>
+                  <span className="stat-row__value">{money(project.budget.requested_total)}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-row__label">ตามแผน</span>
+                  <span className="stat-row__value">{money(project.budget.planned_amount)}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-row__label">อนุมัติ</span>
+                  <span className="stat-row__value">{money(project.budget.approved_amount)}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-row__label">เบิกแล้ว</span>
+                  <span className="stat-row__value">{money(project.budget.disbursed_total)}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-row__label">ใช้จริง</span>
+                  <span className="stat-row__value">{money(project.budget.actual_total)}</span>
+                </div>
+              </Card>
+            )}
 
-          <div className="dms-card p-3">
-            <div className="mb-2"><strong>ประวัติ</strong></div>
-            <ul className="list-unstyled mb-0" style={{ fontSize: '0.9rem' }}>
-              {events.map((e) => (
-                <li key={e.id} className="mb-2">
-                  <div>
-                    {EVENT_LABELS[e.event_type] || e.event_type}
-                    {e.to_phase_name_th && ` → ${e.to_phase_name_th}`}
-                    {e.edited_section && ` (${SECTION_LABELS[e.edited_section] || e.edited_section})`}
+            <Card title="ประวัติ" aside={`${events.length} รายการ`}>
+              <div className="timeline">
+                {events.map((e) => (
+                  <div key={e.id} className={`tl-item${e.event_type === 'PHASE_CHANGED' ? ' tl-item--phase' : ''}`}>
+                    <div className="tl-item__title">
+                      {EVENT_LABELS[e.event_type] || e.event_type}
+                      {e.to_phase_name_th && ` → ${e.to_phase_name_th}`}
+                      {e.edited_section && ` (${SECTION_LABELS[e.edited_section] || e.edited_section})`}
+                    </div>
+                    <div className="tl-item__meta">
+                      {e.actor_name} · {new Date(e.occurred_at).toLocaleString('th-TH')}
+                    </div>
                   </div>
-                  <div className="dms-muted">
-                    {e.actor_name} · {new Date(e.occurred_at).toLocaleString('th-TH')}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            </Card>
           </div>
         </div>
       </div>

@@ -77,11 +77,17 @@ across directly rather than re-derived.
 > which is unmaintained and cannot negotiate MySQL 8's default authentication. `mysql2` is the
 > drop-in successor with the same callback API plus promises. Nothing else changes.
 
-**Visual theme: standard for now, no dark mode** (decided 2026-08-12). Build against the
-stock Bootstrap 4 look. The original doc's role-based palette (Admin blue, Student green,
-Adviser amber, STUACT purple) is **not** carried forward — the visual direction is the project
-owner's call, and **no palette gets chosen without asking first.** Keep colour values in one
-place so a theme can be dropped in later without touching components.
+**Visual theme — settled 2026-08-14 by the owner.** The accent is **`#AC3520`**, KMUTNB's own
+colour, on warmed neutral greys, with IBM Plex Sans Thai. Stock Bootstrap 4 was explicitly
+rejected as an end state: the owner asked for a modern look. **Still no dark mode.**
+
+The original doc's role-based palette (Admin blue, Student green, Adviser amber, STUACT
+purple) is **not** carried forward — role is not a mood, and colouring the whole UI by who is
+looking makes screenshots and documentation ambiguous.
+
+Everything lives in `frontend/src/theme.css`; components reference `var(--c-*)` and never a
+literal colour. Two rules hold there: the accent is for **actions**, never for status (a red
+status pill reads as an error), and error red is deeper and cooler than the brand red.
 
 ---
 

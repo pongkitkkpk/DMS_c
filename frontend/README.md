@@ -36,10 +36,24 @@ reported to the user as a success.
 
 ## Theme
 
-`src/theme.css` holds every colour as a `--dms-*` custom property, and they are
-all stock Bootstrap 4 values or neutrals. **No palette has been chosen** — that
-is the project owner's decision, and dropping a real theme in later should mean
-editing that one file.
+Chosen by the owner on 2026-08-14: **#AC3520**, KMUTNB's colour, as the single
+accent, on warmed neutral greys, with IBM Plex Sans Thai for type.
+
+`src/theme.css` is the whole design system — tokens first, then overrides of the
+Bootstrap and SweetAlert2 classes. Components use `var(--c-*)` and never a
+literal colour, radius or shadow, so re-theming is one file.
+
+Two rules the palette follows:
+
+- **The accent belongs to actions, never to status.** A phase pill is neutral,
+  amber, green or slate; none of them is the brand red, because a red status
+  reads as a problem.
+- **Errors are a deeper, cooler red than the accent**, and are also marked by
+  position, a left rule, and wording — a brand that is itself red cannot rely on
+  hue alone to say "something went wrong".
+
+Light only, per the "no dark mode" decision in the build plan. The tokens are
+structured so a dark set could be added without touching a component.
 
 ## What is not here yet
 
