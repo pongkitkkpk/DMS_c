@@ -20,6 +20,34 @@ try {
   process.exit(1);
 }
 
+/**
+ * Say plainly, once, at startup whether the database is reachable.
+ *
+ * A refused connection surfaces otherwise as an aggregate ECONNREFUSED for
+ * ::1 and 127.0.0.1 with a Node stack, which names the port and nothing a
+ * person can act on. The usual cause here is simply that MariaDB is not
+ * running. The server still starts — `GET /api/health` reports the database
+ * separately, and a database that comes up a moment later should not require
+ * restarting the API.
+ */
+async function reportDatabase() {
+  try {
+    await pool.query('SELECT 1');
+    console.log(`  database        ${process.env.DB_NAME || 'dms'} ที่ ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306} — เชื่อมต่อได้`);
+  } catch (err) {
+    console.error(`\n  ⚠ ต่อฐานข้อมูลไม่ได้ (${err.code}) — ทุก endpoint ที่อ่านข้อมูลจะล้มเหลว`);
+    if (err.code === 'ECONNREFUSED') {
+      console.error('    ไม่มีอะไรฟังอยู่ที่พอร์ต 3306 — ส่วนใหญ่แปลว่า MariaDB ยังไม่ได้เปิด');
+      console.error('    เปิด MySQL จาก XAMPP control panel แล้วรัน: npm run db:reset');
+    } else if (err.code === 'ER_BAD_DB_ERROR') {
+      console.error(`    ยังไม่มีฐานข้อมูล ${process.env.DB_NAME || 'dms'} — สร้างแล้วรัน: npm run db:reset`);
+    } else if (err.code === 'ER_ACCESS_DENIED_ERROR') {
+      console.error('    DB_USER / DB_PASS ใน .env ไม่ถูกต้อง');
+    }
+    console.error('');
+  }
+}
+
 const server = createApp().listen(config.port, () => {
   console.log(`DMS API listening on http://localhost:${config.port}`);
   console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? '  (any password is accepted)' : ''}`);
@@ -28,6 +56,7 @@ const server = createApp().listen(config.port, () => {
   if (config.localAdmin.enabled) {
     console.log(`  local admin     ${config.localAdmin.username}  (non-production fallback)`);
   }
+  reportDatabase();
 });
 
 // Finish in-flight requests and close the pool rather than dropping connections
