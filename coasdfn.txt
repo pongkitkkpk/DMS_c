@@ -1,22 +1,55 @@
-Today's session
+Session — 2026-08-14
 
-Phase 0 → complete. Verified defects 5–7 (all three understated; #7 named the wrong file), then wrote business-rules.md, domain-model.md, and schema-target.md. Along the way: closed Q35, corrected the netprojectbudget grain, found the unauthenticated server.js route group, and flagged that Q39 would have deleted a real role.
+Phase 1 → closed. The AuthProvider seam (AUTH_PROVIDER=mock|icit) and GET /me. Both providers
+return ICIT's response shape and share one normalizer, so the mock exercises the real mapping.
+The provider settles identity; the database settles role. The token carries sub + uid and no
+role at all.
 
-Strategy doc → rewritten as a 6-phase build plan pointing into the Phase 0 docs.
+Phase 2 → closed. Projects, scope, and the phase machine. Scope is a SQL fragment applied
+inside the query; out-of-scope reads answer 404 rather than 403 so a refusal cannot confirm
+another club's project exists. Writes go through allow-lists. The phase machine is a real
+transition table with guards, and every phase change writes its event in the same transaction.
+54 checks in backend/scripts/check-phase2.js, all passing.
 
-Phase 1 → database half done and verified. 30 tables, 1 view, 42 FKs applying cleanly to MariaDB 10.4; migrate + seed both green; constraints tested to actually reject rather than assumed to.
+Frontend → started, ahead of Phase 5 on purpose. Login, project list, and one project with a
+seven-step stepper, transition buttons, child lists and event log. Enough to start the whole
+system and watch a project walk 1 → 7 through the browser.
+
+Theme → chosen: #AC3520 on warmed neutrals, IBM Plex Sans Thai. All of it in
+frontend/src/theme.css; no component hard-codes a colour.
+
+Two defects the testing found, not the writing
+
+- Grouped sections read back interleaved, because project_attendance ordinals restart per
+  (variant, attendee_type) and the query ordered by ordinal alone.
+- Concurrent numbering needed two mechanisms, not one. Ten simultaneous creates in one
+  club-year first deadlocked, then produced duplicate keys, because REPEATABLE READ fixes a
+  transaction's snapshot at its first read — before it starts waiting for the lock. Both the
+  club-row lock and FOR UPDATE on the aggregate are required. Written up in projectService.js.
 
 State I left behind
 
-- MySQL stopped — I started it only to verify, so I shut it down. One click in the XAMPP control panel to bring it back; npm run db:reset rebuilds everything.
-- backend/.env exists locally with a generated secret, gitignored.
-- coasdfn.txt untouched and untracked.
-- Resume notes are in docs/DECISIONS.md → "Next steps", so a cold start doesn't have to rediscover the setup.
+- MariaDB is RUNNING, started detached so it does not die with the session (pid 18768 today).
+  Stop it from the XAMPP control panel when you want to. Data is intact — no db:reset needed.
+- Ports 3000 and 3001 are free. I left nothing of mine running on them.
+- Everything is committed: 8553f5a, 18821b3, 1da783c, 8f9f855.
+- CORS now accepts any localhost origin in development, so a dev server that moves to 3002
+  no longer looks exactly like the API being down.
 
 Picking up next time
 
-Next item is the AuthProvider seam — AUTH_PROVIDER=mock|icit, with the role resolved from a membership lookup rather than from the identity provider. That plus GET /me closes Phase 1.
+Phase 3 — budget. The three checks (request <= plan, spend <= approved, club-year total <=
+allocation), hard-blocked at the three transitions flagged requires_budget_check. The hook is
+already marked in phaseService.js and those transitions currently return
+budgetCheckPending: true rather than pretending to enforce anything.
 
-One decision still open: A4 — whether person and membership stay split. Everything built so far assumes they do, and that's the cheap direction to reverse, so it's not blocking — but worth a look before Phase 2 builds on it.
+Three things that want a human answer, none of them blocking:
+
+1. Editing rights — who may edit a project in which phase. The old system had no rule at all,
+   so what is implemented is an assumption (DECISIONS.md → "Editing rights"). The likeliest
+   correction: should STUACT edit a student's content, or only advance it?
+2. A4 — whether person and membership stay split. Still the cheap direction to reverse.
+3. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
+   pinned in .env meanwhile, and roles resolve by that year, so it matters.
 
 พักผ่อนนะครับ 👋
