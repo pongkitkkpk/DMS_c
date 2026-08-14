@@ -57,4 +57,27 @@ export const api = {
     client.post(`/projects/${id}/transitions`, { toPhaseCode }).then((r) => r.data),
   events: (id) => client.get(`/projects/${id}/events`).then((r) => r.data),
   phases: () => client.get('/reference/phases').then((r) => r.data),
+
+  // Budget. `budget()` answers with the figures, the lines, the ledger, the
+  // findings, and `permissions` — which controls this caller may use. The
+  // client draws what the server says it may; it does not work that out from
+  // the role, which is exactly what the old frontend did wrong.
+  budget: (id) => client.get(`/projects/${id}/budget`).then((r) => r.data),
+  setPlan: (id, plannedAmount) =>
+    client.put(`/projects/${id}/budget/plan`, { plannedAmount }).then((r) => r.data),
+  setLines: (id, variant, items) =>
+    client.put(`/projects/${id}/budget/lines/${variant}`, { items }).then((r) => r.data),
+  approveBudget: (id, approvedAmount) =>
+    client.post(`/projects/${id}/budget/approve`, { approvedAmount }).then((r) => r.data),
+  disburse: (id, body) => client.post(`/projects/${id}/disbursements`, body).then((r) => r.data),
+  allocations: (params) => client.get('/allocations', { params }).then((r) => r.data),
+  setAllocation: (body) => client.put('/allocations', body).then((r) => r.data),
 };
+
+/**
+ * A budget refusal answers 422 with every violation, not just the first. The
+ * message is already the right sentence — this is only for a screen that wants
+ * to mark more than one field.
+ */
+export const violationsOf = (error) =>
+  (error.response && error.response.data && error.response.data.budgetViolations) || [];

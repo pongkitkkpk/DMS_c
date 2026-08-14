@@ -156,8 +156,32 @@ async function login(username) {
     ['REPORT_SUBMITTED', stuact, 'STUACT'],
     ['CLOSED', admin, 'ADMIN'],
   ];
+  // Phase 3 put real limits on the three `requires_budget_check` gates, so a
+  // project can no longer be walked past them with no money stated: the walk now
+  // states a plan before it is approved and an approved amount before the money
+  // is. What is being checked here is still the machine, not the limits —
+  // `check-phase3.js` is where each limit is made to refuse.
+  await call('PUT', `/api/projects/${id}/budget/plan`, { token: sh, body: { plannedAmount: '5000' } });
+  await call('PUT', `/api/projects/${id}/budget/lines/PLANNED`, {
+    token: sh,
+    body: { items: [{ category: 'C', description: 'ค่าวัสดุ', qty1: '1', unit1: 'ชุด', unitPrice: '5000' }] },
+  });
+
   let numberAtApproval = null;
   for (const [code, token, who] of walk) {
+    if (code === 'BUDGET_APPROVED') {
+      const approvedAmount = await call('POST', `/api/projects/${id}/budget/approve`, {
+        token: stuact, body: { approvedAmount: '5000' },
+      });
+      ok('STUACT approves the amount before the money gate', approvedAmount.status === 200,
+        approvedAmount.text.slice(0, 200));
+    }
+    if (code === 'REPORT_SUBMITTED') {
+      await call('PUT', `/api/projects/${id}/budget/lines/ACTUAL`, {
+        token: sh,
+        body: { items: [{ category: 'C', description: 'ค่าวัสดุ', qty1: '1', unit1: 'ชุด', unitPrice: '4800' }] },
+      });
+    }
     const r = await call('POST', `/api/projects/${id}/transitions`, { token, body: { toPhaseCode: code } });
     ok(`${who} advances to ${code}`, r.status === 200, r.text.slice(0, 200));
     if (code === 'PROJECT_APPROVED') numberAtApproval = r.body.projectNumber;

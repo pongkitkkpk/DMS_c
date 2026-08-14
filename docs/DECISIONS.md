@@ -509,14 +509,16 @@ frontend is ~20 screens. Plan in **weeks**.
   and anything that outlives its retries is reported as "try again", because that is what it
   is. Double-advancing one project also 409s: the transition re-reads the row under its lock
   and refuses if the phase moved since the read that authorized the request.
-- **Verified, not assumed:** all 54 checks in `check-phase2.js`, covering the full 1 → 7 walk
+- **Verified, not assumed:** all 55 checks in `check-phase2.js`, covering the full 1 → 7 walk
   by the correct roles, wrong-role 403s, impossible and backwards transitions as 400s,
   mass-assignment rejection naming the offending fields, `'0000-00-00'` rejected, per-group
   ordinals in `project_attendance`, tag de-duplication, and an event log that chains from
   `DRAFT_PROPOSAL` into the project's current phase.
-- **Deferred to Phase 3 and marked in code**: the `requires_budget_check` transitions are
-  currently allowed. `phaseService.js` carries the hook and the response returns
-  `budgetCheckPending: true`, rather than silently implying a limit is being enforced.
+- ~~**Deferred to Phase 3 and marked in code**: the `requires_budget_check` transitions are
+  currently allowed and return `budgetCheckPending: true`.~~ **Closed by Phase 3** — those
+  transitions now enforce. The walk in `check-phase2.js` states a plan and an approved amount
+  before the two money gates, because a project can no longer pass them with no money stated;
+  the response field is now `budgetChecked` plus `budgetWarnings`.
 
 #### Editing rights — an assumption, not a port
 
@@ -535,6 +537,80 @@ conservative reading of the gate table in `business-rules.md`:
 that is a judgement call rather than a port, and the likeliest correction is whether STUACT
 should be able to edit a student's content at all, as opposed to only advancing it.
 
+## Phase 3 close-out (2026-08-14)
+
+Budget enforcement exists. `backend/src/services/budgetService.js` owns the three limits,
+`allocationService.js` owns the ceiling they are drawn against, and
+`backend/scripts/check-phase3.js` (`npm run check:phase3`) proves each one refuses — 65 checks,
+all passing, against a live server.
+
+The build plan's "Done when" list, item by item:
+
+- **Each limit blocks, with a distinct error.** (a) `REQUEST_OVER_PLAN`, (b)
+  `DISBURSED_OVER_APPROVED` / `ACTUAL_OVER_APPROVED`, (c) `CLUB_YEAR_OVER_ALLOCATION`, plus
+  `APPROVED_AMOUNT_MISSING` and `ALLOCATION_MISSING` for the two ways a limit can be
+  unstatable. Every one carries its own Thai sentence naming both numbers and the overage.
+- **Concurrent approvals against one allocation cannot both succeed.** Eight simultaneous
+  approvals against a ceiling with room for three landed exactly on the ceiling, three times
+  running, with no deadlock escaping its retries.
+- **No stored total can disagree with its components.** `budget_line.amount` is `GENERATED`
+  and rejected if a client states it; every other figure is a `SUM` or a subtraction.
+
+### Decisions taken in Phase 3
+
+- **A budget refusal is 422, not 400.** The request was well formed and the caller was
+  entitled to make it — the numbers refused it. The body carries `budgetViolations` with
+  *every* violation, not only the first, so a form can mark more than one field.
+- **Each flagged gate enforces the limit that first becomes real at it**, and never one that
+  is already committed: `PROJECT_APPROVED` → (a); `BUDGET_APPROVED` → (a) and (c);
+  `REPORT_SUBMITTED` → (b). Re-checking (c) at `REPORT_SUBMITTED` would let a *lowered*
+  allocation block a report, which contradicts Q33.
+- **An `approved_amount` is committed the moment it is written**, not at the phase change that
+  follows it. Anything else would leave a gap in which a club could approve past its ceiling,
+  and would make the write-time and transition-time checks disagree about the same number.
+- **Layer (c) is not re-checked on budget-line writes.** A line cannot change any approved
+  amount, so re-checking the allocation there could only ever fail for a reason the person
+  editing cannot fix — which is the shape of a rule people learn to route around.
+- **The "missing" findings are suppressed until money is actually about to be committed.** An
+  unset approved amount and an unset ceiling are facts for the whole of drafting, not faults;
+  warning about them on every read trains people to ignore the warnings that matter.
+- **Q26's "warn on draft submit" is the same evaluation as the block, reported instead of
+  enforced.** Every transition response carries `budgetWarnings`, so a problem is visible for
+  the whole of the phase in which it can still be fixed. One implementation, not two.
+- **Money out blocks immediately** rather than at the next gate. Paying past the approved
+  amount is not something to warn about and reconcile later.
+- **The `project_budget_status` view is no longer on any request path.** A view cannot be
+  locked, and every figure that decides whether a write may commit has to be read
+  `FOR UPDATE`, so the service reads the components directly. The view survives in the schema
+  as the SQL-level report shape — there is one implementation of these totals, not two.
+- **`scope.permits` answers what the screens may draw**, by asking the same assertions the
+  writes run rather than restating them. The old frontend restated the rule from
+  `storedUser.position` and the two drifted; a predicate derived from the assertion cannot.
+- **Money never passes through a float.** `src/lib/money.js` compares and sums in whole
+  satang; `check.decimal` refuses a third decimal place rather than rounding it away, and
+  refuses a non-number rather than coercing it to 0 (Q37).
+
+The same REPEATABLE-READ trap that cost a day in Phase 2's numbering applies to every one of
+these checks, and is handled the same way: lock a single existing row first to serialize
+(the allocation, or the project), then read the aggregate `FOR UPDATE` so it sees what the
+previous holder committed rather than the snapshot taken before the wait. Lock order is
+**allocation → project → club** everywhere, including inside `performTransition`, which takes
+the allocation lock before the project row precisely so an approval racing a transition queues
+instead of meeting it head-on.
+
+### New deviations from old behavior
+
+Added to the numbered list above, all required by Q22:
+
+17. **A budget line's total is computed by the database and refused from the client.** The old
+    frontend called `.toLocaleString("en-US")` on its own arithmetic and posted the result.
+18. **Disbursements are append-only, and "remaining" is a subtraction over them.** The old
+    `logstudentgetmoney` stored `remainingBudget` per row and let the client compute it.
+19. **Approving money and recording a disbursement are Admin/STUACT only, and only from the
+    phase at which each becomes meaningful.** The old routes were unauthenticated.
+20. **A club with no allocation cannot have money approved against it.** New: there was no
+    allocation, so there was nothing to refuse against.
+
 ### Frontend first slice (2026-08-13) — deliberately out of order
 
 `frontend/` now runs: CRA + React 18 + Bootstrap 4.6 + reactstrap + React Router v5, the stack
@@ -552,9 +628,9 @@ Two disciplines it establishes early, both from `business-rules.md`:
 - **Success is announced only after the server answers**, replacing the old screen's four
   unawaited calls and immediate `Swal.fire("สำเร็จ!")`.
 
-**No palette has been chosen.** `src/theme.css` holds every colour as a `--dms-*` custom
-property, all stock Bootstrap or neutral, so a real theme is one file's worth of edits when
-the owner decides. See the build plan, Phase 5, "Theming".
+~~**No palette has been chosen.**~~ **Settled 2026-08-14** — the accent is `#AC3520` on warmed
+neutrals, in IBM Plex Sans Thai. Every colour is a `--c-*` custom property in
+`src/theme.css` and no component hard-codes one. See the build plan, "Visual theme".
 
 ### Resume notes (2026-08-13)
 

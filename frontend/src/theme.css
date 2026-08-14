@@ -379,6 +379,151 @@ a:hover {
 .stat-row__label { color: var(--c-text-2); font-size: 0.88rem; }
 .stat-row__value { font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* A row of headline figures. Five single numbers with no time axis and nothing
+   to compare across categories is not a chart — it is five numbers, so it is
+   drawn as five numbers. */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s-3);
+}
+
+.kpi {
+  padding: var(--s-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.kpi__label { font-size: 0.78rem; color: var(--c-text-2); }
+
+.kpi__value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-top: var(--s-1);
+  /* Proportional figures, deliberately: `tabular-nums` gives every digit the
+     width of a zero, which reads loose at this size. Tabular is for columns
+     that have to line up vertically — the table below, not these. */
+  font-variant-numeric: proportional-nums;
+  line-height: 1.2;
+}
+
+.kpi__note { font-size: 0.74rem; color: var(--c-text-3); margin-top: var(--s-1); }
+
+/* -------------------------------------------------------------------------
+   Meter — one ratio against a limit
+   ------------------------------------------------------------------------- */
+
+/* The unfilled track is a lighter step of the fill's own ramp, so the state
+   reads across the whole bar rather than only across the filled part. Over the
+   limit the fill stays at 100% and the caption says by how much: the bar never
+   overstates what it can draw. */
+.meter { margin-top: var(--s-4); }
+
+.meter__head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: 0.8rem;
+  color: var(--c-text-2);
+  margin-bottom: var(--s-2);
+}
+
+.meter__amount { font-variant-numeric: tabular-nums; }
+
+.meter__track {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.meter__fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.meter--ok   .meter__track { background: var(--c-ok-soft); }
+.meter--ok   .meter__fill  { background: var(--c-ok); }
+.meter--near .meter__track { background: var(--c-warn-soft); }
+.meter--near .meter__fill  { background: var(--c-warn); }
+.meter--over .meter__track { background: var(--c-danger-soft); }
+.meter--over .meter__fill  { background: var(--c-danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .meter__fill { transition: none; }
+}
+
+/* -------------------------------------------------------------------------
+   Notice — a budget finding
+   ------------------------------------------------------------------------- */
+
+/* Status is never carried by colour alone: every notice has a mark and the
+   server's own Thai sentence. The colour is the third channel, not the first. */
+.notice {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.notice + .notice { margin-top: var(--s-2); }
+.notice__mark { flex: none; font-weight: 700; line-height: 1.5; }
+
+.notice--warn {
+  background: var(--c-warn-soft);
+  color: var(--c-warn);
+  border-color: rgba(146, 98, 10, 0.2);
+}
+
+.notice--danger {
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+  border-color: rgba(138, 28, 18, 0.2);
+}
+
+/* -------------------------------------------------------------------------
+   Budget line editor
+   ------------------------------------------------------------------------- */
+
+.lines { width: 100%; border-collapse: separate; border-spacing: 0; }
+
+.lines th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-text-3);
+  padding: 0 var(--s-2) var(--s-2);
+  white-space: nowrap;
+}
+
+.lines td { padding: 0 var(--s-2) var(--s-2) var(--s-2); vertical-align: middle; }
+.lines td.lines__amount { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.lines .form-control, .lines .form-select { font-size: 0.86rem; padding: 0.3rem 0.5rem; }
+.lines__num { text-align: right; }
+
+.lines__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--c-border);
+  margin-top: var(--s-2);
+}
+
+@media (max-width: 720px) {
+  .lines, .lines tbody, .lines tr, .lines td { display: block; width: 100%; }
+  .lines thead { display: none; }
+  .lines tr { border-bottom: 1px solid var(--c-border); padding-bottom: var(--s-3); margin-bottom: var(--s-3); }
+  .lines td.lines__amount { text-align: left; }
+}
+
 /* -------------------------------------------------------------------------
    Timeline — the event log
    ------------------------------------------------------------------------- */
@@ -471,6 +616,15 @@ a:hover {
   border-color: var(--c-accent-hover);
 }
 .btn-primary:focus-visible { box-shadow: 0 0 0 4px var(--c-accent-soft) !important; }
+
+/* Bootstrap keeps its own blue for the disabled state, so a disabled primary
+   button was the one place the framework's palette showed through the theme. */
+.btn-primary:disabled,
+.btn-primary.disabled {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  opacity: 0.45;
+}
 
 .btn-outline-secondary,
 .btn-secondary.btn-outline {

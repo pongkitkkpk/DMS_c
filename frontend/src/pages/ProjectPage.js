@@ -15,7 +15,8 @@ import { Button, Alert } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
-import { Card, PhasePill, PhaseStepper, Skeleton, money } from '../components/ui';
+import BudgetPanel from '../components/BudgetPanel';
+import { Card, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
 
 const SECTION_LABELS = {
   objectives: 'วัตถุประสงค์',
@@ -78,7 +79,7 @@ export default function ProjectPage() {
     const confirmed = await Swal.fire({
       title: `เปลี่ยนสถานะเป็น “${transition.toPhaseNameTh}”?`,
       text: transition.requiresBudgetCheck
-        ? 'ขั้นตอนนี้จะมีการตรวจสอบงบประมาณ (ยังไม่เปิดใช้งาน)'
+        ? 'ขั้นตอนนี้จะตรวจสอบงบประมาณ และจะไม่ผ่านหากเกินวงเงิน'
         : undefined,
       icon: 'question',
       showCancelButton: true,
@@ -94,10 +95,17 @@ export default function ProjectPage() {
       // fired four unawaited calls and showed "สำเร็จ!" immediately, so a
       // failed phase write was reported as a success (business-rules.md).
       const result = await api.transition(id, transition.toPhaseCode);
+      // Anything the transition did not block is still worth saying, and this
+      // is the moment to say it — Q26 warns on submit so the problem is visible
+      // for the whole of the phase in which it can still be fixed.
+      const warnings = result.budgetWarnings || [];
       await Swal.fire({
-        icon: 'success',
+        icon: warnings.length ? 'warning' : 'success',
         title: `สถานะเป็น “${result.toPhase.nameTh}” แล้ว`,
-        text: result.projectNumber ? `เลขที่โครงการ ${result.projectNumber}` : undefined,
+        text: [
+          result.projectNumber ? `เลขที่โครงการ ${result.projectNumber}` : null,
+          ...warnings.map((w) => w.message),
+        ].filter(Boolean).join('\n') || undefined,
       });
       load();
     } catch (err) {
@@ -159,7 +167,7 @@ export default function ProjectPage() {
               </span>
             )}
             {available.some((t) => t.requiresBudgetCheck) && (
-              <span className="u-small u-dim">ขั้นตอนนี้จะตรวจงบประมาณเมื่อทำ Phase 3 เสร็จ</span>
+              <span className="u-small u-dim">ขั้นตอนนี้มีการตรวจสอบงบประมาณ</span>
             )}
           </div>
         )}
@@ -215,31 +223,6 @@ export default function ProjectPage() {
 
         <div className="col-lg-5">
           <div className="u-stack">
-            {project.budget && (
-              <Card title="งบประมาณ" aside="อ่านอย่างเดียว · Phase 3">
-                <div className="stat-row">
-                  <span className="stat-row__label">ขอมา</span>
-                  <span className="stat-row__value">{money(project.budget.requested_total)}</span>
-                </div>
-                <div className="stat-row">
-                  <span className="stat-row__label">ตามแผน</span>
-                  <span className="stat-row__value">{money(project.budget.planned_amount)}</span>
-                </div>
-                <div className="stat-row">
-                  <span className="stat-row__label">อนุมัติ</span>
-                  <span className="stat-row__value">{money(project.budget.approved_amount)}</span>
-                </div>
-                <div className="stat-row">
-                  <span className="stat-row__label">เบิกแล้ว</span>
-                  <span className="stat-row__value">{money(project.budget.disbursed_total)}</span>
-                </div>
-                <div className="stat-row">
-                  <span className="stat-row__label">ใช้จริง</span>
-                  <span className="stat-row__value">{money(project.budget.actual_total)}</span>
-                </div>
-              </Card>
-            )}
-
             <Card title="ประวัติ" aside={`${events.length} รายการ`}>
               <div className="timeline">
                 {events.map((e) => (
@@ -258,6 +241,12 @@ export default function ProjectPage() {
             </Card>
           </div>
         </div>
+      </div>
+
+      {/* Full width: the line tables need the room, and the money is a section
+          of the project in its own right rather than a sidebar statistic. */}
+      <div className="mt-4">
+        <BudgetPanel projectId={id} onChange={load} />
       </div>
     </>
   );

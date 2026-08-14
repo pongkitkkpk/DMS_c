@@ -16,6 +16,7 @@ const { transaction } = require('../db/pool');
 const { HttpError } = require('../lib/httpError');
 const { buildClubCode, buildProjectNumber } = require('../lib/clubCode');
 const { recordEvent, lockClubForNumbering } = require('./projectService');
+const budget = require('./budgetService');
 
 /** Every transition out of `project`'s current phase, and whether this actor may take it. */
 async function availableTransitions(conn, project, actor) {
@@ -107,18 +108,27 @@ async function issueProjectNumber(conn, project) {
  * @param {object} actor    `req.actor`
  * @param {object} project  the row as read *before* the transaction
  * @param {string} toPhaseCode
- * @returns {Promise<object>} `{ fromPhase, toPhase, projectNumber }`
+ * @returns {Promise<object>} `{ fromPhase, toPhase, projectNumber, budgetWarnings }`
  */
 async function performTransition(actor, project, toPhaseCode) {
   const role = actor.membership ? actor.membership.role : null;
   if (!role) throw HttpError.forbidden('บัญชีนี้ไม่มีสิทธิ์ในปีการศึกษานี้');
 
   return transaction(async (conn) => {
+    // Allocation first, project second — the same order `budgetService` takes
+    // them in. `club_id` and `academic_year` never change, so reading them from
+    // the pre-transaction row is safe, and taking the lock here rather than
+    // inside the check is what stops an approval racing a transition from
+    // meeting it head-on and deadlocking.
+    if (budget.transitionLocksAllocation(toPhaseCode)) {
+      await budget.lockAllocation(conn, project.club_id, project.academic_year);
+    }
+
     // Re-read under the row lock: the phase may have moved between the read
     // that authorized this request and the write that performs it.
     const [[current]] = await conn.query(
       `SELECT p.id, p.club_id, p.academic_year, p.phase_id, p.project_sequence, p.project_number,
-              ph.code AS phase_code, ph.name_th AS phase_name_th
+              ph.code AS phase_code, ph.name_th AS phase_name_th, ph.ordinal AS phase_ordinal
          FROM project p JOIN phase ph ON ph.id = p.phase_id
         WHERE p.id = ? FOR UPDATE`,
       [project.id]
@@ -151,12 +161,17 @@ async function performTransition(actor, project, toPhaseCode) {
       throw HttpError.forbidden(`สถานะนี้เปลี่ยนได้โดย ${roles} เท่านั้น`);
     }
 
-    // Q26 hard-block point. Phase 3 owns the three budget checks; until then a
-    // flagged transition is allowed and says so, rather than pretending to
-    // enforce a limit that is not implemented yet.
-    if (mine.requires_budget_check) {
-      // TODO(Phase 3): assertBudgetWithinLimits(conn, current) — build plan, Phase 3.
-    }
+    // Q26 hard-block point. `requires_budget_check` says *that* a gate exists;
+    // `budgetService.TRANSITION_BLOCKS` says which of the three limits this
+    // particular gate enforces. A violation throws out of the transaction, so a
+    // refused transition leaves no phase change and no event behind.
+    //
+    // Every transition — flagged or not — collects the findings that do not
+    // block it, which is Q26's "warn on draft submit": the same evaluation,
+    // reported instead of enforced.
+    const warnings = mine.requires_budget_check
+      ? await budget.assertTransitionAllowed(conn, current, target.code)
+      : await budget.warningsFor(conn, current);
 
     let issued = { sequence: current.project_sequence, number: current.project_number };
     if (target.code === 'PROJECT_APPROVED') {
@@ -182,7 +197,8 @@ async function performTransition(actor, project, toPhaseCode) {
       toPhase: { code: target.code, nameTh: target.name_th, ordinal: target.ordinal },
       projectNumber: issued.number || null,
       projectSequence: issued.sequence || null,
-      budgetCheckPending: Boolean(mine.requires_budget_check),
+      budgetChecked: Boolean(mine.requires_budget_check),
+      budgetWarnings: warnings,
     };
   }, { retries: 3 });   // two approvals racing for the next project_number
 }

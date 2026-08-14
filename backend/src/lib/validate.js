@@ -44,6 +44,37 @@ const check = {
   },
 
   /**
+   * A fixed-2 decimal, returned as a **string** so it reaches SQL the way the
+   * `DECIMAL(12,2)` column stores it.
+   *
+   * The old schema kept every money value in a text column and the migration
+   * notes (Q37) list what that cost: `'-'`, `''` and `'ไม่มี'` all sitting where
+   * a number belonged. A value that is not a number is named here rather than
+   * coerced to 0, which is the whole point of that decision.
+   *
+   * More than two decimal places is an error, not a rounding opportunity: a
+   * third digit means the caller is computing in units this system does not
+   * have, and silently dropping it is how a total stops matching its lines.
+   */
+  decimal({ min = 0, max = 9999999999.99, required = false } = {}) {
+    return (value, label) => {
+      if (value === null || value === undefined || value === '') {
+        if (required) throw HttpError.badRequest(`${label}: ต้องระบุจำนวนเงิน`);
+        return null;
+      }
+      const s = String(value).trim().replace(/,/g, '');
+      if (!/^-?\d+(\.\d{1,2})?$/.test(s)) {
+        throw HttpError.badRequest(`${label}: ต้องเป็นตัวเลข ทศนิยมไม่เกิน 2 ตำแหน่ง`);
+      }
+      const n = Number(s);
+      if (n < min || n > max) {
+        throw HttpError.badRequest(`${label}: ต้องอยู่ระหว่าง ${min} ถึง ${max}`);
+      }
+      return n.toFixed(2);
+    };
+  },
+
+  /**
    * `YYYY-MM-DD` only. The old data is full of `'0000-00-00'` (every row of
    * `historyeditproject`), which the pool's strict mode would now reject anyway
    * — this rejects it earlier, with a message that names the field.

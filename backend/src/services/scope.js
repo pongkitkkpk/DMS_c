@@ -43,6 +43,66 @@ function visibilityClause(actor) {
   }
 }
 
+/**
+ * The same restriction expressed against `club c` alone, for the rows that hang
+ * off a club rather than off a project — the yearly allocations.
+ *
+ * Kept separate from `visibilityClause` rather than parameterised: the two
+ * differ in which table carries the club id, and a single clause that guessed
+ * would be one edit away from restricting nothing.
+ */
+function clubVisibilityClause(actor) {
+  const membership = actor.membership;
+  if (!membership) return { sql: '1 = 0', params: [] };
+
+  switch (membership.role) {
+    case 'ADMIN':
+      return { sql: '1 = 1', params: [] };
+    case 'STUACT':
+      return { sql: 'c.club_group_id = ?', params: [membership.jurisdiction_club_group_id] };
+    case 'SH':
+    case 'AD':
+      return { sql: 'c.id = ?', params: [membership.club_id] };
+    default:
+      return { sql: '1 = 0', params: [] };
+  }
+}
+
+/**
+ * Who may set a club's yearly allocation: Admin anywhere, STUACT inside its own
+ * jurisdiction, nobody else (Q30 — adviser and student are read-only).
+ *
+ * `club` is a row carrying `id` and `club_group_id`.
+ */
+function assertCanEnterAllocation(actor, club) {
+  const membership = actor.membership;
+  const role = membership ? membership.role : null;
+
+  if (role === 'ADMIN') return;
+  if (role === 'STUACT') {
+    if (club.club_group_id != null &&
+        Number(club.club_group_id) === Number(membership.jurisdiction_club_group_id)) {
+      return;
+    }
+    // Outside the jurisdiction the club is not the caller's to fund, and saying
+    // so plainly leaks nothing: club names are reference data, unlike projects.
+    throw HttpError.forbidden('ชมรมนี้อยู่นอกกลุ่มที่รับผิดชอบ');
+  }
+  throw HttpError.forbidden('กำหนดวงเงินจัดสรรได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+}
+
+/**
+ * Who may approve a project's money and record its disbursements: the same two
+ * roles that own the `PROJECT_APPROVED → BUDGET_APPROVED` transition. Approving
+ * one's own request is the thing this exists to prevent.
+ */
+function assertCanApproveBudget(actor) {
+  const role = actor.membership ? actor.membership.role : null;
+  if (role !== 'ADMIN' && role !== 'STUACT') {
+    throw HttpError.forbidden('อนุมัติวงเงินได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+  }
+}
+
 /** True if `project` (a row carrying `club_id` and `club_group_id`) is inside the actor's scope. */
 function isInScope(actor, project) {
   const membership = actor.membership;
@@ -117,6 +177,28 @@ function assertCanEdit(actor, project) {
 }
 
 /**
+ * Would `assert` allow it?
+ *
+ * The screens need to know which controls to draw, and the honest way to answer
+ * is to ask the rule rather than to restate it: the old frontend restated it,
+ * rendering every control from `storedUser.position` in JSX, and the two drifted
+ * until the UI offered buttons the server refused and hid ones it allowed.
+ * A predicate derived from the assertion cannot drift from it.
+ *
+ * Only an `HttpError` counts as a refusal — anything else is a real failure and
+ * is re-thrown, so a broken rule cannot quietly read as "not permitted".
+ */
+function permits(assert) {
+  try {
+    assert();
+    return true;
+  } catch (err) {
+    if (err instanceof HttpError) return false;
+    throw err;
+  }
+}
+
+/**
  * Deleting cascades to every child table, so it is narrower than editing: an
  * owner may abandon a draft they have not submitted, and otherwise only an
  * admin may delete. Soft delete is explicitly not in v1 (build plan, "What is
@@ -139,6 +221,10 @@ function assertCanDelete(actor, project) {
 
 module.exports = {
   visibilityClause,
+  clubVisibilityClause,
+  assertCanEnterAllocation,
+  assertCanApproveBudget,
+  permits,
   isInScope,
   assertVisible,
   assertCanCreate,

@@ -1,8 +1,8 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0, 1 and 2 complete. Phase 3 (budget) ready to start.
+**Status**: Phases 0, 1, 2 and 3 complete. Phase 4 (document assembly) ready to start.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
-**Last updated**: 2026-08-13
+**Last updated**: 2026-08-14
 
 ---
 
@@ -157,13 +157,12 @@ disabled; two projects in one club-year cannot receive the same number; and the 
 replays into the current phase.
 
 > **Phase 2 is complete (2026-08-13).** All four conditions verified by
-> `backend/scripts/check-phase2.js` (`npm run check:phase2`) — 54 checks against a live
+> `backend/scripts/check-phase2.js` (`npm run check:phase2`) — 55 checks against a live
 > server. Details, and the one rule that is a judgement call rather than a port, are in
-> `docs/DECISIONS.md` → "Phase 2 close-out". Two notes for Phase 3: the
-> `requires_budget_check` transitions are currently permitted and say so in their response
-> (`budgetCheckPending`), and the hook to fill is marked in
-> `src/services/phaseService.js`. Wrong **scope** answers 404 rather than the 403 written
-> above — deliberately, so a refusal cannot confirm that another club's project exists.
+> `docs/DECISIONS.md` → "Phase 2 close-out". Wrong **scope** answers 404 rather than the 403
+> written above — deliberately, so a refusal cannot confirm that another club's project
+> exists. The `requires_budget_check` transitions now enforce; the walk in `check-phase2.js`
+> states a plan and an approved amount before the two money gates because of it.
 
 ---
 
@@ -188,6 +187,22 @@ replays into the current phase.
 **Done when:** each of the three limits can be demonstrated to block, with distinct errors;
 concurrent approvals against one allocation cannot both succeed; and no stored total exists
 that could disagree with its components.
+
+> **Phase 3 is complete (2026-08-14).** All three conditions verified by
+> `backend/scripts/check-phase3.js` (`npm run check:phase3`) — 65 checks against a live
+> server, plus a separate stress run of eight simultaneous approvals against a ceiling with
+> room for three, which landed exactly on the ceiling every time.
+>
+> `src/services/budgetService.js` owns the limits and says in its header which gate enforces
+> which; `allocationService.js` owns the ceiling. A refusal answers **422** with
+> `budgetViolations` — every violation, not just the first. Decisions taken along the way,
+> including the two that are judgement calls rather than ports, are in `docs/DECISIONS.md` →
+> "Phase 3 close-out".
+>
+> Two notes for Phase 4. The `project_budget_status` view is **no longer on any request
+> path** — a view cannot be locked, so the service reads the components directly; the view is
+> still the right shape for the assembler's SQL-level reads. And `budget_line` now carries
+> both variants for every project, which is the plan-versus-actual pairing กนศ.06 needs.
 
 ---
 
@@ -234,8 +249,17 @@ screen (Q5); the **review queue is new scope and is out of v1**.
 
 Thai UI copy, English identifiers, no i18n framework (Q11).
 
-**Theming: stop and ask before choosing any palette.** Build against CSS custom properties so
-the palette is a token file, and leave that file unfilled pending the owner's decision.
+~~**Theming: stop and ask before choosing any palette.**~~ Settled — see "Visual theme" above.
+
+**Already built, out of order:** login, the project list, one project (phase strip, transition
+controls, child lists, event log), and the budget panel — figures, the three limits as meters,
+both variants' line items, and the disbursement ledger. That covers `DetailBudget`,
+`DAddSplitBudget` and `DTableAddBudget` in one screen rather than four.
+
+**Known gap, deliberate:** there is **no allocation screen**. `GET`/`PUT /api/allocations`
+exist and are tested, and every allocation read carries `committed`, `remaining` and
+`overCommitted` — which is the Q33 dashboard signal — but nothing renders them yet. That
+belongs with STUACT's dashboard here in Phase 5.
 
 **Done when:** every screen above works for its roles against the real API, and no screen
 relies on `sessionStorage` for an authorization decision.

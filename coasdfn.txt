@@ -1,55 +1,93 @@
-Session — 2026-08-14
+Session — 2026-08-14 (evening)
 
-Phase 1 → closed. The AuthProvider seam (AUTH_PROVIDER=mock|icit) and GET /me. Both providers
-return ICIT's response shape and share one normalizer, so the mock exercises the real mapping.
-The provider settles identity; the database settles role. The token carries sub + uid and no
-role at all.
+Phase 3 → closed. Budget enforcement, which the old system never had at all.
 
-Phase 2 → closed. Projects, scope, and the phase machine. Scope is a SQL fragment applied
-inside the query; out-of-scope reads answer 404 rather than 403 so a refusal cannot confirm
-another club's project exists. Writes go through allow-lists. The phase machine is a real
-transition table with guards, and every phase change writes its event in the same transaction.
-54 checks in backend/scripts/check-phase2.js, all passing.
+The three limits, each with its own code and its own Thai sentence:
 
-Frontend → started, ahead of Phase 5 on purpose. Login, project list, and one project with a
-seven-step stepper, transition buttons, child lists and event log. Enough to start the whole
-system and watch a project walk 1 → 7 through the browser.
+  (a) รายการที่ขอ <= งบประมาณตามแผน
+  (b) เบิกจ่าย <= วงเงินอนุมัติ  และ  ค่าใช้จ่ายจริง <= วงเงินอนุมัติ
+  (c) ผลรวมวงเงินอนุมัติของชมรมทั้งปี <= วงเงินจัดสรร
 
-Theme → chosen: #AC3520 on warmed neutrals, IBM Plex Sans Thai. All of it in
-frontend/src/theme.css; no component hard-codes a colour.
+65 checks in backend/scripts/check-phase3.js, all passing. Phase 2 still 55/55 — its walk now
+states a plan and an approved amount before the two money gates, because a project can no
+longer pass them with nothing stated.
 
-Two defects the testing found, not the writing
+What the gates do
 
-- Grouped sections read back interleaved, because project_attendance ordinals restart per
-  (variant, attendee_type) and the query ordered by ordinal alone.
-- Concurrent numbering needed two mechanisms, not one. Ten simultaneous creates in one
-  club-year first deadlocked, then produced duplicate keys, because REPEATABLE READ fixes a
-  transaction's snapshot at its first read — before it starts waiting for the lock. Both the
-  club-row lock and FOR UPDATE on the aggregate are required. Written up in projectService.js.
+Each flagged transition enforces the limit that first becomes real at it, and never one that
+is already committed: PROJECT_APPROVED → (a); BUDGET_APPROVED → (a)+(c); REPORT_SUBMITTED →
+(b). Re-checking (c) at the report would let a lowered allocation block it, which Q33 says
+must not happen. Everything that does not block is returned as budgetWarnings on every
+transition and every read, so a problem is visible for the whole of the phase in which it can
+still be fixed — that is Q26's "warn on draft submit", same evaluation, reported not enforced.
+
+A refusal is 422, not 400: the request was well formed and the caller was entitled to make it,
+the numbers refused it. The body carries every violation, not only the first.
+
+The lock lesson from last night, applied again
+
+Same REPEATABLE READ trap, same two mechanisms. Lock one existing row first to serialize, then
+read the aggregate FOR UPDATE so it sees what the previous holder committed rather than the
+snapshot taken before the wait. Lock order is allocation → project → club everywhere,
+including inside performTransition, which takes the allocation lock before the project row so
+an approval racing a transition queues instead of meeting it head-on.
+
+Stressed separately: eight simultaneous approvals against a ceiling with room for three landed
+exactly on the ceiling, three runs in a row, no deadlock escaping its retries.
+
+Frontend
+
+The budget panel is built and was driven in a real browser, not just compiled. Figures as a
+tile row, the three limits as meters, both variants' line items editable, the disbursement
+ledger. Which controls appear comes from budget.permissions, which the server computed by
+asking the same assertions its writes run — the client never works it out from the role.
+
+Three things the browser found that the compiler could not: two line tables side by side were
+too narrow to show the total column, a disabled primary button fell back to Bootstrap's blue,
+and a meter sitting exactly on its limit was drawn amber when exactly-on-plan is the normal
+good case. All three fixed.
+
+New files
+  backend/src/lib/money.js               satang arithmetic; nothing money-related touches a float
+  backend/src/lib/asyncRoute.js          extracted from projects.js, now shared
+  backend/src/middleware/loadProject.js  ditto — one place a path parameter may name a project
+  backend/src/services/budgetService.js  the three limits
+  backend/src/services/allocationService.js  the ceiling, and Q33's loud warning
+  backend/src/routes/budget.js
+  backend/scripts/check-phase3.js
+  frontend/src/components/BudgetPanel.js
 
 State I left behind
 
-- MariaDB is RUNNING, started detached so it does not die with the session (pid 18768 today).
-  Stop it from the XAMPP control panel when you want to. Data is intact — no db:reset needed.
+- MariaDB is RUNNING, started detached from XAMPP (pid 15580 today). Stop it from the XAMPP
+  control panel when you want to. Data is freshly seeded — no db:reset needed.
 - Ports 3000 and 3001 are free. I left nothing of mine running on them.
-- Everything is committed: 8553f5a, 18821b3, 1da783c, 8f9f855.
-- CORS now accepts any localhost origin in development, so a dev server that moves to 3002
-  no longer looks exactly like the API being down.
+- NOTHING IS COMMITTED. The working tree has all of Phase 3 in it, unstaged. Commit it when
+  you have looked it over — I did not want to commit without being asked.
 
 Picking up next time
 
-Phase 3 — budget. The three checks (request <= plan, spend <= approved, club-year total <=
-allocation), hard-blocked at the three transitions flagged requires_budget_check. The hook is
-already marked in phaseService.js and those transitions currently return
-budgetCheckPending: true rather than pretending to enforce anything.
+Phase 4 — document assembly. กนศ.04 and กนศ.06 from a fixture project. Two notes from tonight:
+project_budget_status is no longer on any request path (a view cannot be locked, so the
+service reads the components directly) but it is still the right shape for the assembler's
+SQL-level reads; and budget_line now carries both PLANNED and ACTUAL for every project, which
+is the plan-versus-actual pairing กนศ.06 needs. angular-expressions is already in
+package.json — the templates embed JS and will not render without it.
 
-Three things that want a human answer, none of them blocking:
+One thing Phase 3 built but did not put on screen: there is no allocation screen. The API
+exists and is tested, and every allocation read carries committed / remaining /
+overCommitted, which is the Q33 dashboard signal. It belongs with STUACT's dashboard in
+Phase 5. Written into the build plan so it does not get lost.
 
-1. Editing rights — who may edit a project in which phase. The old system had no rule at all,
-   so what is implemented is an assumption (DECISIONS.md → "Editing rights"). The likeliest
-   correction: should STUACT edit a student's content, or only advance it?
+Still wanting a human answer — the same three as last night, none of them blocking:
+
+1. Editing rights — who may edit a project in which phase. Still an assumption
+   (DECISIONS.md → "Editing rights"). Phase 3 leaned on it: budget lines and the plan follow
+   the same rule, so if STUACT should not edit a student's content, that now covers money too.
 2. A4 — whether person and membership stay split. Still the cheap direction to reverse.
 3. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
-   pinned in .env meanwhile, and roles resolve by that year, so it matters.
+   pinned in .env meanwhile. This one now matters more: layer (c) sums approvals per
+   (club, academic_year), so where the year boundary falls decides which ceiling a project
+   is drawn against.
 
 พักผ่อนนะครับ 👋

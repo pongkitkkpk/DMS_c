@@ -12,35 +12,19 @@
 const express = require('express');
 
 const { pool } = require('../db/pool');
+const { asyncRoute } = require('../lib/asyncRoute');
 const { HttpError } = require('../lib/httpError');
 const { check } = require('../lib/validate');
+const { loadProject } = require('../middleware/loadProject');
 const { requireAuth } = require('../middleware/requireAuth');
 const scope = require('../services/scope');
 const projects = require('../services/projectService');
+const budgetService = require('../services/budgetService');
 const { availableTransitions, performTransition } = require('../services/phaseService');
 
 const router = express.Router();
 
 router.use(requireAuth);
-
-/** Express 4 does not catch rejected promises; this does. */
-const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-
-/**
- * Load the project named in the path and check it against the caller's scope
- * before any handler runs.
- *
- * Out of scope answers 404 rather than 403 — see `scope.assertVisible`. This is
- * the single place a path parameter is allowed to name a project, and it is
- * immediately narrowed by the caller's membership.
- */
-const loadProject = asyncRoute(async (req, res, next) => {
-  const id = check.integer({ min: 1, required: true })(req.params.id, 'id');
-  const project = await projects.findProject(id);
-  scope.assertVisible(req.actor, project);
-  req.project = project;
-  next();
-});
 
 // --------------------------------------------------------------------------
 // Collection
@@ -64,14 +48,15 @@ router.post('/projects', asyncRoute(async (req, res) => {
 router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
   const [sections, budget, transitions] = await Promise.all([
     projects.loadSections(req.project.id),
-    projects.loadBudgetStatus(req.project.id),
+    budgetService.loadSummary(req.project),
     availableTransitions(pool, req.project, req.actor),
   ]);
 
   res.json({
     ...projects.presentProject(req.project),
     sections,
-    budget,
+    budget: budget.money,
+    budgetWarnings: budget.warnings,
     transitions,
   });
 }));

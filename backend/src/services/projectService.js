@@ -229,18 +229,12 @@ async function loadSections(projectId, conn = pool) {
   return out;
 }
 
-/**
- * The derived money figures, straight from the `project_budget_status` view.
- * Read-only here: Phase 3 owns enforcement. Nothing summable is stored, so
- * these cannot disagree with their components.
- */
-async function loadBudgetStatus(projectId, conn = pool) {
-  const [rows] = await conn.query(
-    'SELECT * FROM project_budget_status WHERE project_id = ?',
-    [projectId]
-  );
-  return rows[0] || null;
-}
+// Money used to be read here, from the `project_budget_status` view. Phase 3
+// moved it to `budgetService`, which reads the same components directly because
+// a view cannot be locked and every figure that decides whether a write may
+// commit has to be read `FOR UPDATE`. The view survives in the schema as the
+// SQL-level report shape; it is no longer on any request path, so there is one
+// implementation of these totals rather than two that could drift.
 
 async function loadEvents(projectId, conn = pool) {
   const [rows] = await conn.query(
@@ -534,7 +528,6 @@ module.exports = {
   findProject,
   listProjects,
   loadSections,
-  loadBudgetStatus,
   loadEvents,
   presentProject,
   createProject,
