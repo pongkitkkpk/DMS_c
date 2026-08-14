@@ -1,8 +1,13 @@
 # Template Contract — กนศ.04 / กนศ.06
 
-**Status**: Tag inventory and payload contract complete. Field-by-field mapping table not yet written.
-**Phase**: Phase 0 deliverable 2 of 5 (per `docs/DECISIONS.md` Q23).
-**Last updated**: 2026-08-12
+**Status**: Complete, and now **generated rather than described**. The field-by-field mapping is
+`docs/template-tags.json`, produced from the `.docx` bytes by
+`backend/scripts/extract-template-tags.js` (`npm run templates:tags`). The assembler is built
+against it and `check-phase4.js` asserts against it, so this contract is checked on every run
+rather than remembered. This file remains the prose explanation of *why* the mapping is shaped
+as it is.
+**Phase**: Phase 0 deliverable 2 of 5 (per `docs/DECISIONS.md` Q23); satisfied by Phase 4.
+**Last updated**: 2026-08-14
 
 ---
 
@@ -282,13 +287,50 @@ Restating the contract as requirements (Q4/Q7/Q8):
 
 ## Open items
 
-1. **The full 433-field mapping table is not yet written.** This document establishes the
-   shape, counts, arities, and semantics; the per-field
-   `template tag → domain path → formatter` table is the remaining work, and is the input to
-   the assembler's implementation.
-2. **The `&&`/`||` inconsistency in the Gantt** needs a rendered-output check to decide which
-   is correct before it is reproduced or fixed.
-3. **`listETC`/`listSETC`** — stored and entered, never printed. Confirm intent.
-4. **`volume2..5` and `quality1..5`** are captured by the UI and stored on `p_indicator` but
-   have no temp04 tags. Same question: dead, or a form that was never finished?
+1. ~~**The full 433-field mapping table is not yet written.**~~ **Closed by Phase 4.** It is
+   `docs/template-tags.json`, and it is *generated*, not written: the extractor walks each
+   template's section stack and records which payload root every field and every section is
+   read from. That last part matters more than the field list — a field placed under the wrong
+   root renders **blank, with no error**, which is precisely how defect 1 below survived. The
+   ownership table is what turns "the assembler supplies 433 fields" into something a test can
+   check, and `check-phase4.js` checks it both ways: every contract tag has a key, and no key
+   is `undefined` or `null`.
+
+2. **The `&&`/`||` inconsistency in the Gantt** — **quantified, not fixed.** The extraction
+   shows temp04 contains **two** full 15×12 month grids over the same `startM`/`endM` values:
+   180 cells testing `startM_n <= m && endM_n >= m`, and **176 testing the same months with
+   `||`**. The `||` grid shades every column from the first month the bar touches to the end of
+   the year, so it is wrong for any activity shorter than the whole year.
+
+   This is **not fixable from the payload** — both grids read the same two numbers — and
+   `templates/README.md` says the files are not to be edited. So the assembler supplies correct
+   integer month indices, the `&&` grid is right, and the `||` grid over-shades exactly as it
+   does today. **Fixing it means editing temp04, which is the owner's call**, not the
+   assembler's. Its current output remains not a correctness baseline.
+
+3. ~~**`listETC`/`listSETC`** — stored and entered, never printed.~~ **Closed by Phase 4, in
+   the direction Q8 requires.** The category has a printable capacity of **zero**, so a project
+   carrying an `ETC` budget line is *refused* with "แบบฟอร์มไม่มีช่องสำหรับหมวดนี้เลย" rather than
+   printing a grand total that does not match the rows above it. If the intent is that ETC
+   money should print, the form needs a box for it; until then, refusing is the only option
+   that does not put a wrong total on a document somebody signs.
+
+4. ~~**`volume2..5` and `quality1..5`**~~ **Answered by the extraction.** `volume` has exactly
+   **one** tag and `quality` has **none** — confirmed against the bytes, not inferred.
+   `volume1` is supplied; `quality_target` is stored and deliberately not emitted, and is
+   listed as such. Whether the form was meant to hold more is still a question for the owner,
+   but the database is the uncapped side and loses nothing.
+
 5. **The code-format PDF remains unread** (`DECISIONS.md:271`) — unchanged by this work.
+
+## Found during Phase 4
+
+- **`Fbudget.refundtotal`** is a temp06 field this document did not list. It is the amount to
+  be returned — approved minus actual — and it is now supplied as a subtraction over rows.
+- **`expresult1..5` is read from `detail` on temp04 and from `indicator` on temp06.** The same
+  domain values under two different roots in the two forms; both are supplied. This is the
+  clearest illustration of why ownership had to be extracted rather than inferred from names.
+- **`is_inyear` / `start_inyear` / `end_inyear` were never set by the old system.** They are
+  initialised to `false`/`""` in `CSD_timestep.js:399-401` and posted unchanged, so the Gantt's
+  year header has always printed blank. The assembler now derives them from the activity dates
+  — deviation 23.

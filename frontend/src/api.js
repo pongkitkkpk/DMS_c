@@ -72,7 +72,27 @@ export const api = {
   disburse: (id, body) => client.post(`/projects/${id}/disbursements`, body).then((r) => r.data),
   allocations: (params) => client.get('/allocations', { params }).then((r) => r.data),
   setAllocation: (body) => client.put('/allocations', body).then((r) => r.data),
+
+  // Documents. `documents()` answers with both forms and, where one cannot be
+  // produced, the server's own reason — too early in the phase machine, or more
+  // rows than the government form has boxes for.
+  documents: (id) => client.get(`/projects/${id}/documents`).then((r) => r.data),
+  documentUrl: (id, form) => `${BASE}/api/projects/${id}/documents/${form}`,
+  /**
+   * Fetch the file rather than pointing the browser at the URL: the download is
+   * authenticated by a bearer token, and a plain `<a href>` sends no headers,
+   * so it would answer 401 and the user would see a blank tab.
+   */
+  downloadDocument: (id, form) =>
+    client.get(`/projects/${id}/documents/${form}`, { responseType: 'blob' }),
 };
+
+/** The filename the server chose, out of `Content-Disposition`'s UTF-8 form. */
+export function filenameOf(response, fallback) {
+  const header = response.headers['content-disposition'] || '';
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  return match ? decodeURIComponent(match[1]) : fallback;
+}
 
 /**
  * A budget refusal answers 422 with every violation, not just the first. The

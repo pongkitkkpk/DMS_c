@@ -611,6 +611,90 @@ Added to the numbered list above, all required by Q22:
 20. **A club with no allocation cannot have money approved against it.** New: there was no
     allocation, so there was nothing to refuse against.
 
+## Phase 4 close-out (2026-08-14)
+
+Both government forms render. `backend/src/documents/` holds the assembler, the derivations,
+the arity guard and the renderer; `backend/scripts/check-phase4.js` (`npm run check:phase4`)
+proves the build plan's three conditions — 64 checks, all passing.
+
+- **Both forms render fully populated from a fixture project.** No tag survives unrendered, and
+  neither document contains `undefined`, `null`, `NaN` or `Infinity` — all four of which the
+  old renders could and did print.
+- **Every tag in the contract is filled or deliberately blank.** Asserted key by key against
+  `docs/template-tags.json`, in both directions: every contract tag has a payload key, and no
+  payload key is `undefined` or `null`. The one deliberate omission is named in the script.
+- **An over-capacity project errors, naming the category and the limit.** 13 ค่าใช้สอย lines
+  against a 12-row form is a 422 saying so, not a document missing its thirteenth line.
+
+### The mapping was extracted, not written
+
+`docs/template-contract.md` closed by naming what it had not done: the 433-field mapping table.
+Phase 4 does it mechanically instead — `scripts/extract-template-tags.js` rejoins tags split
+across XML runs, classifies them, and **walks each template's section stack to record which
+payload root every field is read from**.
+
+That last part is the load-bearing one. A field placed under the wrong root renders **blank,
+with no error**, and that is exactly what defect 1 is: temp06 asks for `{#budget}{listSAll}`
+and the old render passed `Fbudget` but not `budget`, so the approved amount has printed blank
+on every กนศ.06 ever produced. A mapping guessed from field names would have reproduced it.
+
+The arity limits are read from the same generated file rather than typed in, so replacing a
+template and re-running the extraction moves them with it. A number copied by hand would not
+move, and would be wrong in the silent way the guard exists to prevent.
+
+### Decisions taken in Phase 4
+
+- **The phase gate on downloads is an assumption, not a port** — see below.
+- **A form that cannot hold the project is refused, not truncated** (Q8). This is a real
+  refusal with real consequences: a project with an `ETC` budget line cannot produce กนศ.04 at
+  all, because the form has no box for that category and printing a grand total that includes
+  it would put a wrong number on a signed document.
+- **`quality_target` is stored and deliberately not printed.** It has no tag in either form.
+  The database stays the uncapped side; nothing is lost, and it is listed rather than silently
+  dropped.
+- **Thai renderings are computed here, not by the host's ICU.** The old frontend used
+  `toLocaleDateString('th-TH', …)`; a Node built with `small-icu` answers that in English,
+  silently, on a government form. The month names and the Buddhist-era offset are in
+  `documents/thai.js`.
+- **The spelled-out amount covers the whole range the schema permits.** The old
+  `ArabicNumberToText` returned the *string* `"ข้อมูลนำเข้าเกินขอบเขตที่ตั้งไว้"` above
+  9,999,999.9999 — an error message rendered into a form field, with nothing to notice it.
+- **`persen` divides guardedly.** A percentage of zero planned attendees is `—`, not
+  `Infinity%`; zero-and-zero is `—` rather than `0%`, because `0%` asserts a comparison that
+  was never made.
+- **The Gantt defect is quantified and left alone.** temp04 contains two month grids over the
+  same values, one correct and one using `||` where it means `&&`. It cannot be fixed from the
+  payload, and the templates are fixed inputs — so it is documented with its exact size and
+  raised, not silently reproduced as if intended. See `template-contract.md`, open item 2.
+
+### New deviations from old behavior
+
+21. **A document download is authorized and phase-checked.** The old `gennerateDoc` route sat
+    in the unauthenticated inline group and rendered any project id it was given.
+22. **A project that exceeds a form's capacity is refused.** The old system printed 12 of 20
+    ค่าใช้สอย rows and said nothing — a live data-loss path on a signed document.
+23. **The Gantt's year header is filled.** `is_inyear`/`start_inyear`/`end_inyear` were
+    initialised and posted unchanged by the old frontend, so they have always printed blank;
+    they are now derived from the activity dates.
+24. **กนศ.06 states the approved total.** It has printed blank on every such form ever
+    produced, because the payload lacked the key the template reads it from.
+25. **Percentages, dates and amounts print as blanks or dashes when they are unknown**, rather
+    than as `undefined`, `null`, `NaN%`, `Infinity%` or `1 มกราคม 2513`.
+
+#### The download phase gate — an assumption, not a port
+
+The old system had no rule: any project, at any phase, to anybody. Something had to be chosen,
+and `src/routes/documents.js` implements this:
+
+- **กนศ.04** from `PROPOSAL_SUBMITTED` onward — it is the approval request, and before that
+  the numbers are still being drafted, so a document that looks official should not circulate.
+- **กนศ.06** from `DRAFT_REPORT` onward — it reports what actually happened, and produced any
+  earlier it is a form full of zeroes that reads as a project which spent nothing.
+
+**This needs a yes or no from someone who runs the process**, and it is the one part of Phase 4
+that is a judgement call rather than a port. The likeliest correction is whether a student
+should be able to print กนศ.04 while still drafting, to review it on paper before submitting.
+
 ### Frontend first slice (2026-08-13) — deliberately out of order
 
 `frontend/` now runs: CRA + React 18 + Bootstrap 4.6 + reactstrap + React Router v5, the stack

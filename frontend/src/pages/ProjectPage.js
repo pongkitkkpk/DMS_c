@@ -16,6 +16,7 @@ import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
 import BudgetPanel from '../components/BudgetPanel';
+import DocumentsCard from '../components/DocumentsCard';
 import { Card, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
 
 const SECTION_LABELS = {
@@ -223,6 +224,8 @@ export default function ProjectPage() {
 
         <div className="col-lg-5">
           <div className="u-stack">
+            <DocumentsCard projectId={id} key={project.phase.code} />
+
             <Card title="ประวัติ" aside={`${events.length} รายการ`}>
               <div className="timeline">
                 {events.map((e) => (

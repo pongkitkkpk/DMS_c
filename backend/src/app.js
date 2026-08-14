@@ -21,6 +21,7 @@ const { pool, isTransient } = require('./db/pool');
 const { HttpError } = require('./lib/httpError');
 const authRoutes = require('./routes/auth');
 const budgetRoutes = require('./routes/budget');
+const documentRoutes = require('./routes/documents');
 const projectRoutes = require('./routes/projects');
 const referenceRoutes = require('./routes/reference');
 
@@ -51,6 +52,7 @@ function createApp() {
   app.use('/api', referenceRoutes);
   app.use('/api', projectRoutes);
   app.use('/api', budgetRoutes);
+  app.use('/api', documentRoutes);
 
   app.use((req, res, next) => next(HttpError.notFound(`ไม่พบเส้นทาง ${req.method} ${req.path}`)));
 

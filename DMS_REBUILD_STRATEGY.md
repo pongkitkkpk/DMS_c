@@ -1,6 +1,6 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0, 1, 2 and 3 complete. Phase 4 (document assembly) ready to start.
+**Status**: Phases 0–4 complete. Phase 5 (frontend to parity) is what remains.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
 **Last updated**: 2026-08-14
 
@@ -231,6 +231,22 @@ error naming the category and the limit.
 **Watch for:** `angular-expressions` must be installed — the templates embed JS. Its absence
 was the original strategy doc's most concrete omission.
 
+> **Phase 4 is complete (2026-08-14).** All three conditions verified by
+> `backend/scripts/check-phase4.js` (`npm run check:phase4`) — 64 checks, half in-process
+> because the contract check compares payload keys against the extracted inventory, half over
+> HTTP for the download path and its gates.
+>
+> The 433-field mapping the contract said was never written is now **generated**:
+> `npm run templates:tags` produces `docs/template-tags.json` from the `.docx` bytes, including
+> which payload root each field is read from — the thing that cannot be guessed from names, and
+> the thing whose absence let กนศ.06's approved total print blank for years. The arity limits
+> are read from that file, so replacing a template moves them.
+>
+> The templates are **byte-identical** to the originals and the acceptance run asserts their
+> MD5s. The one defect that could not be fixed from the payload — temp04's second Gantt grid
+> testing `||` where it means `&&` — is quantified in `docs/template-contract.md`, open item 2,
+> and needs a decision about editing the form itself.
+
 ---
 
 ## Phase 5 — Frontend
@@ -252,9 +268,11 @@ Thai UI copy, English identifiers, no i18n framework (Q11).
 ~~**Theming: stop and ask before choosing any palette.**~~ Settled — see "Visual theme" above.
 
 **Already built, out of order:** login, the project list, one project (phase strip, transition
-controls, child lists, event log), and the budget panel — figures, the three limits as meters,
-both variants' line items, and the disbursement ledger. That covers `DetailBudget`,
-`DAddSplitBudget` and `DTableAddBudget` in one screen rather than four.
+controls, child lists, event log), the budget panel — figures, the three limits as meters, both
+variants' line items, and the disbursement ledger — and the document card, which offers both
+forms and shows the server's own reason when one cannot be produced. That covers
+`DetailBudget`, `DAddSplitBudget` and `DTableAddBudget` in one screen rather than four, and
+replaces the old download buttons.
 
 **Known gap, deliberate:** there is **no allocation screen**. `GET`/`PUT /api/allocations`
 exist and are tested, and every allocation read carries `committed`, `remaining` and

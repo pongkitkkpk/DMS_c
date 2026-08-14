@@ -1,93 +1,103 @@
-Session — 2026-08-14 (evening)
+Session — 2026-08-14 (late)
 
-Phase 3 → closed. Budget enforcement, which the old system never had at all.
+Phase 3 → closed and committed (ddb4a41). Phase 4 → closed, in the working tree.
 
-The three limits, each with its own code and its own Thai sentence:
+Phase 4 — document assembly. Both government forms render.
 
-  (a) รายการที่ขอ <= งบประมาณตามแผน
-  (b) เบิกจ่าย <= วงเงินอนุมัติ  และ  ค่าใช้จ่ายจริง <= วงเงินอนุมัติ
-  (c) ผลรวมวงเงินอนุมัติของชมรมทั้งปี <= วงเงินจัดสรร
+  npm run check:phase2   55 / 55
+  npm run check:phase3   65 / 65
+  npm run check:phase4   64 / 64
 
-65 checks in backend/scripts/check-phase3.js, all passing. Phase 2 still 55/55 — its walk now
-states a plan and an approved amount before the two money gates, because a project can no
-longer pass them with nothing stated.
+The mapping is generated, not written
 
-What the gates do
+docs/template-contract.md closed by naming what it had not done: the 433-field mapping table.
+It is now docs/template-tags.json, produced from the .docx bytes by
 
-Each flagged transition enforces the limit that first becomes real at it, and never one that
-is already committed: PROJECT_APPROVED → (a); BUDGET_APPROVED → (a)+(c); REPORT_SUBMITTED →
-(b). Re-checking (c) at the report would let a lowered allocation block it, which Q33 says
-must not happen. Everything that does not block is returned as budgetWarnings on every
-transition and every read, so a problem is visible for the whole of the phase in which it can
-still be fixed — that is Q26's "warn on draft submit", same evaluation, reported not enforced.
+  npm run templates:tags
 
-A refusal is 422, not 400: the request was well formed and the caller was entitled to make it,
-the numbers refused it. The body carries every violation, not only the first.
+The extractor rejoins tags split across XML runs — Word routinely stores {listSAll} as
+"{listS" + "All}" — and then walks each template's section stack to record WHICH PAYLOAD ROOT
+every field is read from. That last part is the whole game. A field placed under the wrong
+root renders blank with no error, and that is exactly what defect 1 is: temp06 asks for
+{#budget}{listSAll} and the old render passed Fbudget but not budget, so the approved amount
+has printed blank on every กนศ.06 ever produced. A mapping guessed from field names would have
+reproduced the bug faithfully.
 
-The lock lesson from last night, applied again
+The arity limits are read from that same generated file rather than typed in, so replacing a
+template and re-running the extraction moves them with it.
 
-Same REPEATABLE READ trap, same two mechanisms. Lock one existing row first to serialize, then
-read the aggregate FOR UPDATE so it sees what the previous holder committed rather than the
-snapshot taken before the wait. Lock order is allocation → project → club everywhere,
-including inside performTransition, which takes the allocation lock before the project row so
-an approval racing a transition queues instead of meeting it head-on.
+The three render-path defects, fixed
 
-Stressed separately: eight simultaneous approvals against a ceiling with room for three landed
-exactly on the ceiling, three runs in a row, no deadlock escaping its retries.
+1. กนศ.06 now states the approved total. Verified in the rendered text:
+   "…เป็นจำนวนเงิน 19,200.00 บาท จากเงินเหลือจ่าย…"
+2. persen divides guardedly. Zero planned gives "—", not Infinity%. A real ratio still
+   computes (92/100 → 92%).
+3. The space-padded { grandTypeETC } tag is matched by its trimmed name.
 
-Frontend
+Arity — refuse, never truncate (Q8)
 
-The budget panel is built and was driven in a real browser, not just compiled. Figures as a
-tile row, the three limits as meters, both variants' line items editable, the disbursement
-ledger. Which controls appear comes from budget.permissions, which the server computed by
-asking the same assertions its writes run — the client never works it out from the role.
+13 ค่าใช้สอย lines against a 12-row form is a 422 naming the category and both counts. An ETC
+budget line is refused outright, because the form has no box for that category at all and
+printing a grand total that includes it would put a wrong number on a signed document.
 
-Three things the browser found that the compiler could not: two line tables side by side were
-too narrow to show the total column, a disabled primary button fell back to Bootstrap's blue,
-and a meter sitting exactly on its limit was drawn amber when exactly-on-plan is the normal
-good case. All three fixed.
+One defect I could NOT fix, and did not paper over
+
+temp04 contains TWO full 15×12 month grids over the same startM/endM values. 180 cells test
+"startM_n <= m && endM_n >= m" — correct. 176 cells test the same months with "||" — which
+shades every column from the first month the bar touches to the end of the year. Wrong for any
+activity shorter than a full year.
+
+It cannot be fixed from the payload (both grids read the same two numbers) and the templates
+are fixed inputs that README.md says not to edit. So: the assembler supplies correct integer
+month indices, the && grid is right, the || grid over-shades exactly as it does today, and the
+whole thing is quantified in docs/template-contract.md open item 2. FIXING IT MEANS EDITING
+temp04.docx, WHICH IS YOUR CALL.
 
 New files
-  backend/src/lib/money.js               satang arithmetic; nothing money-related touches a float
-  backend/src/lib/asyncRoute.js          extracted from projects.js, now shared
-  backend/src/middleware/loadProject.js  ditto — one place a path parameter may name a project
-  backend/src/services/budgetService.js  the three limits
-  backend/src/services/allocationService.js  the ceiling, and Q33's loud warning
-  backend/src/routes/budget.js
-  backend/scripts/check-phase3.js
-  frontend/src/components/BudgetPanel.js
+  backend/scripts/extract-template-tags.js   the mapping, generated
+  backend/scripts/check-phase4.js
+  backend/src/documents/thai.js              Thai dates, month indices, baht text
+  backend/src/documents/arity.js             limits read from the extraction
+  backend/src/documents/assembler.js         domain -> the flat payload
+  backend/src/documents/render.js
+  backend/src/routes/documents.js
+  frontend/src/components/DocumentsCard.js
+  docs/template-tags.json                    generated — do not hand-edit
 
 State I left behind
 
 - MariaDB is RUNNING, started detached from XAMPP (pid 15580 today). Stop it from the XAMPP
-  control panel when you want to. Data is freshly seeded — no db:reset needed.
-- Ports 3000 and 3001 are free. I left nothing of mine running on them.
-- NOTHING IS COMMITTED. The working tree has all of Phase 3 in it, unstaged. Commit it when
-  you have looked it over — I did not want to commit without being asked.
+  control panel when you want to. Data is freshly seeded.
+- Ports 3000 and 3001 are free.
+- Phase 3 is committed (ddb4a41). PHASE 4 IS NOT COMMITTED — it is all in the working tree,
+  unstaged. Look it over and commit when you are happy.
+- Templates verified byte-identical to the originals; the acceptance run asserts their MD5s.
 
 Picking up next time
 
-Phase 4 — document assembly. กนศ.04 and กนศ.06 from a fixture project. Two notes from tonight:
-project_budget_status is no longer on any request path (a view cannot be locked, so the
-service reads the components directly) but it is still the right shape for the assembler's
-SQL-level reads; and budget_line now carries both PLANNED and ACTUAL for every project, which
-is the plan-versus-actual pairing กนศ.06 needs. angular-expressions is already in
-package.json — the templates embed JS and will not render without it.
+Phase 5 — the frontend to parity. The three roles (Student, STUACT, Admin) against the real
+API; adviser is one read-only screen; the review queue stays out of v1.
 
-One thing Phase 3 built but did not put on screen: there is no allocation screen. The API
-exists and is tested, and every allocation read carries committed / remaining /
-overCommitted, which is the Q33 dashboard signal. It belongs with STUACT's dashboard in
-Phase 5. Written into the build plan so it does not get lost.
+Two things already known to be missing, both written into the build plan so they do not get
+lost:
 
-Still wanting a human answer — the same three as last night, none of them blocking:
+- No allocation screen. The API exists and is tested, and every allocation read carries
+  committed / remaining / overCommitted — the Q33 dashboard signal — but nothing renders it.
+- No project *create/edit* forms. Everything so far reads and advances; the entry screens
+  (CSD_detail, CSD_timestep, CSD_budget and friends in the old frontend) are Phase 5's bulk.
 
-1. Editing rights — who may edit a project in which phase. Still an assumption
-   (DECISIONS.md → "Editing rights"). Phase 3 leaned on it: budget lines and the plan follow
-   the same rule, so if STUACT should not edit a student's content, that now covers money too.
-2. A4 — whether person and membership stay split. Still the cheap direction to reverse.
-3. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
-   pinned in .env meanwhile. This one now matters more: layer (c) sums approvals per
-   (club, academic_year), so where the year boundary falls decides which ceiling a project
-   is drawn against.
+Still wanting a human answer — now four, none of them blocking:
+
+1. Editing rights — who may edit a project in which phase. Still an assumption. Phase 3 leaned
+   on it for money and Phase 4 does not touch it.
+2. The download phase gate — NEW. กนศ.04 from "ดำเนินการขออนุมัติ", กนศ.06 from
+   "ร่างสรุปผลโครงการ". The old system had no rule at all. The likeliest correction: should a
+   student be able to print กนศ.04 while still drafting, to check it on paper first?
+3. A4 — whether person and membership stay split. Still the cheap direction to reverse.
+4. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
+   pinned in .env. Matters most for budget layer (c), which sums approvals per
+   (club, academic_year).
+
+And one that is not a question so much as a decision: the temp04 Gantt above.
 
 พักผ่อนนะครับ 👋
