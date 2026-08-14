@@ -361,9 +361,13 @@ export default function ProjectFormPage() {
           <p className="u-small u-muted mb-3">
             คนที่สามถูกเก็บไว้ในระบบแต่ไม่ปรากฏบนแบบฟอร์ม — แบบฟอร์มมีช่องเพียงสองคน
           </p>
-          <div className="form-grid">
+          {/* One grid item per person, not one per field. Six loose fields on
+              the shared three-column grid wrapped so that a coordinator's name
+              ended one row and their phone number began the next, directly
+              under someone else's name. */}
+          <div className="form-grid form-grid--pairs">
             {[1, 2, 3].map((n) => (
-              <React.Fragment key={n}>
+              <div className="field-pair" key={n}>
                 <div>
                   <Label className="u-small u-muted" for={`p-c${n}n`}>ผู้ประสานงานคนที่ {n}</Label>
                   <Input id={`p-c${n}n`} {...field(`contact${n}Name`)} placeholder="ชื่อ-นามสกุล" />
@@ -372,7 +376,7 @@ export default function ProjectFormPage() {
                   <Label className="u-small u-muted" for={`p-c${n}p`}>โทรศัพท์</Label>
                   <Input id={`p-c${n}p`} {...field(`contact${n}Phone`)} placeholder="08xxxxxxxx" />
                 </div>
-              </React.Fragment>
+              </div>
             ))}
           </div>
         </Card>

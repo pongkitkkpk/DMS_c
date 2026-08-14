@@ -364,6 +364,25 @@ a:hover {
 }
 .table-x__title:hover { color: var(--c-accent); }
 
+/* The whole row lights up on hover, so the whole row has to be the target.
+   Only the title cell holds a link, and a row where three of four cells look
+   clickable and are not is a row that ignores most of the clicks aimed at it.
+   Stretching the existing link over the row is the fix that keeps one real
+   anchor — still one tab stop, still a right-clickable URL — rather than
+   putting a click handler on the `tr` and rebuilding keyboard access by hand.
+   The trade is that text in the row can no longer be selected; for a row whose
+   only purpose is to open the project, that is the right way round.
+
+   `a.` and not `.` — the allocation table reuses this class on a plain `div`
+   for rows that are not links and that carry the ceiling's edit controls. An
+   overlay there would swallow the clicks meant for them. */
+.table-x tbody tr { position: relative; }
+a.table-x__title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
 /* -------------------------------------------------------------------------
    Stats — the budget panel
    ------------------------------------------------------------------------- */
@@ -384,7 +403,12 @@ a:hover {
    drawn as five numbers. */
 .kpi-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* 200px, not 150px: each tile carries a phase pill, and a pill is
+     `white-space: nowrap` on purpose — it cannot shrink or wrap to fit. The
+     longest of the seven, "2. ดำเนินการขออนุมัติ", measures 153px, and the tile
+     spends 34px on padding and borders. At 150px the pill escaped the tile and
+     ran over the gap into its neighbour. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--s-3);
 }
 
@@ -457,6 +481,18 @@ a:hover {
 }
 
 .form-grid label { margin-bottom: var(--s-1); display: block; }
+
+/* Fields that only mean anything as a pair — a name and its phone number.
+   Each pair is one item of the outer grid so the two halves cannot be split
+   across a row break, and the track is wide enough to hold both. The name gets
+   the larger share; a phone number has a known width and a name does not. */
+.form-grid--pairs { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+
+.field-pair {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: var(--s-4);
+}
 
 /* -------------------------------------------------------------------------
    Meter — one ratio against a limit

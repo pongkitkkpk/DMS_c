@@ -93,6 +93,15 @@ export default function DashboardPage() {
   const funded = new Set(allocations.items.map((a) => a.club.id));
   const unfunded = clubs.filter((club) => !funded.has(club.id));
 
+  // What this page covers, named the way the token actually scopes it. A club
+  // member — SH or AD — belongs to a club group, but sees none of the group's
+  // other clubs, so naming the group here claimed a reach the table below it
+  // contradicts. Only STUACT is scoped to a whole group, and that membership is
+  // the one with no club of its own; ADMIN is scoped to everything and says
+  // nothing. So: the club when there is one, the group when there is not.
+  const membership = session.membership;
+  const scopeLabel = (membership && (membership.club_name || membership.club_group_name)) || '';
+
   return (
     <>
       <div className="page-head">
@@ -100,7 +109,7 @@ export default function DashboardPage() {
           <h1>ภาพรวม</h1>
           <div className="u-small u-dim">
             ปีการศึกษา {session.academicYear}
-            {session.membership && session.membership.club_group_name && ` · ${session.membership.club_group_name}`}
+            {scopeLabel && ` · ${scopeLabel}`}
           </div>
         </div>
         <Link className="u-spacer u-small u-muted" to="/projects">ดูรายการโครงการทั้งหมด →</Link>

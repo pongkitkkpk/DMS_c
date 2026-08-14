@@ -40,7 +40,25 @@ const EVENT_LABELS = {
   ATTACHMENT_ADDED: 'แนบไฟล์',
 };
 
-const date = (value) => (value ? String(value).slice(0, 10) : '—');
+/**
+ * A date as a Thai reader expects it — "1 มิ.ย. 2567", Buddhist year.
+ *
+ * This used to slice the first ten characters off the API's ISO string, which
+ * put "2024-06-01" on the schedule card while the timeline beside it, the
+ * attachment list, the budget panel and both government forms all printed Thai
+ * dates. The schedule is the one card whose dates people actually plan around,
+ * so it was the worst place to be four hundred and forty-three years out.
+ *
+ * Built from the parts rather than `new Date(value)`: an ISO date-only string
+ * parses as UTC midnight, which in this timezone can render as the day before.
+ */
+const date = (value) => {
+  if (!value) return '—';
+  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return '—';
+  return new Date(year, month - 1, day)
+    .toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 /** One row of a child list, rendered from whichever fields that section has. */
 function SectionRow({ row }) {
