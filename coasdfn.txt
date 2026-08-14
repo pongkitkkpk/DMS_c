@@ -1,6 +1,6 @@
 Session — 2026-08-14 (late)
 
-Phase 3 → closed and committed (ddb4a41). Phase 4 → closed, in the working tree.
+Phase 3 → closed, committed (ddb4a41). Phase 4 → closed, committed (a06c550).
 
 Phase 4 — document assembly. Both government forms render.
 
@@ -69,8 +69,8 @@ State I left behind
 - MariaDB is RUNNING, started detached from XAMPP (pid 15580 today). Stop it from the XAMPP
   control panel when you want to. Data is freshly seeded.
 - Ports 3000 and 3001 are free.
-- Phase 3 is committed (ddb4a41). PHASE 4 IS NOT COMMITTED — it is all in the working tree,
-  unstaged. Look it over and commit when you are happy.
+- Everything is committed on master: ddb4a41 (Phase 3), a06c550 (Phase 4). Nothing is pushed —
+  origin is still at 5ce2fa2, so `git push` when you have looked it over.
 - Templates verified byte-identical to the originals; the acceptance run asserts their MD5s.
 
 Picking up next time
