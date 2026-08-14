@@ -363,3 +363,60 @@ Recorded so the gaps are decisions, not oversights.
 - **Soft delete** — `DELETE FROM project` cascades.
 - **Database-level row security** — scope is an application invariant enforced from the token.
 - **i18n** — Thai copy, hardcoded (Q11).
+
+---
+
+## Requested and parked (2026-08-15)
+
+Four things the owner asked for, to be built later rather than now. Written down
+with what the code already does for each, so picking them up does not start with
+re-reading the codebase.
+
+### 1. The officer's screen needs a menu
+
+The nav is two links — ภาพรวม and โครงการ — which was enough while every role had
+the same two screens. The three items below are all officer-side screens, so
+STUACT and ADMIN need somewhere to put them. Worth doing **after** the other
+three exist, so the menu is designed around real entries rather than guessed at.
+
+### 2. Allocations are per academic year, and each year is set fresh
+
+**The data model already does this.** `agency_allocation` carries `academic_year`,
+`allocationService.listAllocations` accepts a `year` filter, and the money rules
+already sum approvals per (club, academic year) — budget layer (c). So this is a
+screen gap, not a schema change.
+
+> **There is a latent bug waiting here.** The dashboard calls `api.allocations()`
+> with no year, and the query orders by `academic_year DESC` and returns *every*
+> year the actor may see. Today only 2567 is seeded so it looks correct, but the
+> moment a second year exists the table grows a second row per club — and the
+> table has no year column, so the two are indistinguishable. Whoever builds this
+> should pass the year and add the column in the same change.
+
+Also settle where the year comes from. It is `ACADEMIC_YEAR` in `.env` today, and
+it is still the guess recorded in the open questions: that the academic year turns
+over in June. A year that must be "set fresh" each year should probably not be an
+environment variable that someone has to remember to edit.
+
+### 3. A page summarising previous years
+
+Follows directly from item 2 — once allocations are addressable per year, the
+history is a matter of reading them. The figures already exist: allocation,
+approved total and remaining are computed per (club, year) by
+`allocationService`, and project counts per phase per year come from `project`.
+
+### 4. A page for adding roles, usable by ADMIN and STUACT
+
+The biggest of the four, and the one that touches decisions already made.
+
+`membership` is what grants a role, and A4 in this document deliberately split
+`person` from `membership` so one person can hold several roles across years —
+that split is what makes this page buildable at all. But roles are currently
+*seeded*, never created through the API, so this needs new write endpoints, and
+those endpoints hand out authority. Two things to decide before building:
+
+- **Can STUACT create a role outside its own jurisdiction group?** If not, the
+  scope rules that guard projects have to guard membership writes too.
+- **Can a role be granted for a past or future academic year?** Membership is
+  per year, so the form has to ask, and the answer changes what the officer can
+  quietly rewrite.
