@@ -680,6 +680,12 @@ move, and would be wrong in the silent way the guard exists to prevent.
     produced, because the payload lacked the key the template reads it from.
 25. **Percentages, dates and amounts print as blanks or dashes when they are unknown**, rather
     than as `undefined`, `null`, `NaN%`, `Infinity%` or `1 มกราคม 2513`.
+26. **Uploads are not statically served.** The old upload directory was an `express.static`
+    mount, so a guessable filename returned any project's file to anyone —
+    **closes a second cross-club leak** with the same shape as deviation 1.
+27. **An uploaded file's name is a label, never a path**, and what may be uploaded is an
+    allow-list. Downloads are always `octet-stream` + `attachment` + `nosniff`, so an uploaded
+    `.html` or `.svg` cannot execute in the application's origin.
 
 #### The download phase gate — an assumption, not a port
 
@@ -694,6 +700,66 @@ and `src/routes/documents.js` implements this:
 **This needs a yes or no from someone who runs the process**, and it is the one part of Phase 4
 that is a judgement call rather than a port. The likeliest correction is whether a student
 should be able to print กนศ.04 while still drafting, to review it on paper before submitting.
+
+## Phase 6 close-out (2026-08-14) — hardening
+
+`backend/scripts/check-phase6.js` (`npm run check:phase6`) — 53 checks. The build plan's five
+items, with one deliberately not built.
+
+### 1. Structure — verified rather than remembered
+
+The old `server.js` mounted every router twice and held seven unauthenticated handlers inline.
+Deviation 13 says that is fixed *by construction*; the run now asserts it: no route defined on
+the app except the health probe, every router mounted once under `/api`, and no
+`express.static` anywhere.
+
+### 2. Attachments (Q21, deviation 8)
+
+**There is no static mount.** That is the whole of it. The old system exposed its upload
+directory as static files, so a guessable filename returned somebody else's document with no
+token, no scope check and no record — the same family of leak as deviation 1. Every byte now
+leaves through a handler that has already run `loadProject`, which narrows the id by the
+caller's membership and answers 404 rather than 403.
+
+Four rules, each closing a way the old arrangement went wrong:
+
+- **The client's filename is never a path.** It is kept as a label — repaired, basename-only —
+  and the name on disk is generated. `../../../../evil.pdf` is inert rather than clever, and
+  the run proves it twice: over HTTP, and by calling the service directly with a name no
+  client stack has sanitised, because "the browser strips it" is not a property to rely on.
+- **Stored paths are relative and resolved under one root**, with the root resolved once in
+  `config` so the write and the read cannot disagree about where it is.
+- **Nothing is served inline.** Every download is `application/octet-stream` + `attachment` +
+  `nosniff`, whatever was uploaded, so an uploaded `.html` or `.svg` cannot run as script in
+  the application's own origin.
+- **An allow-list, not a deny-list.** Every deny-list of dangerous extensions has been shorter
+  than the set of dangerous extensions.
+
+**A real bug found here:** multer reads the multipart `filename=` header as latin1, so
+`เอกสารแนบ.pdf` arrived as `à¹à¸­à¸...`. In a system whose users name files in Thai that is
+every attachment's name, wrong, everywhere. `repairMultipartFilename` reinterprets the bytes,
+guarded — ASCII untouched, invalid UTF-8 left alone.
+
+### 3. Email notification — deliberately not built
+
+The build plan says to treat it as a new requirement rather than a port, and the owner has
+since said this system is **a demo**. A notification path with no mail server behind it is
+worse than none: it either fails on every transition or silently does nothing, and both teach
+people to ignore it. So nothing imports a mailer, and the acceptance run asserts that — the
+absence is checked, so it cannot drift into a half-present feature.
+
+### 4. Indexes
+
+Asserted for the columns the real queries filter on — `project.club_id` and `phase_id`,
+`membership.club_id`, and the project foreign keys on `project_event`, `budget_line` and
+`project_attachment` — plus an `EXPLAIN` showing the STUACT scope query does not table-scan
+`project`. The old schema had five secondary indexes in total.
+
+### 5. The deviations list
+
+Spot-checked end to end rather than read: scope cannot be widened by a query parameter (1),
+mass assignment is refused (2), the token carries no role (11), out of scope is 404 (15), and
+attachment downloads are authorized (8, asserted above).
 
 ## Phase 5 close-out (2026-08-14)
 

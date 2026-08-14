@@ -15,6 +15,7 @@ import { Button, Alert } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
+import AttachmentsCard from '../components/AttachmentsCard';
 import BudgetPanel from '../components/BudgetPanel';
 import DocumentsCard from '../components/DocumentsCard';
 import { Card, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
@@ -261,6 +262,8 @@ export default function ProjectPage() {
         <div className="col-lg-5">
           <div className="u-stack">
             <DocumentsCard projectId={id} key={project.phase.code} />
+
+            <AttachmentsCard projectId={id} />
 
             <Card title="ประวัติ" aside={`${events.length} รายการ`}>
               <div className="timeline">

@@ -54,6 +54,21 @@ const config = {
 
   authProvider: (process.env.AUTH_PROVIDER || 'mock').toLowerCase(),
 
+  /**
+   * Where uploaded files live (Q21).
+   *
+   * Resolved to an absolute path **here, once**, because it is the boundary
+   * every stored path is checked against: `project_attachment.storage_path` is
+   * relative, and a download resolves it under this root and refuses anything
+   * that escapes. A root computed per call could differ between the write and
+   * the read, which is how containment checks stop containing.
+   *
+   * Outside the repository tree by default is tempting but wrong for a system
+   * that is run from a checkout; `backend/uploads` is gitignored instead.
+   */
+  uploadRoot: path.resolve(__dirname, '..', process.env.UPLOAD_ROOT || 'uploads'),
+  uploadMaxBytes: Number(process.env.UPLOAD_MAX_BYTES || 10 * 1024 * 1024),
+
   icit: {
     authentication: process.env.ICIT_AUTHENTICATION || '',
     information: process.env.ICIT_INFORMATION || '',

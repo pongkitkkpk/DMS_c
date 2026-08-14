@@ -1,91 +1,80 @@
-Session — 2026-08-14 (last)
+Session — 2026-08-14 (สุดท้ายจริง ๆ)
 
-Phases 0–5 are done. The rebuild is feature-complete against the old system's screens.
+Phases 0–6 done. 285 checks, all green.
 
   npm run check:phase2   55 / 55    projects, scope, the phase machine
   npm run check:phase3   65 / 65    budget enforcement, the three limits
   npm run check:phase4   64 / 64    document assembly, both government forms
   npm run check:phase5   48 / 48    the screens, and who may do what
+  npm run check:phase6   53 / 53    hardening: structure, attachments, indexes
 
-Commits on master: ddb4a41 (Phase 3), a06c550 (Phase 4), and Phase 5 — see below.
-NOTHING IS PUSHED. origin is still at 5ce2fa2; `git push origin master` needs your
-credentials, the dialog cancelled when I tried.
+ICIT — ไม่ต่อแล้วนะครับ ตามที่บอก
 
-Phase 5 — the frontend to parity
+บันทึกไว้แล้วว่าอันนี้เป็นแค่ demo และ AUTH_PROVIDER=mock คือจุดที่ตั้งใจให้จบ ไม่ใช่งานค้าง
+seam ยังอยู่ (providers/icit.js, normalizer ร่วมกัน) เพราะมันไม่ได้เสียอะไร และทำให้ mock
+ยังตรวจ mapping จริงอยู่ — แต่จะไม่มีใครไปไล่ปิดมันอีกแล้ว
 
-Every screen in the old inventory is covered, several by one screen where the old system had
-four. The create/edit form absorbs NewProjectDocument and both TableAdd/List screens; the
-budget panel absorbs DetailBudget, DAddSplitBudget and DTableAddBudget.
+Phase 6 — hardening
 
-  /projects            the list, filterable, phase in the URL so it can be shared
-  /projects/new        create — core fields, seven lists, attendance, tags
-  /projects/:id        the project: stepper, transitions, budget, documents, log
-  /projects/:id/edit   the same form, editing
-  /dashboard           projects by phase + the allocation table
-  /profile             identity and what each membership permits
+1. โครงสร้าง — ตรวจแล้ว ไม่ใช่แค่จำ: ไม่มี express.static ที่ไหนเลย, ไม่มี route
+   นอก router (ยกเว้น /api/health), ทุก router mount ครั้งเดียว
+2. ไฟล์แนบ (Q21) — งานหลักของเฟสนี้
+3. อีเมล — ตั้งใจไม่ทำ ดูด้านล่าง
+4. Index + EXPLAIN — ตรวจคอลัมน์ที่ query จริงใช้ filter
+5. Deviations — ไล่ยิงจริงทีละข้อ ไม่ใช่แค่อ่าน
 
-Two things worth knowing about how it is wired
+ไฟล์แนบ — สิ่งสำคัญคือ "ไม่มี static mount"
 
-Every control is drawn from a `permissions` object the SERVER computed, by asking the same
-assertions its writes run (scope.permits). One rule, not a rule and a copy that drift. The old
-frontend held the copy in storedUser.position and the endpoints behind it checked nothing.
+ระบบเก่า mount โฟลเดอร์ uploads เป็น static file ใครเดาชื่อไฟล์ถูกก็ได้เอกสารของชมรมอื่นไป
+โดยไม่ต้องมี token ไม่มีการตรวจ scope และไม่มีร่องรอย — leak ตระกูลเดียวกับ deviation 1
+ตอนนี้ทุก byte ออกผ่าน handler ที่ผ่าน loadProject มาแล้วเท่านั้น
 
-The advisor is a picker fed by GET /reference/advisors, which returns exactly the AD
-memberships assertAdvisorIsValid will accept. The form cannot offer someone the save will
-reject, and cannot name a person who does not exist — which is what 12 of the old system's 30
-projects did.
+- ชื่อไฟล์จากผู้ใช้เป็น "ป้าย" ไม่ใช่ path — ชื่อบนดิสก์ระบบสร้างเอง
+  '../../../../evil.pdf' จึงไร้พิษ ทดสอบสองชั้น: ผ่าน HTTP และเรียก service ตรง ๆ
+  ด้วยชื่อที่ไม่ผ่านการ sanitise ของ client เลย
+- path ที่เก็บเป็น relative และ resolve ใต้ root เดียว (fix ไว้ใน config ครั้งเดียว)
+- ดาวน์โหลดเป็น octet-stream + attachment + nosniff เสมอ ไฟล์ .html/.svg
+  ที่อัปโหลดเข้ามาจึงรันเป็นสคริปต์ใน origin ของแอปไม่ได้
+- ชนิดไฟล์เป็น allow-list ไม่ใช่ deny-list
 
-Form limits (5 objectives, 3 problems, 15 activities…) are SERVED, not compiled into the
-client: GET /reference/limits reads them from the template extraction. A constant in the
-frontend would be one template change away from lying to a student.
+เจอบั๊กจริงหนึ่งตัว: multer อ่าน filename ใน multipart header เป็น latin1 ชื่อไฟล์ไทย
+'เอกสารแนบ.pdf' เลยกลายเป็น 'à¹à¸­à¸...' ในระบบที่คนตั้งชื่อไฟล์เป็นไทย นี่คือชื่อไฟล์
+ทุกไฟล์ผิดหมด แก้ด้วย repairMultipartFilename() — ตีความ byte ใหม่ แบบมีการ์ด
+(ASCII ไม่แตะ, ถ้าไม่ใช่ UTF-8 ที่ถูกต้องก็ปล่อยไว้)
 
-The browser pass earned its keep again
+อีเมล — ตั้งใจไม่ทำ
 
-Third time in a row it found things the compiler and the API tests both passed:
-- the create form opened with eight empty lists and nowhere to type
-- a wrapping label broke its grid row
-- a column of accent-red buttons sat on the least urgent action on the dashboard
-All three fixed. Keep doing the browser pass.
+build plan บอกให้ถือเป็น requirement ใหม่ ไม่ใช่ port และตอนนี้รู้แล้วว่าเป็น demo
+ที่ไม่มี mail server — notification ที่ไม่มีอะไรอยู่ข้างหลังมันแย่กว่าไม่มีเลย เพราะจะ
+พังทุก transition หรือเงียบไปเฉย ๆ ซึ่งสอนให้คนเลิกสนใจมันทั้งคู่
+เพราะงั้น: ไม่มีไฟล์ไหน import mailer เลย และ check-phase6 ยืนยันข้อนี้ไว้
+ความ "ไม่มี" ถูกตรวจ มันจะได้ไม่ค่อย ๆ กลายเป็นฟีเจอร์ครึ่ง ๆ กลาง ๆ
 
-New this session
-  backend/src/routes/reference.js         + /reference/advisors, /clubs, /limits
-  backend/scripts/check-phase5.js
-  frontend/src/pages/ProjectFormPage.js   create + edit
-  frontend/src/pages/DashboardPage.js     + the allocation screen (the Phase 3 gap, closed)
-  frontend/src/pages/ProfilePage.js
-  frontend/src/components/ListEditor.js   one editor for all seven lists
-  frontend/src/components/TagPicker.js
+State
 
-State I left behind
+- MariaDB RUNNING (pid 15580 วันนี้) ปิดจาก XAMPP control panel ได้เลย
+- Port 3000 / 3001 ว่าง
+- commit แล้วบน master ทั้งหมด — ยังไม่ push (origin ยังอยู่ที่ 5ce2fa2)
+  `git push origin master` ต้องใช้ credential ของพี่ ตอนผมลอง dialog มันโดน cancel
+- backend/uploads/ ถูก gitignore อยู่แล้ว
 
-- MariaDB is RUNNING, started detached from XAMPP (pid 15580 today). Stop it from the XAMPP
-  control panel when you want to. Data is freshly seeded.
-- Ports 3000 and 3001 are free.
-- Everything is committed on master. Nothing is pushed.
+เหลืออะไร
 
-What is left
+1. PUSH
+2. Gantt ใน temp04 — สองตาราง 15x12 บนค่า startM/endM ชุดเดียวกัน 176 ช่องใช้ ||
+   ทั้งที่ควรเป็น && ตารางที่สองเลยระบายเกิน แก้จาก payload ไม่ได้ ต้องแก้ตัว
+   temp04.docx ซึ่งเป็นการตัดสินใจของพี่ — รายละเอียดใน template-contract.md open item 2
+3. Review queue — อยู่นอก v1 ตาม Q5
 
-Not a phase — a list.
+คำถามที่ยังรอคำตอบคน — 4 ข้อ ไม่บล็อกอะไร
 
-1. PUSH. Then decide whether master-only is how you want to keep working.
-2. The temp04 Gantt. Two 15x12 grids over the same startM/endM; 176 cells test || where they
-   mean &&, so the second grid over-shades. Cannot be fixed from the payload. Fixing it means
-   editing temp04.docx, which is yours to decide. Quantified in docs/template-contract.md
-   open item 2.
-3. The ICIT provider. AUTH_PROVIDER=icit exists and shares the normalizer with the mock, but
-   has never spoken to the real service — no credentials yet.
-4. Attachments (Q21) are in the schema and have no routes. Not in any phase's "done when";
-   decide whether v1 needs them.
-5. The review queue is explicitly out of v1 (Q5).
+1. สิทธิ์แก้ไข — ใครแก้โครงการได้ในสถานะไหน ยังเป็นสมมติฐาน และตอนนี้หน้าจอวาดปุ่ม
+   จากมันแล้ว ถ้าแก้จะกระทบสิ่งที่คนเห็น
+2. เงื่อนไขสถานะของการออกเอกสาร — กนศ.04 ตั้งแต่ "ดำเนินการขออนุมัติ",
+   กนศ.06 ตั้งแต่ "ร่างสรุปผลโครงการ" ข้อที่น่าจะต้องแก้: นักศึกษาควรพิมพ์ กนศ.04
+   ตอนยังร่างอยู่ได้ไหม
+3. A4 — person กับ membership จะแยกกันต่อไหม ยังกลับทางได้ถูกอยู่
+4. ปีการศึกษาเริ่มเดือนมิถุนายน — ยังเป็นการเดา ACADEMIC_YEAR=2567 ปักไว้ใน .env
+   สำคัญที่สุดกับ budget layer (c) ที่รวมยอดอนุมัติต่อ (ชมรม, ปีการศึกษา)
 
-Still wanting a human answer — four, none blocking:
-
-1. Editing rights — who may edit a project in which phase. Still an assumption, and Phase 5
-   now draws its buttons from it, so a correction changes what people see.
-2. The download phase gate — กนศ.04 from "ดำเนินการขออนุมัติ", กนศ.06 from "ร่างสรุปผลโครงการ".
-   Likeliest correction: should a student print กนศ.04 while still drafting?
-3. A4 — whether person and membership stay split. Still the cheap direction to reverse.
-4. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
-   pinned in .env. Matters most for budget layer (c).
-
-ขอบคุณครับ — สนุกดี 👋
+ขอบคุณครับ 🙏

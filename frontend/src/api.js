@@ -92,6 +92,21 @@ export const api = {
   // Documents. `documents()` answers with both forms and, where one cannot be
   // produced, the server's own reason — too early in the phase machine, or more
   // rows than the government form has boxes for.
+  // Attachments. There is no static URL for these — the bytes only come back
+  // through an authorized request, so the download is a fetch, not an href.
+  attachments: (id) => client.get(`/projects/${id}/attachments`).then((r) => r.data),
+  uploadAttachment: (id, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    // Content-Type is left to the browser: it has to carry the multipart
+    // boundary, and setting it by hand drops that and breaks the parse.
+    return client.post(`/projects/${id}/attachments`, form).then((r) => r.data);
+  },
+  downloadAttachment: (id, attachmentId) =>
+    client.get(`/projects/${id}/attachments/${attachmentId}`, { responseType: 'blob' }),
+  deleteAttachment: (id, attachmentId) =>
+    client.delete(`/projects/${id}/attachments/${attachmentId}`).then((r) => r.data),
+
   documents: (id) => client.get(`/projects/${id}/documents`).then((r) => r.data),
   documentUrl: (id, form) => `${BASE}/api/projects/${id}/documents/${form}`,
   /**

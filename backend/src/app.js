@@ -19,6 +19,7 @@ const cors = require('cors');
 const { config, isOriginAllowed } = require('./config');
 const { pool, isTransient } = require('./db/pool');
 const { HttpError } = require('./lib/httpError');
+const attachmentRoutes = require('./routes/attachments');
 const authRoutes = require('./routes/auth');
 const budgetRoutes = require('./routes/budget');
 const documentRoutes = require('./routes/documents');
@@ -53,6 +54,10 @@ function createApp() {
   app.use('/api', projectRoutes);
   app.use('/api', budgetRoutes);
   app.use('/api', documentRoutes);
+  // Note what is NOT here: any `express.static` over the upload directory. The
+  // old system had one, which is why a guessable filename returned somebody
+  // else's document (Q21). Attachments leave only through authorized handlers.
+  app.use('/api', attachmentRoutes);
 
   app.use((req, res, next) => next(HttpError.notFound(`ไม่พบเส้นทาง ${req.method} ${req.path}`)));
 

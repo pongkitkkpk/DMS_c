@@ -1,6 +1,9 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0–5 complete. v1 is feature-complete against the old system's screens.
+**Status**: Phases 0–6 complete. v1 is feature-complete against the old system's screens, with
+one item deliberately not built (email — see Phase 6). **This is a demonstration system**: the
+ICIT integration is out of scope by the owner's decision and `AUTH_PROVIDER=mock` is where it
+is meant to stop.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
 **Last updated**: 2026-08-14
 
@@ -312,6 +315,23 @@ relies on `sessionStorage` for an authorization decision.
    treat it as a new requirement, not a port (`business-rules.md` → "Notifications").
 4. Indexes and an `EXPLAIN` pass. The old schema had five secondary indexes total.
 5. Re-read `DECISIONS.md` → "Deliberate deviations" and confirm each is both done and listed.
+
+> **Phase 6 is complete (2026-08-14)** — `npm run check:phase6`, 53 checks — **except item 3,
+> which is deliberately not built.** This is a demo with no mail server, and a notification
+> path that either fails on every transition or silently does nothing is worse than one that
+> visibly does not exist. Nothing imports a mailer, and the run asserts that, so the absence
+> cannot drift into a half-present feature.
+>
+> Item 1 is now checked rather than remembered: no `express.static` anywhere, no route on the
+> app but the health probe, every router mounted once.
+>
+> Item 2 is the substance. **There is no static mount** — the old system had one over its
+> upload directory, which made a guessable filename anyone's document. The client's filename is
+> a label and never a path, stored paths are relative and resolved under a root fixed once in
+> `config`, the allowed types are an allow-list, and every download is
+> `octet-stream` + `attachment` + `nosniff` so an uploaded `.html` cannot run in this origin.
+> A real bug surfaced here: multer reads the multipart filename as latin1, so Thai filenames
+> arrived mangled — repaired, with the repair guarded and tested.
 
 ---
 
