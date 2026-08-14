@@ -695,6 +695,45 @@ and `src/routes/documents.js` implements this:
 that is a judgement call rather than a port. The likeliest correction is whether a student
 should be able to print กนศ.04 while still drafting, to review it on paper before submitting.
 
+## Phase 5 close-out (2026-08-14)
+
+The screens exist. `backend/scripts/check-phase5.js` (`npm run check:phase5`) — 48 checks —
+plus a browser pass over the running app.
+
+Every screen in the old feature inventory is covered, several by one screen where the old
+system had four: the create/edit form absorbs `NewProjectDocument` and both `TableAdd/List*`
+screens, and the budget panel absorbs `DetailBudget`, `DAddSplitBudget` and `DTableAddBudget`.
+
+### The authorization half is the half that is provable
+
+"No screen relies on `sessionStorage` for an authorization decision" is not shown by reading
+the JSX — it is shown by making each screen's requests as each role and checking the server
+refuses the right ones. That is what the acceptance run does. The client's part is that every
+control is drawn from a `permissions` object the server computed by asking **the same
+assertions its writes run** (`scope.permits`), so there is one rule rather than a rule and a
+copy of it that drift. The old frontend held the copy in `storedUser.position`, and the
+endpoints behind it checked nothing at all.
+
+### Decisions taken in Phase 5
+
+- **The advisor is a picker, not a text box.** `GET /reference/advisors` returns exactly the
+  `AD` memberships `assertAdvisorIsValid` will accept, so the form cannot offer a person the
+  save will reject — and cannot name one who does not exist, which is what 12 of the old
+  system's 30 projects did.
+- **Form limits are served, not compiled in.** `GET /reference/limits` reads them from
+  `documents/arity.js`, which reads them from the generated template extraction. A constant in
+  the client would be one template change away from telling a student they may enter five when
+  the form holds three. It warns while typing; the download still refuses independently.
+- **A new project opens with one row in each list.** Eight cards reading "ยังไม่มีรายการ" is
+  eight clicks before any typing and reads as a broken form. Blank rows are dropped on save.
+- **The profile is read-only, and for two different reasons.** Identity is ICIT's — a field
+  editable here is one the next login silently overwrites. The role is not editable because it
+  is not stored anywhere editable: it is resolved from `membership` per request (deviation 11).
+- **The dashboard is where Q33 is loud.** Lowering an allocation below committed spend stays
+  allowed; the bargain was that it is surfaced, and this is the surface — a banner, a red
+  remaining figure, and clubs with no ceiling listed alongside those that have one, because a
+  missing ceiling is not a blank space but the thing that will block the club's next approval.
+
 ### Frontend first slice (2026-08-13) — deliberately out of order
 
 `frontend/` now runs: CRA + React 18 + Bootstrap 4.6 + reactstrap + React Router v5, the stack

@@ -58,6 +58,13 @@ router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
     budget: budget.money,
     budgetWarnings: budget.warnings,
     transitions,
+    // Asked of the same assertions the writes run, so the screen cannot offer
+    // an action the server would refuse or hide one it would allow. A
+    // convenience, not a defence — every write re-runs the rule.
+    permissions: {
+      edit: scope.permits(() => scope.assertCanEdit(req.actor, req.project)),
+      delete: scope.permits(() => scope.assertCanDelete(req.actor, req.project)),
+    },
   });
 }));
 

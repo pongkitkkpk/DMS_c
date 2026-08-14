@@ -57,6 +57,22 @@ export const api = {
     client.post(`/projects/${id}/transitions`, { toPhaseCode }).then((r) => r.data),
   events: (id) => client.get(`/projects/${id}/events`).then((r) => r.data),
   phases: () => client.get('/reference/phases').then((r) => r.data),
+  tags: () => client.get('/reference/tags').then((r) => r.data),
+  advisors: () => client.get('/reference/advisors').then((r) => r.data),
+  clubs: () => client.get('/reference/clubs').then((r) => r.data),
+  // How many rows of each list the government forms can print. Served, not
+  // hard-coded here: the numbers come from the templates themselves.
+  limits: () => client.get('/reference/limits').then((r) => r.data),
+
+  // Writes. `createProject` takes only the core row — the child lists need an
+  // id to hang from, so the form saves them immediately after.
+  createProject: (body) => client.post('/projects', body).then((r) => r.data),
+  updateProject: (id, body) => client.patch(`/projects/${id}`, body).then((r) => r.data),
+  deleteProject: (id) => client.delete(`/projects/${id}`).then((r) => r.data),
+  /** Each child list is replaced whole — `ordinal` is the server's to assign. */
+  saveSection: (id, section, items) =>
+    client.put(`/projects/${id}/sections/${section}`, { items }).then((r) => r.data),
+  saveTags: (id, tagIds) => client.put(`/projects/${id}/tags`, { tagIds }).then((r) => r.data),
 
   // Budget. `budget()` answers with the figures, the lines, the ledger, the
   // findings, and `permissions` — which controls this caller may use. The

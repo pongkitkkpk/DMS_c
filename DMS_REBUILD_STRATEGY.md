@@ -1,6 +1,6 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0–4 complete. Phase 5 (frontend to parity) is what remains.
+**Status**: Phases 0–5 complete. v1 is feature-complete against the old system's screens.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
 **Last updated**: 2026-08-14
 
@@ -274,13 +274,31 @@ forms and shows the server's own reason when one cannot be produced. That covers
 `DetailBudget`, `DAddSplitBudget` and `DTableAddBudget` in one screen rather than four, and
 replaces the old download buttons.
 
-**Known gap, deliberate:** there is **no allocation screen**. `GET`/`PUT /api/allocations`
-exist and are tested, and every allocation read carries `committed`, `remaining` and
-`overCommitted` — which is the Q33 dashboard signal — but nothing renders them yet. That
-belongs with STUACT's dashboard here in Phase 5.
+~~**Known gap, deliberate:** there is no allocation screen.~~ **Closed** — it is the dashboard.
 
 **Done when:** every screen above works for its roles against the real API, and no screen
 relies on `sessionStorage` for an authorization decision.
+
+> **Phase 5 is complete (2026-08-14).** `backend/scripts/check-phase5.js`
+> (`npm run check:phase5`) — 48 checks, plus a browser pass over the real app.
+>
+> The screen list is covered: `Login`, `AllProject` (the list), `ProjectDocument` (the project),
+> `NewProjectDocument` **and** the `TableAdd/List*` screens (one create/edit form),
+> `DetailBudget` + `DAddSplitBudget` + `DTableAddBudget` (the budget panel), `Dashboard`,
+> `UserProfile`, `ArrowProgressBar` (the phase stepper). The review queue stays out of v1 (Q5).
+>
+> **The second half of "done when" is the half a script can prove**, and it is proved the only
+> way that means anything: by making the requests each screen makes, as each role, and checking
+> the server refuses the ones it should. A screen that hides a button proves nothing. Every
+> control on every screen is drawn from a `permissions` object the server computed by asking
+> the same assertions its writes run (`scope.permits`), so the client cannot offer an action the
+> server would refuse or hide one it would allow.
+>
+> Three defects came out of the browser pass that the compiler and the API tests both passed:
+> a create form that opened with eight empty lists and no row to type in, a wrapping label that
+> broke its grid row, and a column of accent-red buttons on the least urgent action on the
+> dashboard. That is the third browser pass in a row to find something, and the reason to keep
+> doing them.
 
 ---
 

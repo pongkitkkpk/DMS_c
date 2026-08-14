@@ -10,7 +10,7 @@
  * Hiding a button here is a convenience; the refusal is the server's.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useHistory, Link } from 'react-router-dom';
 import { Button, Alert } from 'reactstrap';
 import Swal from 'sweetalert2';
 
@@ -61,6 +61,7 @@ function SectionRow({ row }) {
 
 export default function ProjectPage() {
   const { id } = useParams();
+  const history = useHistory();
   const [project, setProject] = useState(null);
   const [events, setEvents] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -116,6 +117,32 @@ export default function ProjectPage() {
     }
   };
 
+  /**
+   * Deleting cascades to every child table and there is no soft delete in v1,
+   * so the confirmation names the project and requires a second click — and the
+   * server still checks that this caller may do it.
+   */
+  const remove = async () => {
+    const confirmed = await Swal.fire({
+      title: 'ลบโครงการนี้?',
+      html: `<div style="font-size:0.95rem">“${project.name}”<br><span style="color:#8a1c12">ข้อมูลทั้งหมดของโครงการจะถูกลบถาวร</span></div>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ลบถาวร',
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+      focusCancel: true,
+    });
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      await api.deleteProject(id);
+      history.push('/projects');
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: messageOf(err) });
+    }
+  };
+
   if (error) {
     return (
       <Alert color="danger">
@@ -127,6 +154,7 @@ export default function ProjectPage() {
 
   const available = project.transitions.filter((t) => t.allowedForCaller);
   const blocked = project.transitions.filter((t) => !t.allowedForCaller);
+  const permissions = project.permissions || {};
 
   return (
     <>
@@ -152,11 +180,14 @@ export default function ProjectPage() {
           <PhaseStepper phases={phases} currentOrdinal={project.phase.ordinal} />
         </div>
 
-        {(available.length > 0 || blocked.length > 0) && (
+        {(available.length > 0 || blocked.length > 0 || permissions.edit || permissions.delete) && (
           <div
             className="card-x__body u-row"
             style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-surface-2)', flexWrap: 'wrap' }}
           >
+            {permissions.edit && (
+              <Button outline color="secondary" tag={Link} to={`/projects/${id}/edit`}>แก้ไขข้อมูล</Button>
+            )}
             {available.map((t) => (
               <Button key={t.toPhaseCode} color="primary" disabled={busy} onClick={() => advance(t)}>
                 เปลี่ยนเป็น “{t.toPhaseNameTh}” →
@@ -169,6 +200,11 @@ export default function ProjectPage() {
             )}
             {available.some((t) => t.requiresBudgetCheck) && (
               <span className="u-small u-dim">ขั้นตอนนี้มีการตรวจสอบงบประมาณ</span>
+            )}
+            {permissions.delete && (
+              <Button className="u-spacer" size="sm" outline color="danger" onClick={remove}>
+                ลบโครงการ
+              </Button>
             )}
           </div>
         )}

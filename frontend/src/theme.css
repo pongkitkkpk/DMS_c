@@ -411,6 +411,54 @@ a:hover {
 .kpi__note { font-size: 0.74rem; color: var(--c-text-3); margin-top: var(--s-1); }
 
 /* -------------------------------------------------------------------------
+   App navigation
+   ------------------------------------------------------------------------- */
+
+.app-nav {
+  display: flex;
+  gap: var(--s-1);
+  margin-left: var(--s-5);
+}
+
+.app-nav__link {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  color: var(--c-text-2);
+  text-decoration: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-nav__link:hover { background: var(--c-surface-2); color: var(--c-text); text-decoration: none; }
+
+/* The current section is marked by weight and the accent, not by colour alone. */
+.app-nav__link.is-current {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .app-nav { margin-left: var(--s-2); }
+  .app-nav__link { padding: var(--s-2); }
+}
+
+/* -------------------------------------------------------------------------
+   Form grid — the project entry screen
+   ------------------------------------------------------------------------- */
+
+/* Two columns where there is room, one where there is not. Labels sit above
+   their inputs rather than beside them: Thai field names vary enough in length
+   that a label column is either too wide for most rows or too narrow for some. */
+.form-grid {
+  display: grid;
+  gap: var(--s-4);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.form-grid label { margin-bottom: var(--s-1); display: block; }
+
+/* -------------------------------------------------------------------------
    Meter — one ratio against a limit
    ------------------------------------------------------------------------- */
 

@@ -6,7 +6,7 @@
  * re-derived).
  */
 import React from 'react';
-import { BrowserRouter, Switch, Route, Redirect, Link, useHistory } from 'react-router-dom';
+import { BrowserRouter, Switch, Route, Redirect, Link, NavLink, useHistory } from 'react-router-dom';
 import { Button } from 'reactstrap';
 
 import { AuthProvider, useAuth } from './AuthContext';
@@ -14,6 +14,9 @@ import { Avatar, Pill, Skeleton } from './components/ui';
 import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectPage from './pages/ProjectPage';
+import ProjectFormPage from './pages/ProjectFormPage';
+import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
 
 /** Renders nothing until the session is known, so a reload cannot flash the login screen. */
 function RequireAuth({ children }) {
@@ -48,9 +51,14 @@ function AppBar() {
           </span>
         </Link>
 
+        <nav className="app-nav">
+          <NavLink to="/dashboard" className="app-nav__link" activeClassName="is-current">ภาพรวม</NavLink>
+          <NavLink to="/projects" className="app-nav__link" activeClassName="is-current">โครงการ</NavLink>
+        </nav>
+
         <div className="u-spacer" />
 
-        <div className="user-chip">
+        <Link to="/profile" className="user-chip" style={{ textDecoration: 'none', color: 'inherit' }}>
           <Avatar name={session.person.fullNameTh} />
           <span className="u-small d-none d-md-block">
             {session.person.fullNameTh}
@@ -60,7 +68,7 @@ function AppBar() {
           <Pill tone={session.role ? 'brand' : 'neutral'} plain>
             {session.role || 'ไม่มีสิทธิ์'}
           </Pill>
-        </div>
+        </Link>
 
         <Button
           size="sm"
@@ -83,8 +91,14 @@ export default function App() {
         <main className="app-main">
           <Switch>
             <Route path="/login" component={LoginPage} />
-            <Route path="/projects/:id" render={() => <RequireAuth><ProjectPage /></RequireAuth>} />
-            <Route path="/projects" render={() => <RequireAuth><ProjectsPage /></RequireAuth>} />
+            {/* Order matters in Router v5: `/projects/new` would otherwise be
+                matched by `/projects/:id` and load a project called "new". */}
+            <Route exact path="/projects/new" render={() => <RequireAuth><ProjectFormPage /></RequireAuth>} />
+            <Route exact path="/projects/:id/edit" render={() => <RequireAuth><ProjectFormPage /></RequireAuth>} />
+            <Route exact path="/projects/:id" render={() => <RequireAuth><ProjectPage /></RequireAuth>} />
+            <Route exact path="/projects" render={() => <RequireAuth><ProjectsPage /></RequireAuth>} />
+            <Route exact path="/dashboard" render={() => <RequireAuth><DashboardPage /></RequireAuth>} />
+            <Route exact path="/profile" render={() => <RequireAuth><ProfilePage /></RequireAuth>} />
             <Redirect to="/projects" />
           </Switch>
         </main>

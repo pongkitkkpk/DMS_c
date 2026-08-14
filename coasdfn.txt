@@ -1,103 +1,91 @@
-Session — 2026-08-14 (late)
+Session — 2026-08-14 (last)
 
-Phase 3 → closed, committed (ddb4a41). Phase 4 → closed, committed (a06c550).
+Phases 0–5 are done. The rebuild is feature-complete against the old system's screens.
 
-Phase 4 — document assembly. Both government forms render.
+  npm run check:phase2   55 / 55    projects, scope, the phase machine
+  npm run check:phase3   65 / 65    budget enforcement, the three limits
+  npm run check:phase4   64 / 64    document assembly, both government forms
+  npm run check:phase5   48 / 48    the screens, and who may do what
 
-  npm run check:phase2   55 / 55
-  npm run check:phase3   65 / 65
-  npm run check:phase4   64 / 64
+Commits on master: ddb4a41 (Phase 3), a06c550 (Phase 4), and Phase 5 — see below.
+NOTHING IS PUSHED. origin is still at 5ce2fa2; `git push origin master` needs your
+credentials, the dialog cancelled when I tried.
 
-The mapping is generated, not written
+Phase 5 — the frontend to parity
 
-docs/template-contract.md closed by naming what it had not done: the 433-field mapping table.
-It is now docs/template-tags.json, produced from the .docx bytes by
+Every screen in the old inventory is covered, several by one screen where the old system had
+four. The create/edit form absorbs NewProjectDocument and both TableAdd/List screens; the
+budget panel absorbs DetailBudget, DAddSplitBudget and DTableAddBudget.
 
-  npm run templates:tags
+  /projects            the list, filterable, phase in the URL so it can be shared
+  /projects/new        create — core fields, seven lists, attendance, tags
+  /projects/:id        the project: stepper, transitions, budget, documents, log
+  /projects/:id/edit   the same form, editing
+  /dashboard           projects by phase + the allocation table
+  /profile             identity and what each membership permits
 
-The extractor rejoins tags split across XML runs — Word routinely stores {listSAll} as
-"{listS" + "All}" — and then walks each template's section stack to record WHICH PAYLOAD ROOT
-every field is read from. That last part is the whole game. A field placed under the wrong
-root renders blank with no error, and that is exactly what defect 1 is: temp06 asks for
-{#budget}{listSAll} and the old render passed Fbudget but not budget, so the approved amount
-has printed blank on every กนศ.06 ever produced. A mapping guessed from field names would have
-reproduced the bug faithfully.
+Two things worth knowing about how it is wired
 
-The arity limits are read from that same generated file rather than typed in, so replacing a
-template and re-running the extraction moves them with it.
+Every control is drawn from a `permissions` object the SERVER computed, by asking the same
+assertions its writes run (scope.permits). One rule, not a rule and a copy that drift. The old
+frontend held the copy in storedUser.position and the endpoints behind it checked nothing.
 
-The three render-path defects, fixed
+The advisor is a picker fed by GET /reference/advisors, which returns exactly the AD
+memberships assertAdvisorIsValid will accept. The form cannot offer someone the save will
+reject, and cannot name a person who does not exist — which is what 12 of the old system's 30
+projects did.
 
-1. กนศ.06 now states the approved total. Verified in the rendered text:
-   "…เป็นจำนวนเงิน 19,200.00 บาท จากเงินเหลือจ่าย…"
-2. persen divides guardedly. Zero planned gives "—", not Infinity%. A real ratio still
-   computes (92/100 → 92%).
-3. The space-padded { grandTypeETC } tag is matched by its trimmed name.
+Form limits (5 objectives, 3 problems, 15 activities…) are SERVED, not compiled into the
+client: GET /reference/limits reads them from the template extraction. A constant in the
+frontend would be one template change away from lying to a student.
 
-Arity — refuse, never truncate (Q8)
+The browser pass earned its keep again
 
-13 ค่าใช้สอย lines against a 12-row form is a 422 naming the category and both counts. An ETC
-budget line is refused outright, because the form has no box for that category at all and
-printing a grand total that includes it would put a wrong number on a signed document.
+Third time in a row it found things the compiler and the API tests both passed:
+- the create form opened with eight empty lists and nowhere to type
+- a wrapping label broke its grid row
+- a column of accent-red buttons sat on the least urgent action on the dashboard
+All three fixed. Keep doing the browser pass.
 
-One defect I could NOT fix, and did not paper over
-
-temp04 contains TWO full 15×12 month grids over the same startM/endM values. 180 cells test
-"startM_n <= m && endM_n >= m" — correct. 176 cells test the same months with "||" — which
-shades every column from the first month the bar touches to the end of the year. Wrong for any
-activity shorter than a full year.
-
-It cannot be fixed from the payload (both grids read the same two numbers) and the templates
-are fixed inputs that README.md says not to edit. So: the assembler supplies correct integer
-month indices, the && grid is right, the || grid over-shades exactly as it does today, and the
-whole thing is quantified in docs/template-contract.md open item 2. FIXING IT MEANS EDITING
-temp04.docx, WHICH IS YOUR CALL.
-
-New files
-  backend/scripts/extract-template-tags.js   the mapping, generated
-  backend/scripts/check-phase4.js
-  backend/src/documents/thai.js              Thai dates, month indices, baht text
-  backend/src/documents/arity.js             limits read from the extraction
-  backend/src/documents/assembler.js         domain -> the flat payload
-  backend/src/documents/render.js
-  backend/src/routes/documents.js
-  frontend/src/components/DocumentsCard.js
-  docs/template-tags.json                    generated — do not hand-edit
+New this session
+  backend/src/routes/reference.js         + /reference/advisors, /clubs, /limits
+  backend/scripts/check-phase5.js
+  frontend/src/pages/ProjectFormPage.js   create + edit
+  frontend/src/pages/DashboardPage.js     + the allocation screen (the Phase 3 gap, closed)
+  frontend/src/pages/ProfilePage.js
+  frontend/src/components/ListEditor.js   one editor for all seven lists
+  frontend/src/components/TagPicker.js
 
 State I left behind
 
 - MariaDB is RUNNING, started detached from XAMPP (pid 15580 today). Stop it from the XAMPP
   control panel when you want to. Data is freshly seeded.
 - Ports 3000 and 3001 are free.
-- Everything is committed on master: ddb4a41 (Phase 3), a06c550 (Phase 4). Nothing is pushed —
-  origin is still at 5ce2fa2, so `git push` when you have looked it over.
-- Templates verified byte-identical to the originals; the acceptance run asserts their MD5s.
+- Everything is committed on master. Nothing is pushed.
 
-Picking up next time
+What is left
 
-Phase 5 — the frontend to parity. The three roles (Student, STUACT, Admin) against the real
-API; adviser is one read-only screen; the review queue stays out of v1.
+Not a phase — a list.
 
-Two things already known to be missing, both written into the build plan so they do not get
-lost:
+1. PUSH. Then decide whether master-only is how you want to keep working.
+2. The temp04 Gantt. Two 15x12 grids over the same startM/endM; 176 cells test || where they
+   mean &&, so the second grid over-shades. Cannot be fixed from the payload. Fixing it means
+   editing temp04.docx, which is yours to decide. Quantified in docs/template-contract.md
+   open item 2.
+3. The ICIT provider. AUTH_PROVIDER=icit exists and shares the normalizer with the mock, but
+   has never spoken to the real service — no credentials yet.
+4. Attachments (Q21) are in the schema and have no routes. Not in any phase's "done when";
+   decide whether v1 needs them.
+5. The review queue is explicitly out of v1 (Q5).
 
-- No allocation screen. The API exists and is tested, and every allocation read carries
-  committed / remaining / overCommitted — the Q33 dashboard signal — but nothing renders it.
-- No project *create/edit* forms. Everything so far reads and advances; the entry screens
-  (CSD_detail, CSD_timestep, CSD_budget and friends in the old frontend) are Phase 5's bulk.
+Still wanting a human answer — four, none blocking:
 
-Still wanting a human answer — now four, none of them blocking:
-
-1. Editing rights — who may edit a project in which phase. Still an assumption. Phase 3 leaned
-   on it for money and Phase 4 does not touch it.
-2. The download phase gate — NEW. กนศ.04 from "ดำเนินการขออนุมัติ", กนศ.06 from
-   "ร่างสรุปผลโครงการ". The old system had no rule at all. The likeliest correction: should a
-   student be able to print กนศ.04 while still drafting, to check it on paper first?
+1. Editing rights — who may edit a project in which phase. Still an assumption, and Phase 5
+   now draws its buttons from it, so a correction changes what people see.
+2. The download phase gate — กนศ.04 from "ดำเนินการขออนุมัติ", กนศ.06 from "ร่างสรุปผลโครงการ".
+   Likeliest correction: should a student print กนศ.04 while still drafting?
 3. A4 — whether person and membership stay split. Still the cheap direction to reverse.
 4. The academic year boundary — "a new year starts in June" is a guess. ACADEMIC_YEAR=2567 is
-   pinned in .env. Matters most for budget layer (c), which sums approvals per
-   (club, academic_year).
+   pinned in .env. Matters most for budget layer (c).
 
-And one that is not a question so much as a decision: the temp04 Gantt above.
-
-พักผ่อนนะครับ 👋
+ขอบคุณครับ — สนุกดี 👋

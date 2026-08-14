@@ -6,8 +6,8 @@
  * (`stuactRoutes.js:7`), which is the leak deviation 1 closes.
  */
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Input, Alert } from 'reactstrap';
+import { Link, useLocation, useHistory } from 'react-router-dom';
+import { Input, Alert, Button } from 'reactstrap';
 
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
@@ -15,8 +15,13 @@ import { PhasePill, Empty, Skeleton } from '../components/ui';
 
 export default function ProjectsPage() {
   const { session } = useAuth();
+  const location = useLocation();
+  const history = useHistory();
   const [data, setData] = useState(null);
-  const [phase, setPhase] = useState('');
+  // The dashboard links here with a phase already chosen, so the filter is
+  // seeded from the URL and written back to it — which also makes a filtered
+  // list something you can bookmark or send to someone.
+  const [phase, setPhase] = useState(() => new URLSearchParams(location.search).get('phase') || '');
   const [q, setQ] = useState('');
   const [phases, setPhases] = useState([]);
   const [error, setError] = useState(null);
@@ -56,12 +61,27 @@ export default function ProjectsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <Input type="select" style={{ width: 'auto' }} value={phase} onChange={(e) => setPhase(e.target.value)}>
+          <Input
+            type="select"
+            style={{ width: 'auto' }}
+            value={phase}
+            onChange={(e) => {
+              setPhase(e.target.value);
+              history.replace(e.target.value ? `/projects?phase=${e.target.value}` : '/projects');
+            }}
+          >
             <option value="">ทุกสถานะ</option>
             {phases.map((p) => (
               <option key={p.code} value={p.code}>{p.ordinal}. {p.name_th}</option>
             ))}
           </Input>
+
+          {/* Only a student head may open a project, and only in their own club
+              (`scope.assertCanCreate`). Hiding the button elsewhere is a
+              courtesy; the server refuses regardless. */}
+          {session.role === 'SH' && (
+            <Button color="primary" tag={Link} to="/projects/new">+ สร้างโครงการ</Button>
+          )}
         </div>
       </div>
 
