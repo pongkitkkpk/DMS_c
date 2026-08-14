@@ -2,11 +2,21 @@ Session — 2026-08-14 (สุดท้ายจริง ๆ)
 
 Phases 0–6 done. 285 checks, all green.
 
+  npm run check:all      285 / 285  ← ใช้อันนี้ รีซีดให้เองระหว่าง suite
+
   npm run check:phase2   55 / 55    projects, scope, the phase machine
   npm run check:phase3   65 / 65    budget enforcement, the three limits
   npm run check:phase4   64 / 64    document assembly, both government forms
   npm run check:phase5   48 / 48    the screens, and who may do what
   npm run check:phase6   53 / 53    hardening: structure, attachments, indexes
+
+check:all — เพิ่มใหม่ เพราะรันเรียงกันเองแล้วพัง
+
+แต่ละ suite สร้างโครงการ อนุมัติเงิน เดินสถานะ แล้วไม่เก็บกวาด รันสองอันติดกันบน DB เดียว
+อันที่สองเลยเจอ fixture ซ้ำสองเท่า (7→14, 8→16) และวงเงินชมรมทั้งปีถูกใช้ไปหมดแล้ว
+กลายเป็น 10 FAIL ที่หน้าตาเหมือน regression ทั้งที่โค้ดไม่ได้แตะเลย
+header ของทุก script เขียนว่า "npm run db:reset ก่อน" ไว้อยู่แล้ว — แต่ไม่มีอะไรบังคับ
+check:all เลย migrate --fresh + seed ให้เองก่อนทุก suite แล้วรวมยอดให้
 
 ICIT — ไม่ต่อแล้วนะครับ ตามที่บอก
 
