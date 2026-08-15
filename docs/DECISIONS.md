@@ -1023,6 +1023,18 @@ Needs an explicit answer before it is either enforced or written off.
 
 </details>
 
+### กนศ.04 calls every organisation a ชมรม — open (found 2026-08-16)
+
+temp04's signature block is the literal `ประธานชมรม` followed by the club name.
+47 of 69 club names already begin with "ชมรม", so the word doubles; the other 22
+are สภานักศึกษา, สโมสร or สมาคมศิษย์เก่า and are not ชมรม at all. **temp06 has the
+same signatory as `นายก/ประธาน` and renders correctly from identical data**, which
+is why this reads as a mistake in temp04 rather than a convention.
+
+Untouched: the templates are government artefacts and changing one is the
+university's decision. Reproduce with `npm run forms:read`. See
+DMS_REBUILD_STRATEGY.md → "Reading the forms" for the two possible fixes.
+
 ### Still open
 
 The two items in "Open items" above that this work did not close remain open:

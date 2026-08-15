@@ -924,3 +924,46 @@ session did not disturb it.
 
 Worth a pass of its own before release: generate both forms from a project whose
 people were all appointed through the screens rather than seeded, and read them.
+
+---
+
+## Reading the forms (2026-08-16)
+
+`npm run forms:read -- --project <id> [--as <username>]` renders a project's
+กนศ.04 and กนศ.06 and prints them as text. It exists because until now nothing
+could look at the system's actual output without opening Word — and the previous
+entry in this file is a defect that survived 397 checks precisely because every
+check asserted the API and the screens and none of them read the document.
+
+It is crude on purpose: it strips the XML rather than laying out the page, so
+words break where Word split a run mid-word ("นั กศึกษา" is the template's own
+boundary, not a defect). What it is good for is whether a field arrived, and
+what the sentence around it reads like.
+
+**First run, on a project whose people were all appointed through the screens
+rather than seeded.** The adviser's agency now prints — "ภาควิชา/กอง/หน่วยงาน
+คณะวิศวกรรมศาสตร์" — where before the fix it would have been blank. The money
+round-trips: 50,000 approved, 48,000 spent, 2,000 returned, all computed.
+
+### A defect in กนศ.04's signature block — for the owner to decide
+
+The two forms label the same signatory differently, and only one of them reads
+correctly:
+
+| Form | Template literal | Renders as |
+| --- | --- | --- |
+| กนศ.06 | `นายก/ประธาน` | นายก/ประธาน**ชมรมมุสลิม** ✓ |
+| กนศ.04 | `ประธานชมรม` | ประธานชมรม**ชมรมมุสลิม** ✗ |
+
+It affects **every club, in one of two ways**: 47 of 69 club names already begin
+with "ชมรม", so the word doubles; the other 22 are not ชมรม at all — สภานักศึกษา,
+สโมสร, สมาคมศิษย์เก่า — and กนศ.04 calls each of them a ชมรม.
+
+That กนศ.06 gets it right with the same data is the strongest evidence this is a
+mistake in temp04 rather than a convention worth preserving.
+
+**Not changed.** These are government forms and editing one is the university's
+call, not this rebuild's. Two ways to fix it when the answer comes: change
+temp04's literal to `นายก/ประธาน` so it matches temp06 — one word, fixes all 69 —
+or strip a leading "ชมรม" in the assembler, which fixes 47 and leaves the other
+22 mislabelled. The first is correct; the second avoids touching the artefact.
