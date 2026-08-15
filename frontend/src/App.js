@@ -21,6 +21,30 @@ import HistoryPage from './pages/HistoryPage';
 import RolesPage from './pages/RolesPage';
 import ProfilePage from './pages/ProfilePage';
 
+/**
+ * The nav, in the order a year is worked through: what is happening now, the
+ * projects it is made of, the money behind them, the years before, and who may
+ * do any of it.
+ *
+ * This was the last of the four parked features on purpose — a menu designed
+ * before the screens exist is a guess about what belongs in it. Only `/roles`
+ * is filtered, and by the same two roles the server enforces: allocations and
+ * the year summary are readable by everybody in scope (Q30 — a student may see
+ * their own club's ceiling, they simply cannot set it), so hiding them would
+ * make the nav claim a restriction the API does not have.
+ *
+ * `roles: undefined` means everyone, including a person holding no membership
+ * at all — they will find every list empty, which is the honest answer rather
+ * than a nav that pretends the pages are not there.
+ */
+const NAV = [
+  { to: '/dashboard',   label: 'ภาพรวม' },
+  { to: '/projects',    label: 'โครงการ' },
+  { to: '/allocations', label: 'วงเงินจัดสรร' },
+  { to: '/history',     label: 'สรุปรายปี' },
+  { to: '/roles',       label: 'สิทธิ์', roles: ['ADMIN', 'STUACT'] },
+];
+
 /** Renders nothing until the session is known, so a reload cannot flash the login screen. */
 function RequireAuth({ children }) {
   const { session, loading } = useAuth();
@@ -46,8 +70,12 @@ function AppBar() {
       <div className="app-bar__inner">
         <Link to="/projects" className="app-brand">
           <span className="app-brand__mark">มจพ</span>
-          <span>
-            ระบบจัดการโครงการกิจกรรมนักศึกษา
+          <span className="app-brand__text">
+            {/* The full name gives way before the nav does. Below the layout's
+                own width the mark and the year still say where you are, and
+                five Thai nav labels need the room more than a title nobody
+                reads twice. */}
+            <span className="app-brand__name">ระบบจัดการโครงการกิจกรรมนักศึกษา</span>
             <span className="d-block u-small u-dim" style={{ fontWeight: 400, lineHeight: 1.2 }}>
               ปีการศึกษา {session.academicYear}
             </span>
@@ -55,8 +83,16 @@ function AppBar() {
         </Link>
 
         <nav className="app-nav">
-          <NavLink to="/dashboard" className="app-nav__link" activeClassName="is-current">ภาพรวม</NavLink>
-          <NavLink to="/projects" className="app-nav__link" activeClassName="is-current">โครงการ</NavLink>
+          {NAV.filter((item) => !item.roles || item.roles.includes(session.role)).map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className="app-nav__link"
+              activeClassName="is-current"
+            >
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="u-spacer" />
@@ -77,6 +113,7 @@ function AppBar() {
           size="sm"
           outline
           color="secondary"
+          style={{ whiteSpace: 'nowrap' }}
           onClick={() => { logout(); history.push('/login'); }}
         >
           ออกจากระบบ

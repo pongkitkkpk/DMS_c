@@ -374,18 +374,45 @@ Four things the owner asked for, to be built later rather than now. Written down
 with what the code already does for each, so picking them up does not start with
 re-reading the codebase.
 
-**Progress: items 2, 3 and 4 are built (2026-08-15). Only item 1 remains**, which
-is where it was always meant to be — last, so the menu is drawn around screens
-that exist rather than guessed at. It now has three officer-side entries waiting
-for it: `/allocations`, `/history` and `/roles`, none of which is reachable from
-the nav yet.
+**All four are built (2026-08-15), in the order 2 → 3 → 4 → 1** — the menu last,
+so it was drawn around screens that existed. `check:all` went from 285 to 332.
 
-### 1. The officer's screen needs a menu
+**What these four opened up, in rough order of how much it matters:**
 
-The nav is two links — ภาพรวม and โครงการ — which was enough while every role had
-the same two screens. The three items below are all officer-side screens, so
-STUACT and ADMIN need somewhere to put them. Worth doing **after** the other
-three exist, so the menu is designed around real entries rather than guessed at.
+1. **Revoking a role.** `/roles` can grant and cannot take back. `membership`
+   has no end date and `project_event.actor_person_id` is a hard FK, so this
+   needs a decision about work in progress before it needs code.
+2. **Where the academic year comes from** — still `ACADEMIC_YEAR` in `.env`, by
+   the owner's decision, and still the largest thing in this list that is a
+   deliberate hold rather than an oversight. See item 2.
+3. **Whether STUACT may appoint another STUACT.** Currently no; the reasoning is
+   under item 4 and it is one line to change.
+
+### 1. The officer's screen needs a menu — **built 2026-08-15**
+
+The nav was two links — ภาพรวม and โครงการ — which was enough while every role had
+the same two screens. Built last on purpose, and that paid: the menu was drawn
+around three screens that existed rather than three that were imagined.
+
+Five entries, in the order a year is worked through — ภาพรวม, โครงการ,
+วงเงินจัดสรร, สรุปรายปี, สิทธิ์ — from a `NAV` table in `App.js`.
+
+**Only `/roles` is role-filtered**, and by the same two roles the server
+enforces. Allocations and the year summary are readable by everybody in scope
+(Q30 — a student may see their own club's ceiling, they simply cannot set it),
+so hiding them would have made the nav claim a restriction the API does not
+have. A person holding no membership sees every entry and finds every list
+empty, which is the honest answer.
+
+**The layout work was the real content of this item.** Five Thai labels next to
+a long brand, a name, a scope line and a sign-out button do not fit at the
+layout's own width, and the first attempt let all four give way at once — the
+bar became four ragged two-line blocks. Fixed by deciding what yields, in order:
+nothing in the bar wraps its own text; the brand's full name disappears below
+1100px leaving the mark and the year; and the nav is `flex-shrink: 0`, which was
+the actual bug — as a flex item beside a `u-spacer` it was being compressed
+below its own content and wrapping its last entry while the bar still had the
+room the spacer was holding.
 
 ### 2. Allocations are per academic year, and each year is set fresh — **built 2026-08-15**
 

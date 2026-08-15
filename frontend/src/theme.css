@@ -139,8 +139,22 @@ a:hover {
   gap: var(--s-3);
   font-weight: 600;
   color: var(--c-text);
+  /* Without this the brand's long Thai name is treated as an unshrinkable
+     minimum and everything to its right is squeezed instead. */
+  min-width: 0;
 }
 .app-brand:hover { color: var(--c-text); }
+
+/* Nothing in the bar wraps its own text. Five nav entries, a name, a scope and
+   a sign-out button all shrinking at once turned a full bar into four ragged
+   two-line blocks; giving way in one deliberate step reads as a layout rather
+   than a collision. */
+.app-brand__text { white-space: nowrap; }
+.app-brand__name { display: none; }
+
+@media (min-width: 1100px) {
+  .app-brand__name { display: inline; }
+}
 
 .app-brand__mark {
   width: 32px;
@@ -168,6 +182,7 @@ a:hover {
   gap: var(--s-3);
   padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1);
   border-radius: var(--r-pill);
+  white-space: nowrap;
 }
 
 .avatar {
@@ -438,16 +453,26 @@ a.table-x__title::after {
    App navigation
    ------------------------------------------------------------------------- */
 
+/* Five entries for an officer, in Thai, next to a long brand and a user chip.
+   The nav is the part allowed to give way: it may wrap to a second line rather
+   than push the sign-out button off the bar. */
 .app-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-1);
   margin-left: var(--s-5);
+  /* Explicitly not shrinkable. As a flex item next to a `u-spacer` the nav was
+     being compressed below its own content and wrapping the last entry onto a
+     second line while the bar still had room to its right — the room the
+     spacer was holding. Wrapping stays as a last resort for real narrowness. */
+  flex-shrink: 0;
 }
 
 .app-nav__link {
   padding: var(--s-2) var(--s-3);
   border-radius: var(--r-sm);
   font-size: 0.9rem;
+  white-space: nowrap;
   color: var(--c-text-2);
   text-decoration: none;
   transition: background 0.12s ease, color 0.12s ease;
