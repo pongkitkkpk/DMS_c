@@ -703,8 +703,33 @@ async function login(username) {
     })).status === 400);
   ok('  …while the other roles are unconstrained by account type',
     (await call('POST', '/api/memberships', {
-      token: admin, body: { personId: stuactPerson.id, role: 'AD', academicYear: year, clubId },
+      token: admin,
+      body: { personId: stuactPerson.id, role: 'AD', academicYear: year, clubId,
+              advisorAgency: 'กองกิจการนักศึกษา' },
     })).status === 201);
+
+  // กนศ.04 prints the adviser's agency (`assembler.js` -> AgencyAdvisor). The
+  // seed always set it and the roles screen never asked, so every adviser
+  // appointed through the new page produced a worse document than the fixtures
+  // did — a blank box on a government form, which is the kind of defect nobody
+  // notices until it has been submitted.
+  ok('an adviser cannot be appointed without the agency the form prints',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: advisorPerson.id, role: 'AD', academicYear: year + 1, clubId },
+    })).status === 400);
+  const withAgency = await call('POST', '/api/memberships', {
+    token: admin,
+    body: { personId: advisorPerson.id, role: 'AD', academicYear: year + 1, clubId,
+            advisorAgency: 'คณะวิศวกรรมศาสตร์' },
+  });
+  ok('  …and with it, the value reaches the document layer',
+    withAgency.status === 201 && withAgency.body.membership.advisorAgency === 'คณะวิศวกรรมศาสตร์',
+    withAgency.text.slice(0, 200));
+  ok('  …which is what the advisor picker offers the project form',
+    (await call('GET', '/api/reference/advisors', { token: sh })).body.advisors
+      .every((a) => a.agency !== null && a.agency !== ''),
+    JSON.stringify((await call('GET', '/api/reference/advisors', { token: sh }))
+      .body.advisors.map((a) => [a.fullNameTh, a.agency])));
 
   // A4 in the wild. `fixture.advisor` was an adviser and was granted STUACT
   // earlier in this run, so they now hold both; ROLE_PRECEDENCE resolves them

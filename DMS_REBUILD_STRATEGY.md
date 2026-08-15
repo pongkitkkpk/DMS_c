@@ -892,3 +892,35 @@ multi-role memberships that is now only true of the *role*, not of the *person*.
 Not changed, because it is a policy question rather than a bug: separation of
 duties may or may not be something this university enforces, and an ADMIN could
 always do the same. Worth an explicit yes or no.
+
+---
+
+## The roles screen was quietly degrading the forms (2026-08-16)
+
+The government forms are what this system exists to produce, and they had not
+been looked at once while the roles screen was built. They should have been.
+
+`assembler.js` prints `AgencyAdvisor` on กนศ.04 from the adviser's
+`membership.advisor_agency`. The seed always set it. **The roles screen never
+asked for it**, so every adviser appointed through the new page — the only way
+an adviser can be appointed now — produced a document with an empty box where
+the fixtures produced a filled one. Nothing failed, nothing warned, and 394
+checks passed: the field simply came out blank on a form destined for a
+government office.
+
+Now required, in the service rather than only in the form, and collected on the
+screen when the role is `AD`. Required rather than defaulted because nobody but
+the appointing officer knows the answer, and a plausible-looking wrong agency on
+a submitted form is worse than a refusal at the moment of granting.
+
+**What this says about the rest of the work.** Every feature built today was
+verified against the API and the screens, and this one was correct at both
+layers while being wrong at the layer that matters most. Two things the
+assembler had already got right are worth noting as the counter-example: the
+adviser's agency is read through a correlated subquery scoped to `role = 'AD'`,
+this club and this year — written that way *because* one person may hold several
+memberships, before A4 was even confirmed — so the multi-role work of this
+session did not disturb it.
+
+Worth a pass of its own before release: generate both forms from a project whose
+people were all appointed through the screens rather than seeded, and read them.

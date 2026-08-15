@@ -311,6 +311,18 @@ async function createMembership(actor, body) {
     // once, holding nothing, and then they can be given something.
     if (!person) throw HttpError.badRequest('ไม่พบผู้ใช้ — ผู้รับสิทธิ์ต้องเคยเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง');
 
+    // An `AD` without an agency prints a blank `AgencyAdvisor` on กนศ.04
+    // (`assembler.js`), and a government form with an empty box is the kind of
+    // defect nobody notices until it is submitted. The seed always set this and
+    // the screen never asked for it, so every adviser appointed through the new
+    // roles page produced a worse document than the fixtures did. Required
+    // rather than defaulted: nobody but the officer knows the answer.
+    if (role === 'AD' && !advisorAgency) {
+      throw HttpError.badRequest(
+        'ต้องระบุหน่วยงานต้นสังกัดของอาจารย์ที่ปรึกษา — ช่องนี้พิมพ์ลงแบบ กนศ.04'
+      );
+    }
+
     // `SH` is หัวหน้าชมรม — a student, by definition (docs/domain-model.md).
     // The system stored `account_type` from the day it was built and no rule had
     // ever read it, so nothing stopped an officer being made a club head. That

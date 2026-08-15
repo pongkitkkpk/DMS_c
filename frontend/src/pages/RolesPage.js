@@ -67,6 +67,7 @@ export default function RolesPage() {
   const [role, setRole] = useState('');
   const [clubId, setClubId] = useState('');
   const [groupId, setGroupId] = useState('');
+  const [advisorAgency, setAdvisorAgency] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
@@ -123,10 +124,14 @@ export default function RolesPage() {
   // หัวหน้าชมรม is a student. The server refuses otherwise; saying so here
   // means the officer reads it while choosing rather than after submitting.
   const wrongAccountType = role === 'SH' && person && person.accountType !== 'students';
+  // กนศ.04 prints the adviser's agency. The server refuses without it, because a
+  // government form with an empty box is worse than a refused grant.
+  const needsAgency = role === 'AD' && !advisorAgency.trim();
   const ready =
     person &&
     role &&
     !wrongAccountType &&
+    !needsAgency &&
     (scopeKind === 'club' ? Boolean(clubId) : scopeKind === 'group' ? Boolean(groupId) : true);
 
   const resetForm = () => {
@@ -134,6 +139,7 @@ export default function RolesPage() {
     setRole('');
     setClubId('');
     setGroupId('');
+    setAdvisorAgency('');
     setTerm('');
     setResults(null);
   };
@@ -174,6 +180,7 @@ export default function RolesPage() {
         academicYear: year,
         clubId: scopeKind === 'club' ? Number(clubId) : undefined,
         jurisdictionClubGroupId: scopeKind === 'group' ? Number(groupId) : undefined,
+        advisorAgency: role === 'AD' ? advisorAgency.trim() : undefined,
       });
       resetForm();
       load();
@@ -360,6 +367,21 @@ export default function RolesPage() {
                       </option>
                     ))}
                   </Input>
+                </div>
+              )}
+
+              {role === 'AD' && (
+                <div>
+                  <label className="u-small u-dim" htmlFor="agency-input">
+                    หน่วยงานต้นสังกัด
+                  </label>
+                  <Input
+                    id="agency-input"
+                    style={{ width: 260 }}
+                    placeholder="เช่น กองกิจการนักศึกษา"
+                    value={advisorAgency}
+                    onChange={(e) => setAdvisorAgency(e.target.value)}
+                  />
                 </div>
               )}
 
