@@ -757,3 +757,41 @@ the tile promised.
 **Worth repeating** before any real rollover, and worth repeating for 2569 once
 2568 has data in it — the interesting cases are the ones where both years are
 non-empty.
+
+---
+
+## The lockout, and the way back (2026-08-15)
+
+A second rollover rehearsal — this time into a year *nothing* had been prepared
+for — found the most serious thing in this file. It is not a bug in any one
+place. It is three decisions, each right on its own, meeting one weak point.
+
+- A role is a `membership`, and a membership belongs to one academic year.
+- The token carries no role: `requireAuth` resolves it per request against
+  `config.academicYear` (deviation 11 — a signed role goes stale).
+- The `.env` admin fallback supplies **identity only** and cannot mint a role,
+  which is what defanged the old system's backdoor.
+
+The weak point is that `ACADEMIC_YEAR` is a value a person edits. **Move it to a
+year nobody was prepared for and every account resolves to `role: null` —
+including the Admin — and granting a role requires an Admin.** Proven, not
+reasoned: with a server on an unprepared year, `POST /memberships` and
+`PUT /allocations` answer 403 for every fixture account, and the fallback cannot
+help by design.
+
+**The way back:** `npm run grant:admin -- --user <id_student> --year <year>`.
+Not a backdoor — it needs shell access and the database credentials, and anyone
+holding those could already write the row by hand. What it adds is doing it
+correctly: it refuses to invent a person (identity stays ICIT's), refuses to
+grant twice, and writes the same `membership_event` an API grant writes, so a
+console grant is exactly as visible as one made on a screen. Its signature in
+the log is `person_id = actor_person_id` — the recipient as its own actor, which
+is the honest description, since nobody in the system authorised it.
+
+Seven assertions in `check-phase6.js` exercise it end to end rather than
+asserting the file exists.
+
+**This also raises the stakes on the parked `ACADEMIC_YEAR` question** (item 2
+above). It is not only awkward that the year lives in `.env`; editing that one
+line at the wrong moment is the single action that can lock the system, and the
+readiness banner is what stands between an institution and that mistake.

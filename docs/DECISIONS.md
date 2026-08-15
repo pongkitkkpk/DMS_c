@@ -974,8 +974,29 @@ the code's age.
   duplication afterwards.
 - `/history` offered "กำหนดวงเงิน" to roles that may only read one (Q30).
 
+### The lockout (found 2026-08-15, mitigated)
+
+Three decisions recorded above combine into a way to stop the system dead, and
+it is worth stating in the decision record because no single decision is wrong:
+a role belongs to one academic year (A4 / Q39), the token carries no role
+(deviation 11), and the `.env` admin fallback supplies identity only. Therefore
+**moving `ACADEMIC_YEAR` to a year nobody was prepared for leaves every account
+at `role: null`, the Admin included, and granting a role requires an Admin.**
+Verified against a running server, not reasoned about.
+
+Mitigated by `npm run grant:admin`, a console-only recovery that writes the same
+`membership_event` an API grant writes and cannot invent a person. Full
+reasoning in `DMS_REBUILD_STRATEGY.md` → "The lockout, and the way back".
+
+**Consequence for the open item below:** the academic-year boundary is no longer
+only a correctness question. Editing that one `.env` line at the wrong moment is
+the single action that can lock the system, which is an argument for moving the
+year somewhere an officer sets deliberately — and for the readiness banner that
+warns before the moment arrives.
+
 ### Still open
 
 The two items in "Open items" above that this work did not close remain open:
-the **academic year boundary** (June is still a guess) and, newly, whether a
-STUACT may appoint another STUACT. Everything else on the post-v1 list is built.
+the **academic year boundary** (June is still a guess, and now also a lockout
+risk) and, newly, whether a STUACT may appoint another STUACT. Everything else
+on the post-v1 list is built.

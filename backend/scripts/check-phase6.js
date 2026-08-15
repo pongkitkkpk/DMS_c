@@ -18,6 +18,7 @@
  * rather than half-present, because a notification path that silently does
  * nothing is worse than one that visibly does not exist.
  */
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -284,6 +285,50 @@ function fileForm(name, bytes, type = 'application/pdf') {
     !JSON.parse(Buffer.from(sh.split('.')[1], 'base64url').toString()).role);
   ok('deviation 15 — out of scope is 404, not 403',
     (await call('GET', `/api/projects/${outside.id}`, { token: sh })).status === 404);
+
+  // ------------------------------------------------------------------
+  // Break-glass. Three decisions that are each right — a role belongs to one
+  // academic year, the token carries none, and the .env fallback is
+  // identity-only — combine so that moving ACADEMIC_YEAR to a year nobody was
+  // prepared for leaves every account at `role: null`, including the Admin,
+  // with no route back in through the API. `scripts/grant-admin.js` is the way
+  // back. It is only worth having if it works, so it is exercised rather than
+  // asserted to exist.
+  console.log('\n--- 7. break-glass: recovering an unprepared year ---');
+
+  const marooned = config.academicYear + 9;
+  const before = await call('GET', `/api/memberships?year=${marooned}`, { token: admin });
+  ok('the far year starts with nobody in it',
+    before.status === 200 && before.body.items.length === 0);
+
+  const run = (args) => execFileSync(process.execPath,
+    [path.join(__dirname, 'grant-admin.js'), ...args],
+    { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
+
+  ok('a person who has never signed in cannot be granted anything', (() => {
+    try { run(['--user', 'no.such.person', '--year', String(marooned)]); return false; }
+    catch (err) { return /No person with id_student/.test(err.stdout + err.stderr); }
+  })());
+
+  const out = run(['--user', 'fixture.admin', '--year', String(marooned)]);
+  ok('the console can grant ADMIN for a year nobody prepared', /Granted ADMIN/.test(out), out.trim());
+  ok('  …and says so again rather than granting twice',
+    /already holds ADMIN/.test(run(['--user', 'fixture.admin', '--year', String(marooned)])));
+
+  const after = await call('GET', `/api/memberships?year=${marooned}`, { token: admin });
+  ok('  …and the membership is real, not just printed',
+    after.body.items.length === 1 && after.body.items[0].role === 'ADMIN' &&
+    after.body.items[0].person.idStudent === 'fixture.admin',
+    after.text.slice(0, 200));
+
+  // A console grant must not be quieter than one made on screen — it is the
+  // most privileged thing anyone can do and nobody in the system authorised it.
+  const logged = (await call('GET', '/api/memberships/events', { token: admin }))
+    .body.events.find((e) => e.academicYear === marooned);
+  ok('  …and it is in the log like any other grant',
+    logged !== undefined && logged.action === 'GRANT' && logged.role === 'ADMIN');
+  ok('  …carrying the console signature: the recipient is its own actor',
+    logged.personName === logged.actorName);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();
