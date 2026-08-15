@@ -8,11 +8,13 @@
  * offer only what the server will accept, rather than discovering the refusal
  * afterwards.
  *
- * Three things it deliberately does not do:
+ * Revoking is here too, and it is the more careful of the two: the row goes and
+ * the record stays in `membership_event`, so the confirmation says what will be
+ * lost and — for an adviser — how many of their club's projects will stop being
+ * savable until a different adviser is named.
  *
- * - **It cannot revoke.** There is no delete endpoint. Taking a role away has
- *   to answer what happens to the projects that person is mid-way through, and
- *   guessing at that here would be worse than the gap.
+ * Two things it deliberately does not do:
+ *
  * - **It cannot invent a person.** Identity belongs to ICIT: `person` rows are
  *   written on login and nowhere else. So the recipient is searched for, not
  *   typed in. Somebody who has never signed in can always sign in — holding no
@@ -28,7 +30,7 @@ import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
-import { Card, Empty, Pill, Skeleton } from '../components/ui';
+import { Card, Empty, Pill, Skeleton, dateTime } from '../components/ui';
 
 const MAY_GRANT = ['ADMIN', 'STUACT'];
 
@@ -54,6 +56,7 @@ export default function RolesPage() {
   const [data, setData] = useState(null);
   const [clubs, setClubs] = useState([]);
   const [clubGroups, setClubGroups] = useState([]);
+  const [events, setEvents] = useState([]);
   const [error, setError] = useState(null);
 
   // The form.
@@ -72,11 +75,12 @@ export default function RolesPage() {
     // whose answer is already known.
     if (!mayGrant) return;
     setError(null);
-    Promise.all([api.memberships({ year }), api.clubs(), api.clubGroups()])
-      .then(([m, c, g]) => {
+    Promise.all([api.memberships({ year }), api.clubs(), api.clubGroups(), api.membershipEvents()])
+      .then(([m, c, g, e]) => {
         setData(m);
         setClubs(c.clubs);
         setClubGroups(g.clubGroups);
+        setEvents(e.events);
       })
       .catch((err) => setError(messageOf(err)));
   }, [year, mayGrant]);
@@ -145,7 +149,7 @@ export default function RolesPage() {
         `<div>สิทธิ์: <strong>${ROLE_LABELS[role]}</strong></div>` +
         `<div>ขอบเขต: <strong>${where}</strong></div>` +
         `<div>ปีการศึกษา: <strong>${year}</strong></div>` +
-        `<div class="mt-2">ระบบนี้ยังไม่มีหน้าถอนสิทธิ์</div>` +
+        `<div class="mt-2">สิทธิ์จะมีผลทันที และถอนได้ภายหลังจากตารางด้านล่าง</div>` +
         `</div>`,
       showCancelButton: true,
       confirmButtonText: 'ให้สิทธิ์',
@@ -170,6 +174,51 @@ export default function RolesPage() {
       await Swal.fire({ icon: 'error', title: 'ให้สิทธิ์ไม่สำเร็จ', text: messageOf(err) });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const revoke = async (item) => {
+    // Ask the server what this costs before describing it. An adviser's
+    // projects keep their advisor_person_id, but assertAdvisorIsValid re-checks
+    // the membership on every save, so they become uneditable — which is not
+    // something anyone would guess from a button labelled "ถอน".
+    let impact = { projects: 0 };
+    try {
+      impact = await api.membershipImpact(item.id);
+    } catch {
+      // A warning that could not be fetched must not block the action itself.
+    }
+
+    const where = item.club ? item.club.nameTh : item.jurisdiction ? item.jurisdiction.nameTh : 'ทั้งระบบ';
+    const confirmed = await Swal.fire({
+      icon: 'warning',
+      title: 'ยืนยันการถอนสิทธิ์',
+      html:
+        `<div style="text-align:left">` +
+        `<div><strong>${item.person.fullNameTh}</strong> (${item.person.idStudent})</div>` +
+        `<div>สิทธิ์: <strong>${ROLE_LABELS[item.role] || item.role}</strong></div>` +
+        `<div>ขอบเขต: <strong>${where}</strong></div>` +
+        `<div>ปีการศึกษา: <strong>${item.academicYear}</strong></div>` +
+        (impact.projects > 0
+          ? `<div class="mt-2" style="color:var(--c-danger)">` +
+            `มี <strong>${impact.projects}</strong> โครงการที่ระบุท่านเป็นอาจารย์ที่ปรึกษา ` +
+            `— โครงการเหล่านั้นจะบันทึกการแก้ไขไม่ได้จนกว่าจะเปลี่ยนอาจารย์ที่ปรึกษา</div>`
+          : '') +
+        `<div class="mt-2">สิทธิ์จะหมดผลทันทีที่ผู้ใช้รายนี้ใช้งานครั้งถัดไป</div>` +
+        `</div>`,
+      showCancelButton: true,
+      confirmButtonText: 'ถอนสิทธิ์',
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+    });
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      await api.revokeMembership(item.id);
+      load();
+      await Swal.fire({ icon: 'success', title: 'ถอนสิทธิ์แล้ว', timer: 1400, showConfirmButton: false });
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'ถอนสิทธิ์ไม่สำเร็จ', text: messageOf(err) });
     }
   };
 
@@ -348,6 +397,7 @@ export default function RolesPage() {
                     <th>ผู้ใช้</th>
                     <th style={{ width: '13rem' }}>สิทธิ์</th>
                     <th>ขอบเขต</th>
+                    <th style={{ width: '6rem' }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -369,6 +419,69 @@ export default function RolesPage() {
                             ? item.jurisdiction.nameTh
                             : <span className="u-dim">ทั้งระบบ</span>}
                       </td>
+                      <td>
+                        {/* Only offered for roles this actor could have
+                            granted; the server checks the same rule. The row
+                            the officer is acting under is never one of them. */}
+                        {data.grantableRoles.includes(item.role) &&
+                         item.id !== (session.membership && session.membership.id) && (
+                          <Button size="sm" outline color="danger" onClick={() => revoke(item)}>
+                            ถอน
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        {/* The log, read back on the same screen that writes it. A record
+            nobody can see is a record nobody trusts, and it is the only place
+            a revoked role leaves a trace — the membership row itself is gone. */}
+        <Card title="ประวัติการให้และถอนสิทธิ์" aside="ทุกปีการศึกษา">
+          {events.length === 0 ? (
+            <Empty mark="—" title="ยังไม่มีการเปลี่ยนแปลงสิทธิ์" />
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table-x">
+                <thead>
+                  <tr>
+                    <th style={{ width: '12rem' }}>เมื่อ</th>
+                    <th style={{ width: '6rem' }}>การกระทำ</th>
+                    <th>ผู้ใช้</th>
+                    <th style={{ width: '11rem' }}>สิทธิ์</th>
+                    <th>ขอบเขต</th>
+                    <th style={{ width: '12rem' }}>โดย</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((event) => (
+                    <tr key={event.id}>
+                      <td className="u-small u-dim">{dateTime(event.occurredAt)}</td>
+                      <td>
+                        {/* `go` and `done` are the tones this theme has, and
+                            they happen to say the right thing: a grant is live,
+                            a revocation is closed. There is no red here on
+                            purpose — revoking is a normal act, not a fault. */}
+                        <Pill tone={event.action === 'REVOKE' ? 'done' : 'go'}>
+                          {event.action === 'REVOKE' ? 'ถอน' : 'ให้'}
+                        </Pill>
+                      </td>
+                      <td>
+                        <div className="table-x__title">{event.personName}</div>
+                        <div className="u-small u-dim u-mono">{event.idStudent}</div>
+                      </td>
+                      <td className="u-small">
+                        {ROLE_LABELS[event.role] || event.role}
+                        <div className="u-dim">ปี {event.academicYear}</div>
+                      </td>
+                      <td className="u-small">
+                        {event.scope || <span className="u-dim">ทั้งระบบ</span>}
+                      </td>
+                      <td className="u-small u-muted">{event.actorName}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -379,7 +492,6 @@ export default function RolesPage() {
       </div>
 
       <div className="u-small u-dim mt-3">
-        ยังไม่มีหน้าถอนสิทธิ์ — ต้องแก้ที่ฐานข้อมูล ·{' '}
         <Link className="u-muted" to="/history">สรุปรายปี</Link>
       </div>
     </>

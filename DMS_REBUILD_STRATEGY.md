@@ -377,16 +377,18 @@ re-reading the codebase.
 **All four are built (2026-08-15), in the order 2 → 3 → 4 → 1** — the menu last,
 so it was drawn around screens that existed. `check:all` went from 285 to 332.
 
-**What these four opened up, in rough order of how much it matters:**
+**What these four opened up:**
 
-1. **Revoking a role.** `/roles` can grant and cannot take back. `membership`
-   has no end date and `project_event.actor_person_id` is a hard FK, so this
-   needs a decision about work in progress before it needs code.
+1. ~~**Revoking a role.**~~ **Built 2026-08-15** — see item 4.
 2. **Where the academic year comes from** — still `ACADEMIC_YEAR` in `.env`, by
-   the owner's decision, and still the largest thing in this list that is a
+   the owner's decision, and now the largest thing in this list that is a
    deliberate hold rather than an oversight. See item 2.
 3. **Whether STUACT may appoint another STUACT.** Currently no; the reasoning is
    under item 4 and it is one line to change.
+4. **Nothing reminds anyone to set up a new year.** Allocations, roles and the
+   year itself all have to be prepared, all three are now possible in advance,
+   and nothing in the system says when. Related to (2): a year that turns over
+   silently in an `.env` file is a year nobody is warned about.
 
 ### 1. The officer's screen needs a menu — **built 2026-08-15**
 
@@ -582,13 +584,45 @@ that a STUACT who can appoint another STUACT can reach any jurisdiction in two
 steps, which would make the scope check decorative. If officers are in practice
 expected to appoint their own successors, this is one line in `GRANTABLE_ROLES`.
 
-**Two things it deliberately cannot do**
+**Revoking — added 2026-08-15**
 
-- **Revoke.** There is no `DELETE`. Taking a role away has to answer what
-  happens to the projects that person is mid-way through, and whether the row
-  should disappear or be marked ended — `membership` has no end date and
-  `project_event.actor_person_id` is a hard FK. Inventing an answer here would
-  be worse than the gap. This is the next piece of work in this area.
+The row is deleted and the record kept in a new `membership_event` table
+(migration `002`). The owner chose this over a `revoked_at` column, and the
+reasoning holds up: a soft-delete would put `revoked_at IS NULL` on the
+conscience of every read across the twenty files that touch `membership`, and
+one missed filter is a revoked person still holding their role. Deleting cannot
+fail that way.
+
+What made it safe was already true and had not been noticed: **nothing in the
+schema references `membership`.** Every other table points at `person`, so a
+project's owner, an event's actor and an approval's approver all outlive the
+membership that authorised them. And because `requireAuth` re-reads memberships
+every request, access ends on the person's next click rather than at token
+expiry.
+
+Three refusals, in `revokeMembership`:
+
+1. only roles the actor could have granted — the same rule as creating one;
+2. never the membership you are acting under (another officer removes you);
+3. never the last `ADMIN` of a year — **unreachable today**, and labelled as
+   such in the code, because (1) and (2) already guarantee one survives. It is
+   kept because "let an officer stand themselves down" is a reasonable-sounding
+   future request, and this is the only thing between that change and a system
+   with no ADMIN that nobody could ever grant a role in again.
+
+`GET /memberships/events` reads the log back, scoped like the memberships are,
+and the roles screen shows it. A record nobody can read is a record nobody
+trusts, so it shipped in the same change rather than being left for later.
+
+One consequence worth knowing: revoking an `AD` does not touch
+`project.advisor_person_id` — that is a `person` reference and stays valid — but
+`assertAdvisorIsValid` re-checks the adviser's membership on every save, so
+those projects cannot be edited until a different adviser is named.
+`GET /memberships/:id/impact` returns the count and the confirmation dialog says
+it, because nothing about a button labelled "ถอน" would suggest it.
+
+**One thing it deliberately cannot do**
+
 - **Create a person.** Identity belongs to ICIT: `person` rows are written on
   login and nowhere else (`identityService`). So a recipient is searched for,
   not typed in — they sign in once holding nothing, which is a supported state,

@@ -1,11 +1,9 @@
 /**
  * Membership routes — where roles are handed out.
  *
- * Deliberately small: list, search, create. There is no update and no delete.
- * Revoking authority is a real requirement and a different one — it has to
- * answer what happens to the projects a person is mid-way through and whether
- * the row should disappear or be marked ended — and inventing an answer here
- * would be worse than the gap. See DMS_REBUILD_STRATEGY.md.
+ * Deliberately small: list, search, create, revoke. There is no update — a role
+ * is not edited into a different role, it is taken away and another is given,
+ * and both halves are then in `membership_event` where they can be read back.
  *
  * Who may do what is asserted inside the service, next to the rule it belongs
  * to, the same way the budget routes work.
@@ -31,6 +29,28 @@ router.get('/people', asyncRoute(async (req, res) => {
 
 router.post('/memberships', asyncRoute(async (req, res) => {
   res.status(201).json(await memberships.createMembership(req.actor, req.body));
+}));
+
+/**
+ * The log. Declared before `/memberships/:id/...` so "events" is never read as
+ * an id — Express matches in definition order.
+ */
+router.get('/memberships/events', asyncRoute(async (req, res) => {
+  res.json(await memberships.listMembershipEvents(req.actor, req.query));
+}));
+
+/**
+ * What revoking this one would break, asked before it is done.
+ *
+ * Only meaningful for an adviser, and it is a warning rather than a refusal —
+ * see `advisorImpact`.
+ */
+router.get('/memberships/:id/impact', asyncRoute(async (req, res) => {
+  res.json(await memberships.advisorImpact(req.actor, req.params.id));
+}));
+
+router.delete('/memberships/:id', asyncRoute(async (req, res) => {
+  res.json(await memberships.revokeMembership(req.actor, req.params.id));
 }));
 
 module.exports = router;

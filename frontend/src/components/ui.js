@@ -97,6 +97,24 @@ export function PhaseStepper({ phases, currentOrdinal }) {
 }
 
 /** Thai-formatted money. The API sends DECIMAL as a string so it cannot float-round. */
+/**
+ * A timestamp as a Thai reader expects it — "1 มิ.ย. 2567 14:30".
+ *
+ * Unlike `ProjectPage`'s `date`, this takes a full DATETIME rather than a
+ * date-only string, so parsing it is unambiguous and there is no UTC-midnight
+ * trap to sidestep. Kept here because it is the shared home; the date-only
+ * helper stays where its one caller is until something else needs it.
+ */
+export function dateTime(value) {
+  if (!value) return '—';
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return '—';
+  return at.toLocaleString('th-TH', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
 export function money(value) {
   if (value === null || value === undefined) return '—';
   return Number(value).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

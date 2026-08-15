@@ -465,6 +465,92 @@ async function login(username) {
     (await call('GET', '/api/memberships', { token: stuact })).body.items
       .every((m) => m.club !== null));
 
+  // ------------------------------------------------------------------
+  // Revoking. The row goes and the record stays, so what is worth checking is
+  // that the record really is written, that the refusals hold, and that
+  // nothing else in the system depended on the row that was deleted.
+  console.log('\n--- revoking roles ---');
+
+  const beforeRevoke = await call('GET', '/api/memberships', { token: stuact });
+  const target = beforeRevoke.body.items.find(
+    (m) => m.person.idStudent === 'fixture.advisor' && m.role === 'SH');
+
+  ok('a student cannot revoke',
+    (await call('DELETE', `/api/memberships/${target.id}`, { token: sh })).status === 403);
+  ok('unauthenticated revoke 401',
+    (await call('DELETE', `/api/memberships/${target.id}`)).status === 401);
+  ok('revoking something that does not exist is 404',
+    (await call('DELETE', '/api/memberships/999999', { token: admin })).status === 404);
+
+  const gone = await call('DELETE', `/api/memberships/${target.id}`, { token: stuact });
+  ok('STUACT may revoke a club role in its own jurisdiction', gone.status === 200,
+    gone.text.slice(0, 250));
+  ok('  …and the membership is really gone',
+    !(await call('GET', '/api/memberships', { token: stuact }))
+      .body.items.some((m) => m.id === target.id));
+  ok('  …and revoking it twice is 404, not a second success',
+    (await call('DELETE', `/api/memberships/${target.id}`, { token: stuact })).status === 404);
+
+  // The point of the whole design: history hangs off `person`, not off
+  // `membership`, so nothing the revoked officer did disappears with the row.
+  const survives = await call('GET', `/api/projects/${id}`, { token: stuact });
+  ok('the projects and history the row authorised are untouched', survives.status === 200);
+
+  ok('STUACT cannot revoke a role it could not have granted',
+    (await call('DELETE', `/api/memberships/${grantStuact.body.membership.id}`, { token: stuact }))
+      .status === 403);
+
+  // Standing on the branch you are cutting. Checked with ADMIN because ADMIN is
+  // the only role allowed to grant its own kind, so it is the only one that
+  // reaches this rule — a STUACT is stopped one rule earlier, by the role check.
+  const meAsAdmin = (await call('GET', '/api/me', { token: admin })).body;
+  ok('an officer cannot revoke the membership they are acting under',
+    (await call('DELETE', `/api/memberships/${meAsAdmin.membership.id}`, { token: admin }))
+      .status === 400);
+  ok('  …and a STUACT is refused earlier still, by the role rule',
+    (await call('DELETE',
+      `/api/memberships/${(await call('GET', '/api/me', { token: stuact })).body.membership.id}`,
+      { token: stuact })).status === 403);
+  ok('  …so the acting officer is still there afterwards',
+    (await call('GET', '/api/me', { token: admin })).body.role === 'ADMIN');
+
+  // Warned about before it happens, because nothing on screen would otherwise
+  // suggest that revoking an adviser stops their club's projects being saved.
+  const advisorRow = (await call('GET', '/api/memberships', { token: stuact }))
+    .body.items.find((m) => m.role === 'AD');
+  const impact = await call('GET', `/api/memberships/${advisorRow.id}/impact`, { token: stuact });
+  ok('revoking an adviser reports how many projects it will strand',
+    impact.status === 200 && impact.body.projects > 0, impact.text.slice(0, 200));
+  ok('  …and a student cannot ask',
+    (await call('GET', `/api/memberships/${advisorRow.id}/impact`, { token: sh })).status === 403);
+
+  // The record is the whole reason the row may be deleted. If it is not
+  // written, the delete is data loss rather than a revocation.
+  const log = await call('GET', '/api/memberships/events', { token: admin });
+  ok('every grant and revoke is recorded', log.status === 200 &&
+    log.body.events.some((e) => e.action === 'GRANT') &&
+    log.body.events.some((e) => e.action === 'REVOKE'),
+    log.text.slice(0, 250));
+  ok('  …newest first',
+    log.body.events.every((e, i, all) =>
+      i === 0 || new Date(all[i - 1].occurredAt) >= new Date(e.occurredAt)));
+
+  const revokeEntry = log.body.events.find((e) => e.action === 'REVOKE');
+  ok('  …and a revocation survives the row it describes',
+    revokeEntry.personName && revokeEntry.role && revokeEntry.academicYear > 0 &&
+    revokeEntry.actorName,
+    JSON.stringify(revokeEntry));
+  ok('  …naming who did it, not just what happened',
+    revokeEntry.actorName === 'สมศักดิ์ กิจการ', revokeEntry.actorName);
+
+  ok('the log is scoped like the memberships are',
+    (await call('GET', '/api/memberships/events', { token: stuact }))
+      .body.events.every((e) => e.scope !== null));
+  ok('  …and a student cannot read it',
+    (await call('GET', '/api/memberships/events', { token: sh })).status === 403);
+  ok('  …and "events" is not read as a membership id',
+    (await call('GET', '/api/memberships/events', { token: admin })).status === 200);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

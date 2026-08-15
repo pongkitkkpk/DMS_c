@@ -100,6 +100,11 @@ export const api = {
   memberships: (params) => client.get('/memberships', { params }).then((r) => r.data),
   people: (q) => client.get('/people', { params: { q } }).then((r) => r.data),
   grantMembership: (body) => client.post('/memberships', body).then((r) => r.data),
+  // Asked before revoking, not after: revoking an adviser leaves their club's
+  // projects unable to be saved until a different adviser is named.
+  membershipEvents: () => client.get('/memberships/events').then((r) => r.data),
+  membershipImpact: (id) => client.get(`/memberships/${id}/impact`).then((r) => r.data),
+  revokeMembership: (id) => client.delete(`/memberships/${id}`).then((r) => r.data),
 
   // Documents. `documents()` answers with both forms and, where one cannot be
   // produced, the server's own reason — too early in the phase machine, or more

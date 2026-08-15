@@ -114,6 +114,66 @@ function present(row) {
 }
 
 /**
+ * The authority changes this caller may see, newest first.
+ *
+ * A log nobody can read is a log nobody trusts, so this exists as soon as the
+ * log does. Scoped the same way the memberships are: ADMIN sees everything,
+ * STUACT sees the club roles inside its jurisdiction and not the officers
+ * beside it.
+ *
+ * Reads from the event's own copy of the club, not from a join back to a
+ * membership — the whole point is that the membership may be gone.
+ */
+async function listMembershipEvents(actor, query = {}) {
+  const role = actor.membership ? actor.membership.role : null;
+  if (role !== 'ADMIN' && role !== 'STUACT') {
+    throw HttpError.forbidden('ดูประวัติสิทธิ์ได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+  }
+
+  const limit = check.integer({ min: 1, max: 200 })(query.limit, 'limit') || 50;
+  const where = [];
+  const params = [];
+
+  if (role === 'STUACT') {
+    where.push('e.club_id IS NOT NULL AND c.club_group_id = ?');
+    params.push(actor.membership.jurisdiction_club_group_id);
+  }
+
+  const [rows] = await pool.query(
+    `SELECT e.id, e.action, e.role, e.academic_year, e.occurred_at,
+            p.full_name_th AS person_name, p.id_student,
+            a.full_name_th AS actor_name,
+            c.code AS club_code, c.name_th AS club_name,
+            g.name_th AS jurisdiction_name
+       FROM membership_event e
+       JOIN person p ON p.id = e.person_id
+       JOIN person a ON a.id = e.actor_person_id
+       LEFT JOIN club c       ON c.id = e.club_id
+       LEFT JOIN club_group g ON g.id = e.jurisdiction_club_group_id
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY e.occurred_at DESC, e.id DESC
+      LIMIT ?`,
+    [...params, limit]
+  );
+
+  return {
+    events: rows.map((row) => ({
+      id: row.id,
+      action: row.action,
+      role: row.role,
+      academicYear: row.academic_year,
+      occurredAt: row.occurred_at,
+      personName: row.person_name,
+      idStudent: row.id_student,
+      actorName: row.actor_name,
+      scope: row.club_name
+        ? `${row.club_name} (${row.club_code})`
+        : row.jurisdiction_name || null,
+    })),
+  };
+}
+
+/**
  * People who could be granted a role: a search, never a listing.
  *
  * Requiring a search term is the point. `person` is every human who has ever
@@ -154,6 +214,27 @@ async function searchPeople(actor, query = {}) {
       accountType: row.account_type,
     })),
   };
+}
+
+/**
+ * Write the record of an authority change, inside the caller's transaction.
+ *
+ * Inside, not after: a grant that succeeded without its log entry would be a
+ * role nobody can account for, which is the failure this table exists to make
+ * impossible. If the log write fails the grant fails with it.
+ *
+ * The membership is copied rather than referenced — see the migration. A REVOKE
+ * row is read after the row it describes has been deleted.
+ */
+async function recordMembershipEvent(conn, action, actor, m) {
+  await conn.query(
+    `INSERT INTO membership_event
+       (action, person_id, role, academic_year, club_id,
+        jurisdiction_club_group_id, actor_person_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [action, m.personId, m.role, m.academicYear, m.clubId || null,
+     m.jurisdictionId || null, actor.person.id]
+  );
 }
 
 /**
@@ -247,13 +328,9 @@ async function createMembership(actor, body) {
       [personId, role, academicYear, clubId, jurisdictionId, departmentTh, advisorAgency]
     );
 
-    // Handing out authority is worth a line in the server log whether or not
-    // anyone is reading it today. There is no event table for memberships.
-    console.info(
-      `membership granted: ${role} to person ${personId} (${person.full_name_th}) ` +
-      `for ${academicYear}${club ? ` at club ${club.id} (${club.name_th})` : ''} ` +
-      `by person ${actor.person.id}`
-    );
+    await recordMembershipEvent(conn, 'GRANT', actor, {
+      personId, role, academicYear, clubId, jurisdictionId,
+    });
 
     const [[row]] = await conn.query(
       `SELECT m.id, m.role, m.academic_year, m.department_th, m.advisor_agency, m.created_at,
@@ -274,4 +351,127 @@ async function createMembership(actor, body) {
   });
 }
 
-module.exports = { listMemberships, searchPeople, createMembership };
+/**
+ * Take a role away.
+ *
+ * The row goes; the record of it stays in `membership_event`. Nothing else has
+ * to be repaired: every other table references `person`, so the projects this
+ * person owns, the transitions they made and the money they approved are all
+ * untouched, and `requireAuth` re-reads memberships on every request, so the
+ * access ends on their next click rather than when a token expires.
+ *
+ * Three refusals, in the order they are cheapest to check:
+ *
+ * 1. **Only what the actor could have granted** — the same rule as
+ *    `createMembership`, so nobody can remove authority they could not confer.
+ * 2. **Not your own.** Revoking the membership you are acting under takes away
+ *    the page you are standing on, and for the last ADMIN it is unrecoverable.
+ *    If someone is standing down, another officer removes them.
+ * 3. **Not the last ADMIN of a year.** Belt and braces, and **unreachable
+ *    today**: only an ADMIN may revoke an ADMIN (rule 1) and no one may revoke
+ *    their own (rule 2), so at least one always survives. It is kept, and
+ *    labelled, because the day rule 2 is relaxed — "let an officer stand
+ *    themselves down" is a reasonable-sounding request — this is the only thing
+ *    standing between that change and a system with no ADMIN, which nobody
+ *    could ever grant a role in again.
+ */
+async function revokeMembership(actor, membershipId) {
+  const id = check.integer({ min: 1, required: true })(membershipId, 'id');
+
+  return transaction(async (conn) => {
+    const [[row]] = await conn.query(
+      `SELECT m.id, m.person_id, m.role, m.academic_year, m.club_id,
+              m.jurisdiction_club_group_id,
+              p.full_name_th, c.club_group_id, c.name_th AS club_name
+         FROM membership m
+         JOIN person p ON p.id = m.person_id
+         LEFT JOIN club c ON c.id = m.club_id
+        WHERE m.id = ?
+        FOR UPDATE`,
+      [id]
+    );
+    if (!row) throw HttpError.notFound('ไม่พบสิทธิ์ที่ต้องการถอน');
+
+    assertCanGrantRole(actor, {
+      role: row.role,
+      club: row.club_id ? { id: row.club_id, club_group_id: row.club_group_id } : null,
+    });
+
+    if (Number(row.id) === Number(actor.membership && actor.membership.id)) {
+      throw HttpError.badRequest('ถอนสิทธิ์ที่ตัวเองกำลังใช้งานอยู่ไม่ได้ — ให้เจ้าหน้าที่อีกคนเป็นผู้ถอน');
+    }
+
+    if (row.role === 'ADMIN') {
+      const [[{ remaining }]] = await conn.query(
+        `SELECT COUNT(*) AS remaining FROM membership
+          WHERE role = 'ADMIN' AND academic_year = ? AND id <> ?`,
+        [row.academic_year, id]
+      );
+      if (remaining === 0) {
+        throw HttpError.badRequest(
+          `ถอนไม่ได้ — นี่คือผู้ดูแลระบบคนสุดท้ายของปี ${row.academic_year} ` +
+          'ถ้าไม่มีผู้ดูแลระบบเหลืออยู่ จะไม่มีใครกำหนดสิทธิ์ให้ใครได้อีก'
+        );
+      }
+    }
+
+    await recordMembershipEvent(conn, 'REVOKE', actor, {
+      personId: row.person_id,
+      role: row.role,
+      academicYear: row.academic_year,
+      clubId: row.club_id,
+      jurisdictionId: row.jurisdiction_club_group_id,
+    });
+
+    await conn.query('DELETE FROM membership WHERE id = ?', [id]);
+
+    return {
+      revoked: {
+        id: row.id,
+        role: row.role,
+        academicYear: row.academic_year,
+        personName: row.full_name_th,
+        clubName: row.club_name,
+      },
+    };
+  });
+}
+
+/**
+ * How many projects still name this person as their adviser in this year.
+ *
+ * Not a blocker — the projects keep their `advisor_person_id`, which is a
+ * `person` reference and stays valid. But `assertAdvisorIsValid` re-checks the
+ * adviser's `AD` membership on every edit, so revoking it means those projects
+ * can no longer be saved until somebody names a different adviser. That is a
+ * real consequence of an otherwise invisible click, so the screen is given the
+ * number to warn with.
+ */
+async function advisorImpact(actor, membershipId) {
+  const role = actor.membership ? actor.membership.role : null;
+  if (role !== 'ADMIN' && role !== 'STUACT') {
+    throw HttpError.forbidden('ดูข้อมูลสิทธิ์ได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+  }
+
+  const id = check.integer({ min: 1, required: true })(membershipId, 'id');
+  const [[row]] = await pool.query(
+    'SELECT person_id, role, academic_year, club_id FROM membership WHERE id = ?', [id]
+  );
+  if (!row || row.role !== 'AD') return { projects: 0 };
+
+  const [[{ projects }]] = await pool.query(
+    `SELECT COUNT(*) AS projects FROM project
+      WHERE advisor_person_id = ? AND club_id = ? AND academic_year = ?`,
+    [row.person_id, row.club_id, row.academic_year]
+  );
+  return { projects: Number(projects) };
+}
+
+module.exports = {
+  listMemberships,
+  listMembershipEvents,
+  searchPeople,
+  createMembership,
+  revokeMembership,
+  advisorImpact,
+};
