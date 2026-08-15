@@ -204,6 +204,16 @@ async function nextYearReadiness(actor) {
   );
   const byRole = new Map(roleRows.map((row) => [row.role, Number(row.clubs)]));
 
+  // Whether the year can be entered at all, as opposed to whether it is
+  // furnished. `academicYearService.setAcademicYear` refuses a year with no
+  // Admin, because on arrival nobody could grant one — so the screen is told
+  // the same fact and can say which of the two things is missing.
+  const [[{ admins }]] = await pool.query(
+    `SELECT COUNT(*) AS admins FROM membership
+      WHERE role = 'ADMIN' AND academic_year = ?`,
+    [academicYear]
+  );
+
   const clubsTotal = Number(clubs.total);
   const clubsFunded = Number(funded.total);
   const clubsWithHead = byRole.get('SH') || 0;
@@ -215,6 +225,7 @@ async function nextYearReadiness(actor) {
     clubsFunded,
     clubsWithHead,
     clubsWithAdvisor,
+    hasAdmin: Number(admins) > 0,
     // One flag rather than three, because the screen's question is "is there
     // anything to do here", and a club that is funded but has no student head
     // is no more ready than one with neither.

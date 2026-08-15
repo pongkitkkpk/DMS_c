@@ -9,7 +9,7 @@
  *
  * 1. a role is a `membership`, and a membership belongs to one academic year;
  * 2. the token carries no role — `requireAuth` resolves it per request against
- *    `config.academicYear`;
+ *    `academicYearService.current()`;
  * 3. the `.env` admin fallback supplies identity only and cannot mint a role.
  *
  * So the moment `ACADEMIC_YEAR` moves to a year nobody has been prepared for,

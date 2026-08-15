@@ -96,6 +96,42 @@ export default function DashboardPage() {
     }
   };
 
+  /**
+   * Move the whole system into the next academic year.
+   *
+   * Named in full and confirmed, because nothing else on this site changes what
+   * every other user may do. The refusal path matters as much as the happy one:
+   * the server's message says exactly which piece is missing, so it is shown
+   * rather than replaced with a generic failure.
+   */
+  const advanceYear = async (year) => {
+    const confirmed = await Swal.fire({
+      icon: 'warning',
+      title: `เปลี่ยนปีการศึกษาเป็น ${year}`,
+      html:
+        `<div style="text-align:left">` +
+        `<div>ทั้งระบบจะย้ายไปปี <strong>${year}</strong> ทันที</div>` +
+        `<div class="mt-2">สิทธิ์ วงเงิน และโครงการ จะอ้างอิงปี ${year} — ` +
+        `ผู้ที่ไม่ได้รับสิทธิ์ของปีนั้นจะใช้งานอะไรไม่ได้จนกว่าจะได้รับ</div>` +
+        `<div class="mt-2">เปลี่ยนกลับได้ ถ้าปีเดิมยังมีผู้ดูแลระบบอยู่</div>` +
+        `</div>`,
+      showCancelButton: true,
+      confirmButtonText: `เปลี่ยนเป็นปี ${year}`,
+      cancelButtonText: 'ยกเลิก',
+      reverseButtons: true,
+    });
+    if (!confirmed.isConfirmed) return;
+
+    try {
+      await api.setAcademicYear(year);
+      // Everything on every screen is scoped by the year, including this
+      // session's own resolved role. A reload is the honest way to redraw it.
+      window.location.reload();
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'เปลี่ยนปีไม่สำเร็จ', text: messageOf(err) });
+    }
+  };
+
   if (error) return <Alert color="danger">{error}</Alert>;
   if (!projects || !allocations) return <div className="card-x card-x__body"><Skeleton rows={8} /></div>;
 
@@ -151,6 +187,26 @@ export default function DashboardPage() {
             <Link to={`/allocations?year=${readiness.academicYear}`}>กำหนดวงเงิน</Link>
             {' · '}
             <Link to="/roles">กำหนดสิทธิ์</Link>
+            {/* The move lives here because this is where the evidence for it
+                already is. Offered only to an Admin, and only once the target
+                year has an Admin of its own — the server refuses otherwise, and
+                a button that exists to be refused teaches people to ignore
+                buttons. Until then the banner says which piece is missing. */}
+            {session.role === 'ADMIN' && (
+              readiness.hasAdmin ? (
+                <>
+                  {' · '}
+                  <Button size="sm" color="primary" className="ml-2"
+                    onClick={() => advanceYear(readiness.academicYear)}>
+                    เปลี่ยนเป็นปี {readiness.academicYear}
+                  </Button>
+                </>
+              ) : (
+                <div className="u-small mt-1">
+                  ยังเปลี่ยนปีไม่ได้ — ปี {readiness.academicYear} ต้องมีผู้ดูแลระบบอย่างน้อยหนึ่งคนก่อน
+                </div>
+              )
+            )}
           </span>
         </div>
       )}

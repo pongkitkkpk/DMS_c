@@ -12,6 +12,7 @@
 const { config, assertValid } = require('./src/config');
 const { createApp } = require('./src/app');
 const { pool } = require('./src/db/pool');
+const academicYear = require('./src/services/academicYearService');
 
 try {
   assertValid();
@@ -48,10 +49,17 @@ async function reportDatabase() {
   }
 }
 
+// The academic year decides what every user may do, so it is loaded *before*
+// the port is bound and not in `listen`'s callback: that callback runs after
+// the socket is already accepting, which leaves a window in which a request
+// could be served against a stale year and resolve the wrong memberships.
+async function start() {
+const yearSource = await academicYear.load();
+
 const server = createApp().listen(config.port, () => {
   console.log(`DMS API listening on http://localhost:${config.port}`);
   console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? '  (any password is accepted)' : ''}`);
-  console.log(`  academic year   ${config.academicYear}`);
+  console.log(`  academic year   ${yearSource.academicYear}  (${yearSource.source})`);
   console.log(`  cors origins    ${config.corsOrigins.join(', ')}${config.isProduction ? '' : '  (+ any http://localhost:* in development)'}`);
   if (config.localAdmin.enabled) {
     console.log(`  local admin     ${config.localAdmin.username}  (non-production fallback)`);
@@ -70,3 +78,9 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     });
   });
 }
+}
+
+start().catch((err) => {
+  console.error('failed to start:', err.message);
+  process.exit(1);
+});

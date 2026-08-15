@@ -14,6 +14,7 @@ const express = require('express');
 
 const { asyncRoute } = require('../lib/asyncRoute');
 const { requireAuth } = require('../middleware/requireAuth');
+const academicYear = require('../services/academicYearService');
 const history = require('../services/historyService');
 
 const router = express.Router();
@@ -30,6 +31,20 @@ router.get('/history', asyncRoute(async (req, res) => {
  */
 router.get('/readiness', asyncRoute(async (req, res) => {
   res.json(await history.nextYearReadiness(req.actor));
+}));
+
+/**
+ * The academic year the system is in, and whether this caller may move it.
+ *
+ * Lives beside the readiness report on purpose: the two answer the same
+ * question from either side — "is next year ready" and "are we in it yet".
+ */
+router.get('/academic-year', asyncRoute(async (req, res) => {
+  res.json(await academicYear.describe(req.actor));
+}));
+
+router.put('/academic-year', asyncRoute(async (req, res) => {
+  res.json(await academicYear.setAcademicYear(req.actor, req.body));
 }));
 
 module.exports = router;

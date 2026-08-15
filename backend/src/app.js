@@ -17,6 +17,7 @@ const express = require('express');
 const cors = require('cors');
 
 const { config, isOriginAllowed } = require('./config');
+const academicYear = require('./services/academicYearService');
 const { pool, isTransient } = require('./db/pool');
 const { HttpError } = require('./lib/httpError');
 const attachmentRoutes = require('./routes/attachments');
@@ -45,7 +46,7 @@ function createApp() {
   app.get('/api/health', async (req, res) => {
     try {
       await pool.query('SELECT 1');
-      res.json({ status: 'ok', database: 'ok', academicYear: config.academicYear });
+      res.json({ status: 'ok', database: 'ok', academicYear: academicYear.current() });
     } catch (err) {
       res.status(503).json({ status: 'degraded', database: err.code || 'error' });
     }

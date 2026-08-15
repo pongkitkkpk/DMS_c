@@ -45,7 +45,15 @@ const config = {
     .map((origin) => origin.trim())
     .filter(Boolean),
 
-  academicYear: Number(process.env.ACADEMIC_YEAR || currentAcademicYear()),
+  /**
+   * **The fallback only — not the year the system is in.** That lives in
+   * `academic_year_setting` and is read through `academicYearService.current()`.
+   * This is what it falls back to when the row does not exist yet, and it is
+   * named `fallback…` so nothing reads it expecting the truth: during the change
+   * that moved the year into the database, a check script kept reading this and
+   * compared a date-derived 2569 against a system sitting at 2567.
+   */
+  fallbackAcademicYear: Number(process.env.ACADEMIC_YEAR || currentAcademicYear()),
 
   jwt: {
     secret: process.env.JWT_SECRET || '',
@@ -127,8 +135,9 @@ function assertValid() {
     }
   }
 
-  if (!Number.isInteger(config.academicYear) || config.academicYear < 2400 || config.academicYear > 2700) {
-    problems.push(`ACADEMIC_YEAR must be a 4-digit Buddhist-era year, got ${config.academicYear}.`);
+  if (!Number.isInteger(config.fallbackAcademicYear) ||
+      config.fallbackAcademicYear < 2400 || config.fallbackAcademicYear > 2700) {
+    problems.push(`ACADEMIC_YEAR must be a 4-digit Buddhist-era year, got ${config.fallbackAcademicYear}.`);
   }
 
   if (!config.corsOrigins.length) {

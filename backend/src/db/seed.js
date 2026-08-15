@@ -15,7 +15,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const mysql = require('mysql2/promise');
 const { seedTaxonomy } = require('./seeds/taxonomy');
 const { seedReference } = require('./seeds/reference');
-const { seedFixtures } = require('./seeds/fixtures');
+const { seedFixtures, ACADEMIC_YEAR: FIXTURE_ACADEMIC_YEAR } = require('./seeds/fixtures');
 
 // Child-first, so foreign keys never block a delete.
 const TABLES_IN_DELETE_ORDER = [
@@ -24,6 +24,11 @@ const TABLES_IN_DELETE_ORDER = [
   'project_location', 'project_rationale', 'project_objective',
   'disbursement', 'budget_line', 'budget_plan_line', 'agency_allocation',
   'project',
+  // `membership_event` and `academic_year_setting` both hold FKs to `person`,
+  // so they clear before it. Missing from this list they survived a re-seed
+  // pointing at people who no longer existed — invisible while every run went
+  // through `migrate --fresh`, which drops the tables outright.
+  'membership_event', 'academic_year_setting',
   'membership', 'login_attempt', 'person',
   'phase_transition', 'phase', 'tag', 'tag_set',
   'club', 'club_group', 'work_group', 'agency', 'division', 'campus',
@@ -68,6 +73,14 @@ async function main() {
       await conn.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = 1`).catch(() => {});
     }
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+
+    // The year the system starts in. It is a row rather than an `.env` line so
+    // an Admin can move it from a screen, guarded — see migration 003.
+    await conn.query(
+      'INSERT INTO academic_year_setting (id, academic_year) VALUES (1, ?)',
+      [FIXTURE_ACADEMIC_YEAR]
+    );
+    log(`academic year ${FIXTURE_ACADEMIC_YEAR}`);
 
     log('organisation (setCode.json)');
     await seedTaxonomy(conn, log);

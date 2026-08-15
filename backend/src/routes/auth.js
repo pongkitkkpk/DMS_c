@@ -13,6 +13,7 @@
 const express = require('express');
 
 const { config } = require('../config');
+const academicYear = require('../services/academicYearService');
 const { getAuthProvider } = require('../auth/providers');
 const { normalizeIcitPayload } = require('../auth/identity');
 const { signToken } = require('../auth/tokens');
@@ -40,7 +41,7 @@ function sessionBody(person, memberships) {
       levelDesc: person.level_desc,
       stuStatusDesc: person.stu_status_desc,
     },
-    academicYear: config.academicYear,
+    academicYear: academicYear.current(),
     // The application role, resolved from `membership`. `null` means the person
     // is known to ICIT but enrolled in nothing this year.
     role: memberships.length ? memberships[0].role : null,
@@ -110,7 +111,7 @@ router.post('/auth/login', async (req, res, next) => {
     const person = (await upsertPerson(identity)) || (await findPersonByIdStudent(identity.idStudent));
     if (!person) throw new Error(`person row missing after upsert: ${identity.idStudent}`);
 
-    const memberships = await loadMemberships(person.id, config.academicYear);
+    const memberships = await loadMemberships(person.id, academicYear.current());
     await recordLoginAttempt(person.id_student, true);
 
     res.json({ token: signToken(person), ...sessionBody(person, memberships) });

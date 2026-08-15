@@ -31,7 +31,7 @@
 const { pool, transaction } = require('../db/pool');
 const { HttpError } = require('../lib/httpError');
 const { check } = require('../lib/validate');
-const { config } = require('../config');
+const currentYear = require('./academicYearService');
 const { clubVisibilityClause, assertCanGrantRole, GRANTABLE_ROLES } = require('./scope');
 
 const ROLES = ['SH', 'AD', 'STUACT', 'ADMIN'];
@@ -83,7 +83,7 @@ async function listMemberships(actor, query = {}) {
     grantableRoles: GRANTABLE_ROLES[role] || [],
     // Next year, never a past one — the same window the write enforces, so the
     // form cannot offer a year the server will refuse.
-    grantableYears: [Number(config.academicYear), Number(config.academicYear) + 1],
+    grantableYears: [currentYear.current(), currentYear.current() + 1],
     items: rows.map(present),
   };
 }
@@ -269,14 +269,14 @@ async function createMembership(actor, body) {
 
   // A past year is refused before anything is read: a request that cannot
   // succeed should not first ask the database whether a club exists.
-  if (academicYear < Number(config.academicYear)) {
+  if (academicYear < currentYear.current()) {
     throw HttpError.badRequest(
-      `กำหนดสิทธิ์ย้อนหลังไม่ได้ — ปี ${academicYear} ผ่านไปแล้ว (ปีปัจจุบันคือ ${config.academicYear})`
+      `กำหนดสิทธิ์ย้อนหลังไม่ได้ — ปี ${academicYear} ผ่านไปแล้ว (ปีปัจจุบันคือ ${currentYear.current()})`
     );
   }
-  if (academicYear > Number(config.academicYear) + 1) {
+  if (academicYear > currentYear.current() + 1) {
     throw HttpError.badRequest(
-      `กำหนดสิทธิ์ล่วงหน้าได้ถึงปี ${Number(config.academicYear) + 1} เท่านั้น`
+      `กำหนดสิทธิ์ล่วงหน้าได้ถึงปี ${currentYear.current() + 1} เท่านั้น`
     );
   }
 

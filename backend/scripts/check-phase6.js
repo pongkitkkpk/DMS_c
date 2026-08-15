@@ -296,7 +296,11 @@ function fileForm(name, bytes, type = 'application/pdf') {
   // asserted to exist.
   console.log('\n--- 7. break-glass: recovering an unprepared year ---');
 
-  const marooned = config.academicYear + 9;
+  // Asked of the running system, never of `config`: since the year moved into
+  // the database, `config.fallbackAcademicYear` is only what it would fall back
+  // to and can differ from what the server is actually serving.
+  const liveYear = JSON.parse((await call('GET', '/api/health')).text).academicYear;
+  const marooned = liveYear + 9;
   const before = await call('GET', `/api/memberships?year=${marooned}`, { token: admin });
   ok('the far year starts with nobody in it',
     before.status === 200 && before.body.items.length === 0);
@@ -329,6 +333,63 @@ function fileForm(name, bytes, type = 'application/pdf') {
     logged !== undefined && logged.action === 'GRANT' && logged.role === 'ADMIN');
   ok('  …carrying the console signature: the recipient is its own actor',
     logged.personName === logged.actorName);
+
+  // ------------------------------------------------------------------
+  // The academic year is a row an Admin moves, not a line in .env. The guard is
+  // the whole point: a year with no ADMIN cannot be entered, because on arrival
+  // nobody could grant one. That single refusal turns the lockout from a
+  // documented hazard into an impossible one.
+  console.log('\n--- 8. the academic year, and the guard on moving it ---');
+
+  const yr = liveYear;
+  const state = await call('GET', '/api/academic-year', { token: admin });
+  ok('the year reports itself and who may move it',
+    state.status === 200 && state.body.academicYear === yr && state.body.settable === true,
+    state.text.slice(0, 200));
+
+  ok('only an Admin may move it',
+    (await call('PUT', '/api/academic-year', { token: stuact, body: { academicYear: yr + 1 } })).status === 403 &&
+    (await call('PUT', '/api/academic-year', { token: sh, body: { academicYear: yr + 1 } })).status === 403);
+  ok('  …and a student is not told they may set it',
+    (await call('GET', '/api/academic-year', { token: sh })).body.settable === false);
+
+  const refused = await call('PUT', '/api/academic-year', { token: admin, body: { academicYear: yr + 1 } });
+  ok('THE GUARD: a year with no Admin of its own cannot be entered',
+    refused.status === 400 && /ผู้ดูแลระบบ/.test(refused.body.error),
+    refused.text.slice(0, 220));
+  ok('  …and the system did not move',
+    (await call('GET', '/api/academic-year', { token: admin })).body.academicYear === yr);
+
+  ok('moving to the year it is already in is refused',
+    (await call('PUT', '/api/academic-year', { token: admin, body: { academicYear: yr } })).status === 400);
+  ok('a year outside the Buddhist-era range is refused',
+    (await call('PUT', '/api/academic-year', { token: admin, body: { academicYear: 1999 } })).status === 400);
+
+  // Prepare the year the way the guard asks, then it opens.
+  const adminP = (await call('GET', '/api/people?q=fixture.admin', { token: admin })).body.people[0];
+  await call('POST', '/api/memberships', {
+    token: admin, body: { personId: adminP.id, role: 'ADMIN', academicYear: yr + 1 },
+  });
+  ok('the readiness report says the year can now be entered',
+    (await call('GET', '/api/readiness', { token: admin })).body.hasAdmin === true);
+
+  const moved = await call('PUT', '/api/academic-year', { token: admin, body: { academicYear: yr + 1 } });
+  ok('  …and the move is accepted', moved.status === 200 &&
+    moved.body.academicYear === yr + 1 && moved.body.previousAcademicYear === yr,
+    moved.text.slice(0, 200));
+
+  // The move has to reach everything, not just the settings endpoint — this is
+  // the value every request resolves a membership against.
+  ok('  …and the whole system moved with it',
+    JSON.parse((await call('GET', '/api/health')).text).academicYear === yr + 1 &&
+    (await call('GET', '/api/me', { token: admin })).body.academicYear === yr + 1);
+  ok('  …with the Admin still holding a role there',
+    (await call('GET', '/api/me', { token: admin })).body.role === 'ADMIN');
+
+  ok('moving back is allowed, since the old year still has an Admin',
+    (await call('PUT', '/api/academic-year', { token: admin, body: { academicYear: yr } })).status === 200);
+  ok('  …and everything followed it back',
+    JSON.parse((await call('GET', '/api/health')).text).academicYear === yr);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();

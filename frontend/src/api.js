@@ -94,6 +94,11 @@ export const api = {
   // Officers only. Answers "has anyone set next year up yet", which nothing
   // else in the system would ever volunteer.
   readiness: () => client.get('/readiness').then((r) => r.data),
+  // The year itself. Moving it is the one action that changes what every user
+  // of the system may do, so the server guards it — see academicYearService.
+  academicYear: () => client.get('/academic-year').then((r) => r.data),
+  setAcademicYear: (year) =>
+    client.put('/academic-year', { academicYear: year }).then((r) => r.data),
 
   // Roles. `people` is a search and refuses a short term — `person` is every
   // human who has ever signed in, and a listing endpoint would be a directory

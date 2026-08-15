@@ -12,7 +12,7 @@
  * path parameter or a request body — deviation 1 in docs/DECISIONS.md.
  */
 const { verifyToken, bearerFrom } = require('../auth/tokens');
-const { config } = require('../config');
+const academicYear = require('../services/academicYearService');
 const { HttpError } = require('../lib/httpError');
 const { findPersonById, loadMemberships } = require('../services/identityService');
 
@@ -26,11 +26,11 @@ async function requireAuth(req, res, next) {
     const person = await findPersonById(claims.personId);
     if (!person) throw HttpError.unauthorized('ไม่พบบัญชีผู้ใช้');
 
-    const memberships = await loadMemberships(person.id, config.academicYear);
+    const memberships = await loadMemberships(person.id, academicYear.current());
 
     req.actor = {
       person,
-      academicYear: config.academicYear,
+      academicYear: academicYear.current(),
       memberships,
       // Most privileged membership of the year, or null. A person with no
       // membership is authenticated and authorized for nothing.

@@ -795,3 +795,50 @@ asserting the file exists.
 above). It is not only awkward that the year lives in `.env`; editing that one
 line at the wrong moment is the single action that can lock the system, and the
 readiness banner is what stands between an institution and that mistake.
+
+---
+
+## The academic year moved into the database (2026-08-15)
+
+The owner's call, taken once the lockout above made the stakes clear: the year
+is a row an Admin changes from a screen, not a line in `.env`.
+
+**Auto-rollover was rejected, and the lockout is why.** Deriving the year from
+the date would move the system into a new year at midnight with nobody
+deciding — and if that year had not been prepared, the system would lock itself
+while everyone was asleep. The June boundary is also still an unconfirmed guess.
+Manual is not merely more controllable here; automatic is actively dangerous.
+
+**The guard is the point of the whole change.** `setAcademicYear` refuses to
+enter a year with no `ADMIN` membership, because on arrival nobody could grant
+one. That single refusal turns the lockout from a documented hazard into an
+impossible one — through the supported path. `npm run grant:admin` remains for a
+database that got into that state some other way.
+
+Everything else about readiness stays a warning rather than a refusal: a year
+may legitimately open with clubs still unfunded; it may not open with nobody
+able to fund them.
+
+**Three sources, in order** (`academicYearService`): `ACADEMIC_YEAR` in the
+environment wins and makes the screen read-only — that is the rehearsal and
+break-glass path, and `.env.example` says so; then the `academic_year_setting`
+row; then the date, reached only before the row exists.
+
+**Once a year, not once a term.** Roles and allocations are per year;
+`project.academic_term` carries the term separately. Rolling per term would
+halve every club's ceiling mid-year.
+
+**A rename that came out of it.** `config.academicYear` is no longer the truth
+and is now `config.fallbackAcademicYear`. The rename was not tidiness — a check
+script kept reading it and compared a date-derived 2569 against a system sitting
+at 2567. A value that stops being authoritative should stop being named as if it
+is.
+
+**Also fixed on the way:** `db:seed` did not clear `membership_event` or
+`academic_year_setting`, so a re-seed left rows pointing at deleted people.
+Invisible while every run went through `migrate --fresh`, which drops the tables
+outright.
+
+Thirteen assertions in `check-phase6.js`, including that the move reaches
+`/api/health` and `/api/me` and not merely the settings endpoint — this is the
+one value every request resolves a membership against.

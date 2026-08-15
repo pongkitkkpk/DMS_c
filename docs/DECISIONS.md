@@ -936,7 +936,7 @@ up.
 | | Question | Answer |
 | --- | --- | --- |
 | **A4** | Do `person` and `membership` stay split? | **Yes — one person may hold several roles.** Closes the last of the four Phase 0 assumptions. Q39's original "one role per user" is superseded. |
-| | Where does the current academic year come from? | **`ACADEMIC_YEAR` in `.env`, for now.** Acknowledged as a poor home for a value that must be set fresh each year; deliberately parked, because `config.academicYear` is what resolves every membership and getting it wrong gives every user `role: null`. |
+| | Where does the current academic year come from? | ~~`ACADEMIC_YEAR` in `.env`, for now.~~ **Settled later the same day: a row in `academic_year_setting`, changed by an Admin from the dashboard, and refused if the target year has no Admin of its own.** Auto-rollover was rejected — it would move the system at midnight with nobody deciding, and lock it if the year was unprepared. Once a year, not once a term. |
 | | May an allocation be written into a past year? | **Yes, but warned clearly** — the Q33 bargain applied to the year instead of the amount. |
 | | May a role be granted into a past year? | **No.** Next year yes. Deliberately *not* the same answer as the allocation question: correcting a past figure leaves something to compare against, backdating authority does not. |
 | | May a STUACT grant roles outside its own jurisdiction? | **No.** |
