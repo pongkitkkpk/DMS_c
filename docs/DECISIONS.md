@@ -996,6 +996,18 @@ the single action that can lock the system, which is an argument for moving the
 year somewhere an officer sets deliberately — and for the readiness banner that
 warns before the moment arrives.
 
+### Separation of duties across roles — open (raised 2026-08-16)
+
+A4 lets one person hold several memberships, and a STUACT may grant club roles
+inside its own jurisdiction — including to itself. So one person can hold `SH`
+(which creates projects) and `STUACT` (which approves their money) and approve
+their own request. `assertCanApproveBudget` says that is "the thing this exists
+to prevent", which is now true of the role and not of the person.
+
+Left as it is deliberately: whether the university enforces separation of duties
+is a process question, not a code one, and an ADMIN could always do the same.
+Needs an explicit answer before it is either enforced or written off.
+
 ### Still open
 
 The two items in "Open items" above that this work did not close remain open:

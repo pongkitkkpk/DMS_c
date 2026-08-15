@@ -855,3 +855,40 @@ outright.
 Thirteen assertions in `check-phase6.js`, including that the move reaches
 `/api/health` and `/api/me` and not merely the settings endpoint — this is the
 one value every request resolves a membership against.
+
+---
+
+## Probing the widened authorization surface (2026-08-16)
+
+Both of the last two changes touched the core of authorization — the academic
+year moved into `requireAuth`'s resolution path, and `assertCanGrantRole` gained
+a role — so the new surface was probed adversarially rather than trusted.
+
+**Escalation to `ADMIN` is closed on every route tried.** A STUACT granting
+itself `ADMIN` directly, with a club attached, or for next year: 403, 400, 403.
+
+**One real defect, created by the widening itself.** A STUACT could appoint a
+fellow officer and then never see them: `listMemberships` filtered to
+`club_id IS NOT NULL`, which was right when club roles were all it could grant.
+The result was a **write-only grant** — you can create a colleague you cannot
+list and cannot revoke — which is worse than not being allowed to grant at all.
+What an officer may list is now exactly what it may hand out: the club roles in
+its jurisdiction, plus that jurisdiction's officers.
+
+**One small trim.** `GET /academic-year` returned who last moved the year, and
+when, to anybody signed in — including a person holding no membership. Which
+year you are in is on every screen already; who moved it is operational detail
+for the people who could move it, so it is officers-only now.
+
+### An open question this raises, for the owner
+
+**A STUACT may grant itself `SH` of a club in its own jurisdiction** — allowed
+today, and A4 explicitly permits one person to hold several roles. But `SH`
+creates projects and `STUACT` approves their money, so one person holding both
+can approve their own request. `assertCanApproveBudget`'s comment says
+"approving one's own request is the thing this exists to prevent", and with
+multi-role memberships that is now only true of the *role*, not of the *person*.
+
+Not changed, because it is a policy question rather than a bug: separation of
+duties may or may not be something this university enforces, and an ADMIN could
+always do the same. Worth an explicit yes or no.

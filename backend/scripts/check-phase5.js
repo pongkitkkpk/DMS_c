@@ -472,9 +472,20 @@ async function login(username) {
     listedNext.body.items.some((m) => m.person.idStudent === 'fixture.admin') &&
     !(await call('GET', `/api/memberships?year=${year}`, { token: admin }))
       .body.items.some((m) => m.person.idStudent === 'fixture.admin' && m.role === 'SH'));
-  ok('STUACT sees club roles in its jurisdiction and not the officers beside it',
-    (await call('GET', '/api/memberships', { token: stuact })).body.items
-      .every((m) => m.club !== null));
+  // What an officer may list is what it may hand out. Before a STUACT could
+  // appoint another STUACT this list was club roles only, which after the change
+  // meant it could create a colleague it could then never see or revoke — a
+  // write-only grant, worse than not being allowed to grant at all.
+  const stuactSees = (await call('GET', '/api/memberships', { token: stuact })).body.items;
+  ok('STUACT sees the club roles in its jurisdiction',
+    stuactSees.some((m) => m.club !== null));
+  ok('  …and the officers of that jurisdiction, which it may now appoint',
+    stuactSees.some((m) => m.role === 'STUACT' && m.jurisdiction !== null));
+  ok('  …and nothing outside it: no ADMIN, no other group\'s officer',
+    stuactSees.every((m) => m.role !== 'ADMIN') &&
+    stuactSees.every((m) => m.club === null || Number(m.club.clubGroupId) === Number(myGroup)),
+    JSON.stringify(stuactSees.map((m) => [m.role, m.club && m.club.clubGroupId, m.jurisdiction && m.jurisdiction.nameTh])));
+
 
   // ------------------------------------------------------------------
   // Revoking. The row goes and the record stays, so what is worth checking is

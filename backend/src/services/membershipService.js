@@ -56,11 +56,19 @@ async function listMemberships(actor, query = {}) {
     : Number(actor.academicYear);
 
   const visibility = clubVisibilityClause(actor);
-  // ADMIN's clause is `1 = 1`, which would also match the club-less rows via the
-  // LEFT JOIN; STUACT's names a club group, which cannot. That is the intended
-  // difference, spelled out rather than left to the reader of a JOIN.
-  const scoped = role === 'ADMIN' ? '1 = 1' : `m.club_id IS NOT NULL AND ${visibility.sql}`;
-  const params = role === 'ADMIN' ? [] : visibility.params;
+  // ADMIN sees everything. A STUACT sees the club roles inside its jurisdiction
+  // **and the officers of that jurisdiction, including itself** — the second
+  // half was missing until a STUACT could appoint another one (2026-08-15). It
+  // could create a colleague it could then never see or revoke: a write-only
+  // grant, which is worse than not being allowed to grant at all. What it may
+  // list is now exactly what it may hand out.
+  const scoped = role === 'ADMIN'
+    ? '1 = 1'
+    : `((m.club_id IS NOT NULL AND ${visibility.sql})
+        OR (m.role = 'STUACT' AND m.jurisdiction_club_group_id = ?))`;
+  const params = role === 'ADMIN'
+    ? []
+    : [...visibility.params, actor.membership.jurisdiction_club_group_id];
 
   const [rows] = await pool.query(
     `SELECT m.id, m.role, m.academic_year, m.department_th, m.advisor_agency, m.created_at,

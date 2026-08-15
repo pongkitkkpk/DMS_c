@@ -142,14 +142,19 @@ async function describe(actor) {
        LEFT JOIN person p ON p.id = s.changed_by
       WHERE s.id = 1`
   );
+  // Everyone may know which year they are in — it is on every screen already,
+  // and in `/me`. Who last moved it, and when, is operational detail that only
+  // the people who could move it have any use for.
+  const isOfficer = role === 'ADMIN' || role === 'STUACT';
+
   return {
     academicYear: current(),
     // An officer looking at a year they cannot change should be told why, not
     // left to wonder where the button went.
     settable: role === 'ADMIN' && !isOverridden(),
     overriddenByEnvironment: isOverridden(),
-    changedAt: row ? row.changed_at : null,
-    changedByName: row ? row.changed_by_name : null,
+    changedAt: isOfficer && row ? row.changed_at : null,
+    changedByName: isOfficer && row ? row.changed_by_name : null,
   };
 }
 
