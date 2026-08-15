@@ -962,8 +962,44 @@ with "ชมรม", so the word doubles; the other 22 are not ชมรม at a
 That กนศ.06 gets it right with the same data is the strongest evidence this is a
 mistake in temp04 rather than a convention worth preserving.
 
-**Not changed.** These are government forms and editing one is the university's
-call, not this rebuild's. Two ways to fix it when the answer comes: change
+**Changed 2026-08-16, on the owner's instruction.** The rule they gave:
+องค์การนักศึกษา and สโมสร are led by a **นายก**; everything else — ชมรม,
+สภานักศึกษา, สมาคม — by a **ประธาน**. The organisation's own name supplies the
+rest, so the title is only ever the first word. Applied to the 69 real names
+that is 18 นายก and 51 ประธาน, and every one now reads correctly.
+
+The templates had to be edited: the wrong word was *in the form*, not in the
+value, so no data-side change could reach it. `scripts/patch-head-title.js`
+replaced it with a `{clubHeadTitle}` tag and stays in the repository as the only
+readable record of what changed inside two binary files. `assembler.js` computes
+the word.
+
+Three things that went wrong doing it, all caught by looking rather than by a
+test:
+
+- The first pass replaced runs by searching for their text, and blanked a `/`
+  somewhere else entirely in a 2,000-run document. Runs are addressed by index
+  now, with their expected contents asserted before anything is written.
+- `pizzip.generate` stores uncompressed by default, which turned a 165 KB
+  government template into a 4 MB one. `compression: 'DEFLATE'` restores it.
+- **There were four signature blocks, not two.** Only the ones searched for got
+  patched; a third went on printing `นายก/ประธานชมรมพุทธศาสน์` until the rendered
+  form was read again. They are found now by listing every run containing นายก or
+  ประธาน and keeping those followed by `{#userSH}` — the structure, not the
+  wording. The three runs naming real office-holders in the approval chain are
+  left alone by the same test.
+
+And one that only the rendered document could show: `clubHeadTitle` was first
+put inside the `userSH` block, but the tag sits *outside* `{#userSH}` in both
+templates, so every signature line rendered as a bare club name.
+
+`check-phase4` asserted the templates were byte-identical to the originals, and
+that check did its job — it failed. Its hashes are updated to the post-edit ones
+with a note saying why, and three assertions now pin the behaviour the edit was
+for.
+
+**The original position, for the record.** These are government forms and
+editing one is the university's call, not this rebuild's. Two ways to fix it when the answer comes: change
 temp04's literal to `นายก/ประธาน` so it matches temp06 — one word, fixes all 69 —
 or strip a leading "ชมรม" in the assembler, which fixes 47 and leaves the other
 22 mislabelled. The first is correct; the second avoids touching the artefact.

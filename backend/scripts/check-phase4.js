@@ -314,14 +314,32 @@ const DELIBERATELY_ABSENT = {
     (await call('GET', `/api/projects/${closed.id}/documents/temp04`)).status === 401);
 
   // ------------------------------------------------------------------
-  console.log('\n--- the templates are unchanged ---');
+  // The templates are government forms and nothing should touch them by
+  // accident. They have been edited exactly once, deliberately, on 2026-08-16:
+  // `scripts/patch-head-title.js` replaced the signatory's baked-in title with
+  // a `{clubHeadTitle}` tag in all four signature blocks. The hashes below are
+  // the post-edit ones. If this check fails, find out what changed the file
+  // before updating the number — that is the entire point of it.
+  console.log('\n--- the templates are unchanged since the one authorised edit ---');
   const crypto = require('crypto');
   const md5 = (f) => crypto.createHash('md5')
     .update(fs.readFileSync(path.resolve(__dirname, '../../templates', f))).digest('hex');
-  ok('temp04.docx is byte-identical to the copied original',
-    md5('temp04.docx') === 'caa8d2634d7fbe2e3b05147c7870ce3e', md5('temp04.docx'));
-  ok('temp06.docx is byte-identical to the copied original',
-    md5('temp06.docx') === '1686cc9b8f930fe798697967d13bfc0b', md5('temp06.docx'));
+  ok('temp04.docx matches the patched original',
+    md5('temp04.docx') === '22b65cb2e9d57e3b744871f94e77b43a', md5('temp04.docx'));
+  ok('temp06.docx matches the patched original',
+    md5('temp06.docx') === 'dad95a0e6b7d47a6328fc1d184977878', md5('temp06.docx'));
+
+  // Why the edit was made: every organisation now gets the title its own kind
+  // uses, instead of all 69 being called a ชมรม.
+  const signed = await call('GET', `/api/projects/${closed.id}/documents/temp04`,
+    { token: sh, raw: true });
+  const signedText = new PizZip(signed.buffer).file('word/document.xml').asText()
+    .replace(/<[^>]+>/g, '');
+  ok('the signatory is titled from the organisation\'s kind, not hard-coded',
+    signedText.includes('ประธานชมรมพุทธศาสน์'));
+  ok('  …so the doubled word is gone', !signedText.includes('ชมรมชมรม'));
+  ok('  …while the approval chain keeps its own real office-holders',
+    signedText.includes('นายกองค์การนักศึกษา') && signedText.includes('ประธานสภานักศึกษา'));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();

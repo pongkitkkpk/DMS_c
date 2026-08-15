@@ -53,6 +53,32 @@ function quantity(value) {
 const text = (value) => (value === null || value === undefined ? '' : String(value));
 
 /**
+ * What the head of a student organisation is called, on both government forms.
+ *
+ * The owner's rule (2026-08-16): องค์การนักศึกษา and สโมสร are led by a นายก;
+ * everything else — ชมรม, สภานักศึกษา, สมาคม — by a ประธาน. The organisation's
+ * own name supplies the rest of the phrase, so this is only ever the first word:
+ *
+ *   ประธาน + ชมรมกรีฑา              -> ประธานชมรมกรีฑา
+ *   ประธาน + สภานักศึกษา มจพ.กรุงเทพฯ -> ประธานสภานักศึกษา มจพ.กรุงเทพฯ
+ *   นายก   + สโมสรคณะครุศาสตร์ฯ      -> นายกสโมสรคณะครุศาสตร์ฯ
+ *   นายก   + องค์การนักศึกษา มจพ.ระยอง -> นายกองค์การนักศึกษา มจพ.ระยอง
+ *
+ * Until 2026-08-16 the word was literal text inside the templates — กนศ.04 said
+ * `ประธานชมรม` — so all 47 clubs printed `ประธานชมรมชมรม…` and the other 22
+ * organisations were called ชมรม when they are not one. `scripts/patch-head-
+ * title.js` records that edit.
+ *
+ * Matched on the name because that is where the kind lives; `club_group` is the
+ * jurisdiction (ฝ่ายกีฬา, ฝ่ายศิลปวัฒนธรรม) and says nothing about what the
+ * organisation is. An unrecognised name gets ประธาน, which is the common case
+ * and the safer wrong answer of the two.
+ */
+const NAYOK_PREFIXES = ['องค์การ', 'สโมสร'];
+const clubHeadTitle = (clubName) =>
+  NAYOK_PREFIXES.some((p) => String(clubName || '').startsWith(p)) ? 'นายก' : 'ประธาน';
+
+/**
  * Fill `name1…nameN` from `rows`, applying `pick` to each.
  *
  * Every index up to the form's capacity is emitted, including the empty ones:
@@ -314,7 +340,14 @@ function budgetRoot(document, limits) {
   };
 }
 
-/** The people blocks. `detail.advisor_name` is separate from `user`. */
+/**
+ * The people blocks. `detail.advisor_name` is separate from `user`.
+ *
+ * `clubHeadTitle` is deliberately *not* in here. In both templates the tag sits
+ * outside `{#userSH}`, immediately before it, so it has to be a root of the
+ * payload — put inside `userSH` it resolved to nothing and every signature line
+ * rendered as a bare club name.
+ */
 function peopleRoots(document) {
   const { owner, advisor, project } = document;
   return {
@@ -412,6 +445,7 @@ function buildTemp04(document) {
     budget: budgetRoot(document, limits.budget),
     user: people.user,
     userSH: people.userSH,
+    clubHeadTitle: clubHeadTitle(document.project.club_name),
   };
 }
 
@@ -453,6 +487,7 @@ function buildTemp06(document) {
     },
     user: people.user,
     userSH: people.userSH,
+    clubHeadTitle: clubHeadTitle(document.project.club_name),
   };
 }
 

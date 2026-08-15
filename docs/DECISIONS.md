@@ -1023,7 +1023,16 @@ Needs an explicit answer before it is either enforced or written off.
 
 </details>
 
-### กนศ.04 calls every organisation a ชมรม — open (found 2026-08-16)
+### กนศ.04 calls every organisation a ชมรม — closed (2026-08-16)
+
+**The owner's rule: องค์การนักศึกษา and สโมสร are led by a นายก, everything else
+by a ประธาน**, with the organisation's own name supplying the rest. 18 นายก and
+51 ประธาน across the 69 real names. Both templates were edited on their
+instruction — `scripts/patch-head-title.js` — because the wrong word was in the
+form and no data-side change could reach it. `assembler.js` computes it as
+`clubHeadTitle`.
+
+<details><summary>The finding as originally recorded</summary>
 
 temp04's signature block is the literal `ประธานชมรม` followed by the club name.
 47 of 69 club names already begin with "ชมรม", so the word doubles; the other 22
@@ -1034,6 +1043,8 @@ is why this reads as a mistake in temp04 rather than a convention.
 Untouched: the templates are government artefacts and changing one is the
 university's decision. Reproduce with `npm run forms:read`. See
 DMS_REBUILD_STRATEGY.md → "Reading the forms" for the two possible fixes.
+
+</details>
 
 ### Still open
 
