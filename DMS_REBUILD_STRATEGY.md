@@ -676,3 +676,43 @@ they get an empty table and a plain reason.
 **Method note.** Signing in through the form was flaky all session and cost many
 retries; posting to `/api/auth/login` and putting the token straight into
 `sessionStorage.dms.token` is reliable and much faster for a sweep like this.
+
+---
+
+## Security review of the session's new surface (2026-08-15)
+
+Eight endpoints were added quickly in one session, two of them creating or
+describing authority, so the new surface was audited on its own terms rather
+than trusted because the checks were green.
+
+**Structure — clean.** Every router but `auth` carries a blanket
+`router.use(requireAuth)`, and `auth` authenticates `/me` per route while
+`/auth/login` is public by design. No SQL in the new services interpolates user
+input: every `${…}` reaching a query is a server-built fragment (`visibility.sql`,
+allow-listed column lists, `FOR UPDATE`), and values go through placeholders.
+
+**Two real findings, both fixed.**
+
+1. **`GET /memberships/:id/impact` checked the caller's role but not their
+   scope.** A STUACT could ask about any membership id — another jurisdiction's,
+   or the Admin's — and for a foreign `AD` would have been told how many
+   projects that club has. Deviation 1 reached through a membership id instead
+   of a club id. It now runs `assertCanGrantRole` against the target, so it
+   refuses in exactly the cases revoking it would, and an unknown id is 404
+   rather than an indistinguishable `{projects: 0}`.
+
+2. **`GET /people` leaked what it did not need.** It returned `email`, which no
+   screen used, from a name search across every human who has ever signed in;
+   dropped. And the search term's `%` and `_` were passed into `LIKE`
+   unescaped — parameterised, so not an injection, but `q=%%%` matched everyone
+   and made the three-character minimum meaningless. Escaped now, so the
+   endpoint is the search it claims to be rather than the listing it refuses to
+   be.
+
+**Indexes — measured, and deliberately not added.** `agency_allocation` is now
+filtered by `academic_year` alone, which `uq_allocation` cannot serve as a range
+because `club_id` leads it. The table grows by one row per funded club per year
+— 69 clubs institution-wide, so a few hundred rows after a decade — and a scan
+of that is not worth a migration. Recorded because it was checked, not because
+it needs doing. `membership_event`'s own indexes cover both the per-person and
+the newest-first reads.

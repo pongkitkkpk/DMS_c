@@ -192,9 +192,17 @@ async function searchPeople(actor, query = {}) {
     throw HttpError.badRequest('พิมพ์ชื่อหรือรหัสนักศึกษาอย่างน้อย 3 ตัวอักษร');
   }
 
-  const like = `%${term}%`;
+  // Name, username and account type — what it takes to pick the right person
+  // out of a list and no more. Email was here and no screen used it, which is
+  // exposure bought for nothing: this endpoint is a name search across every
+  // human who has ever signed in, so the narrower the row the better.
+  // The term is parameterised, so this is not an injection — but `%` and `_`
+  // are wildcards *inside* a LIKE value, and an unescaped `%` turns a search
+  // into "everyone", which is the listing this endpoint refuses to be. Escaped,
+  // the three-character minimum means what it says.
+  const like = `%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
   const [rows] = await pool.query(
-    `SELECT id, id_student, prefix, full_name_th, email, account_type
+    `SELECT id, id_student, prefix, full_name_th, account_type
        FROM person
       WHERE id_student LIKE ? OR full_name_th LIKE ?
       ORDER BY full_name_th
@@ -208,7 +216,6 @@ async function searchPeople(actor, query = {}) {
       idStudent: row.id_student,
       prefix: row.prefix,
       fullNameTh: row.full_name_th,
-      email: row.email,
       // The ICIT identity type, not a role — a `personel` account holds no more
       // authority than a `students` one until a membership says so.
       accountType: row.account_type,
@@ -448,16 +455,29 @@ async function revokeMembership(actor, membershipId) {
  * number to warn with.
  */
 async function advisorImpact(actor, membershipId) {
-  const role = actor.membership ? actor.membership.role : null;
-  if (role !== 'ADMIN' && role !== 'STUACT') {
-    throw HttpError.forbidden('ดูข้อมูลสิทธิ์ได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
-  }
-
   const id = check.integer({ min: 1, required: true })(membershipId, 'id');
+
   const [[row]] = await pool.query(
-    'SELECT person_id, role, academic_year, club_id FROM membership WHERE id = ?', [id]
+    `SELECT m.person_id, m.role, m.academic_year, m.club_id, c.club_group_id
+       FROM membership m
+       LEFT JOIN club c ON c.id = m.club_id
+      WHERE m.id = ?`,
+    [id]
   );
-  if (!row || row.role !== 'AD') return { projects: 0 };
+  if (!row) throw HttpError.notFound('ไม่พบสิทธิ์');
+
+  // The same gate as revoking, deliberately: this endpoint exists to describe a
+  // revocation before it happens, so it must refuse in exactly the cases the
+  // revocation would. Checking only the caller's *role* and not their *scope*
+  // let a STUACT ask about an adviser in another jurisdiction and be told how
+  // many projects that club has — a smaller version of deviation 1, reached
+  // through a membership id instead of a club id.
+  assertCanGrantRole(actor, {
+    role: row.role,
+    club: row.club_id ? { id: row.club_id, club_group_id: row.club_group_id } : null,
+  });
+
+  if (row.role !== 'AD') return { projects: 0 };
 
   const [[{ projects }]] = await pool.query(
     `SELECT COUNT(*) AS projects FROM project

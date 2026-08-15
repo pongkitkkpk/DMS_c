@@ -524,6 +524,26 @@ async function login(username) {
   ok('  …and a student cannot ask',
     (await call('GET', `/api/memberships/${advisorRow.id}/impact`, { token: sh })).status === 403);
 
+  // Scope, not just role. Asking about a membership through its id must refuse
+  // wherever revoking it would — otherwise the count of another jurisdiction's
+  // projects leaks out through a membership id instead of a club id, which is
+  // deviation 1 wearing a different hat.
+  const adminOwnRow = (await call('GET', '/api/memberships', { token: admin }))
+    .body.items.find((m) => m.role === 'ADMIN');
+  ok('an officer cannot ask about a membership outside its jurisdiction',
+    (await call('GET', `/api/memberships/${adminOwnRow.id}/impact`, { token: stuact }))
+      .status === 403);
+  ok('  …and an id that does not exist is 404, not an empty answer',
+    (await call('GET', '/api/memberships/999999/impact', { token: admin })).status === 404);
+
+  // The search is a search. An unescaped wildcard would make the three-character
+  // minimum meaningless and turn it back into the listing it refuses to be.
+  ok('a LIKE wildcard in the search term matches nothing rather than everyone',
+    (await call('GET', '/api/people?q=%25%25%25', { token: admin })).body.people.length === 0);
+  ok('  …and the search does not hand out email addresses no screen asked for',
+    (await call('GET', '/api/people?q=fixture', { token: admin }))
+      .body.people.every((p) => p.email === undefined));
+
   // The record is the whole reason the row may be deleted. If it is not
   // written, the delete is data loss rather than a revocation.
   const log = await call('GET', '/api/memberships/events', { token: admin });
