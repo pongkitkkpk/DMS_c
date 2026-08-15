@@ -967,3 +967,27 @@ call, not this rebuild's. Two ways to fix it when the answer comes: change
 temp04's literal to `นายก/ประธาน` so it matches temp06 — one word, fixes all 69 —
 or strip a leading "ชมรม" in the assembler, which fixes 47 and leaves the other
 22 mislabelled. The first is correct; the second avoids touching the artefact.
+
+### Read through, and correct — worth recording as much as the defect
+
+The rest of both forms was read rather than skimmed, including the branch a
+single test project never reaches.
+
+- **Section 11 is not missing.** กนศ.04 numbers 10 → 12 for an ordinary project
+  because 11 sits inside `{#is_continueproject}`. A second project created as a
+  continuation renders it, with both of its problems paired against both of
+  their resolutions, correctly numbered. Nearly filed as a defect until the
+  template was read.
+- **The checkboxes tick the right box.** In the continuing project the runs are
+  `SYM:F0A8` (empty) before "โครงการใหม่" and `SYM:F0FE` (ticked) before
+  "โครงการต่อเนื่อง" — Wingdings, and the right way round. `assembler.js` emits
+  every flag as an explicit `true`/`false` rather than omitting the false ones,
+  which is why an unticked box is unticked rather than absent.
+- **The money is arithmetic, not storage.** 50,000 approved, 48,000 spent,
+  2,000 returned on กนศ.06, each computed on render.
+- **Dates and attendance** carry through in Thai with Buddhist years.
+
+Two things this pass could not check and a person still should: whether the
+tick marks land in the *visually* correct cell of a table, and how the page
+breaks. Reading XML establishes that a value arrived, not that it looks right on
+paper.
