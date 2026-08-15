@@ -374,9 +374,11 @@ Four things the owner asked for, to be built later rather than now. Written down
 with what the code already does for each, so picking them up does not start with
 re-reading the codebase.
 
-**Progress: item 2 is built (2026-08-15). Items 1, 3 and 4 remain.** Item 3 was
-always going to follow from item 2, and now can: allocations are addressable per
-year, so the history is a matter of reading them.
+**Progress: items 2 and 3 are built (2026-08-15). Items 1 and 4 remain.** Item 4
+is next and still needs two answers before it can be built — see below. Item 1
+stays last by design, so the menu is drawn around screens that exist; it now has
+three officer-side entries waiting for it (`/allocations`, `/history`, and
+whatever item 4 becomes), which is exactly the situation it was parked for.
 
 ### 1. The officer's screen needs a menu
 
@@ -444,12 +446,46 @@ Note that this is deliberately *not* the same answer as item 4's year question.
 Rewriting a number that projects were judged against is recoverable and visible;
 granting a role in a past year hands out authority. Decide that one separately.
 
-### 3. A page summarising previous years
+### 3. A page summarising previous years — **built 2026-08-15**
 
-Follows directly from item 2 — once allocations are addressable per year, the
-history is a matter of reading them. The figures already exist: allocation,
-approved total and remaining are computed per (club, year) by
-`allocationService`, and project counts per phase per year come from `project`.
+It did follow directly from item 2, and the figures did already exist. What was
+built:
+
+- **`GET /api/history`** (`backend/src/services/historyService.js`,
+  `routes/history.js`) — one row per academic year: allocated, committed,
+  remaining, how many clubs were funded, how many are over their ceiling, and
+  the project count per phase. Read-only, scoped by the same two clauses the
+  single-year screens use, and every figure summed on read so a year's summary
+  cannot drift from the rows under it.
+- **`/history`** (`frontend/src/pages/HistoryPage.js`) — two tables, money and
+  phase distribution. They are both per year but read at different widths (four
+  numbers down a column against seven across a row), so interleaving them makes
+  both harder to read.
+- A year in either table links to the screen that owns it. Nothing on the page
+  can be edited.
+
+Two details worth keeping:
+
+- **The over-committed count is per club, not per year.** A group whose total
+  allocation covers its total approvals can still contain a club that has
+  overspent, and rolling that comparison up to the year would hide exactly what
+  Q33 exists to keep visible. So the year reports both.
+- **A year qualifies on either side** — it has allocations, or it has projects,
+  or it is the current year. Requiring both would drop the two states that
+  matter most at the edges of a year: money set aside before any project exists,
+  and projects created before the ceiling is set, which is the state that blocks
+  their first approval.
+
+**Also fixed on the way through:** `listProjects` had always accepted a `year`
+filter and no screen had ever sent one, so the summary's link to a year's
+projects would have quietly listed every year. `ProjectsPage` now honours
+`?year=`, names it, and offers a way out — there is no selector for it, because
+it is a filter you arrive with rather than one you would go looking for. Both
+URL filters now survive each other.
+
+Twelve assertions in `check-phase5.js`. The valuable ones cross-check the
+summary against the single-year screens: the two read different tables, so
+agreement is evidence rather than tautology.
 
 ### 4. A page for adding roles, usable by ADMIN and STUACT
 

@@ -287,6 +287,66 @@ async function login(username) {
     documents.body.documents.every((d) => d.available),
     JSON.stringify(documents.body.documents.map((d) => [d.form, d.available, d.reason])));
 
+  // ------------------------------------------------------------------
+  // The year summary. Every figure on it exists elsewhere for one year at a
+  // time; what is new is reading them across years, so what is worth checking
+  // is that the roll-up agrees with the single-year screens rather than
+  // computing its own answer, and that it is scoped like they are.
+  console.log('\n--- the year summary ---');
+
+  const history = await call('GET', '/api/history', { token: stuact });
+  ok('the summary answers with one row per year, newest first',
+    history.status === 200 && Array.isArray(history.body.items) &&
+    history.body.items.every((y, i, all) => i === 0 || all[i - 1].academicYear > y.academicYear),
+    history.text.slice(0, 250));
+
+  const currentRow = history.body.items.find((y) => y.isCurrent);
+  ok('the current year is always present, marked, and unique',
+    currentRow !== undefined &&
+    history.body.items.filter((y) => y.isCurrent).length === 1);
+
+  // The two screens read different tables — the summary sums allocations and
+  // approvals itself — so agreement here is a real cross-check, not a tautology.
+  const singleYear = await call('GET', `/api/allocations?year=${currentRow.academicYear}`, { token: stuact });
+  const allocatedOnAllocationsPage = singleYear.body.items
+    .reduce((total, a) => total + Math.round(Number(a.amount) * 100), 0);
+  ok('  …and its allocated total matches the allocations screen for that year',
+    Math.round(Number(currentRow.allocated) * 100) === allocatedOnAllocationsPage,
+    `${currentRow.allocated} vs ${(allocatedOnAllocationsPage / 100).toFixed(2)}`);
+  ok('  …and it counts the same funded clubs',
+    currentRow.clubsFunded === singleYear.body.items.length);
+  ok('  …and reports the same clubs over their ceiling',
+    currentRow.clubsOverCommitted === singleYear.body.overCommitted.length);
+
+  const projectsThatYear = await call(
+    'GET', `/api/projects?year=${currentRow.academicYear}&pageSize=200`, { token: stuact });
+  ok('  …and its project count matches the project list filtered to that year',
+    currentRow.projectCount === projectsThatYear.body.total,
+    `${currentRow.projectCount} vs ${projectsThatYear.body.total}`);
+  ok('  …with the phase counts summing to that same total',
+    currentRow.byPhase.reduce((total, p) => total + p.count, 0) === currentRow.projectCount);
+
+  // A year with allocations but no projects, and vice versa, both have to
+  // appear — those are the states the edges of a year are actually in.
+  await call('PUT', '/api/allocations', {
+    token: stuact,
+    body: { clubId, academicYear: currentRow.academicYear + 2, amount: '90000' },
+  });
+  const later = await call('GET', '/api/history', { token: stuact });
+  const emptyYear = later.body.items.find((y) => y.academicYear === currentRow.academicYear + 2);
+  ok('a year with money but no projects still appears',
+    emptyYear !== undefined && emptyYear.projectCount === 0 && emptyYear.allocated === '90000.00',
+    JSON.stringify(emptyYear));
+  ok('  …and its remaining is the whole allocation',
+    emptyYear.remaining === '90000.00' && emptyYear.overCommitted === false);
+
+  ok('the summary is scoped — another club\'s year totals are not visible',
+    (await call('GET', '/api/history', { token: otherSh })).body.items
+      .every((y) => y.academicYear !== currentRow.academicYear + 2 || Number(y.allocated) === 0));
+  ok('an adviser may read the summary',
+    (await call('GET', '/api/history', { token: ad })).status === 200);
+  ok('unauthenticated summary 401', (await call('GET', '/api/history')).status === 401);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

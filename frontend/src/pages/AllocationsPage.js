@@ -17,7 +17,7 @@
  * year rather than the amount: allowed, never quiet.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { useLocation, useHistory } from 'react-router-dom';
+import { Link, useLocation, useHistory } from 'react-router-dom';
 import { Alert, Button, Input } from 'reactstrap';
 import Swal from 'sweetalert2';
 
@@ -151,6 +151,7 @@ export default function AllocationsPage() {
         </div>
 
         <div className="u-spacer u-row">
+          <Link className="u-small u-muted" to="/history">สรุปรายปี →</Link>
           <Input
             type="select"
             style={{ width: 'auto' }}

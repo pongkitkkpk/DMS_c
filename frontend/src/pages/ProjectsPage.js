@@ -22,6 +22,12 @@ export default function ProjectsPage() {
   // seeded from the URL and written back to it — which also makes a filtered
   // list something you can bookmark or send to someone.
   const [phase, setPhase] = useState(() => new URLSearchParams(location.search).get('phase') || '');
+  // The year summary links here for one year. The list has always been able to
+  // filter by year — `listProjects` takes it — but nothing ever sent one, so
+  // the link would have quietly shown every year instead of the one clicked.
+  // There is no control for it: this is a filter you arrive with, and the way
+  // out is the "ดูทุกปี" link rather than a selector nobody would otherwise use.
+  const year = new URLSearchParams(location.search).get('year') || '';
   const [q, setQ] = useState('');
   const [phases, setPhases] = useState([]);
   const [error, setError] = useState(null);
@@ -34,6 +40,7 @@ export default function ProjectsPage() {
     setError(null);
     const params = {};
     if (phase) params.phase = phase;
+    if (year) params.year = year;
     if (q.trim()) params.q = q.trim();
 
     // Debounced so typing does not fire a request per keystroke.
@@ -41,7 +48,20 @@ export default function ProjectsPage() {
       api.listProjects(params).then(setData).catch((err) => setError(messageOf(err)));
     }, q ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [phase, q]);
+  }, [phase, year, q]);
+
+  /** Both filters live in the URL, so changing one must not drop the other. */
+  const urlWith = (next) => {
+    const params = new URLSearchParams();
+    if (next.year !== undefined ? next.year : year) {
+      params.set('year', next.year !== undefined ? next.year : year);
+    }
+    if (next.phase !== undefined ? next.phase : phase) {
+      params.set('phase', next.phase !== undefined ? next.phase : phase);
+    }
+    const query = params.toString();
+    return query ? `/projects?${query}` : '/projects';
+  };
 
   return (
     <>
@@ -51,6 +71,16 @@ export default function ProjectsPage() {
           <div className="u-small u-dim">
             {data ? `${data.total} รายการในขอบเขตของคุณ` : 'กำลังโหลด…'}
             {session.membership && session.membership.club_name && ` · ${session.membership.club_name}`}
+            {/* Named, and escapable. A filter that came in through the URL is
+                invisible otherwise: the count would simply be smaller than
+                expected with nothing on screen saying why. */}
+            {year && (
+              <>
+                {' · '}
+                <strong>ปีการศึกษา {year}</strong>{' '}
+                <Link className="u-muted" to={urlWith({ year: '' })}>ดูทุกปี</Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -67,7 +97,7 @@ export default function ProjectsPage() {
             value={phase}
             onChange={(e) => {
               setPhase(e.target.value);
-              history.replace(e.target.value ? `/projects?phase=${e.target.value}` : '/projects');
+              history.replace(urlWith({ phase: e.target.value }));
             }}
           >
             <option value="">ทุกสถานะ</option>
@@ -95,7 +125,7 @@ export default function ProjectsPage() {
         <div className="card-x">
           <Empty
             mark="□"
-            title={q || phase ? 'ไม่พบโครงการตามเงื่อนไขที่ค้นหา' : 'ยังไม่มีโครงการในขอบเขตของบัญชีนี้'}
+            title={q || phase || year ? 'ไม่พบโครงการตามเงื่อนไขที่ค้นหา' : 'ยังไม่มีโครงการในขอบเขตของบัญชีนี้'}
             hint={session.role === 'SH' ? 'หัวหน้านักศึกษาสามารถสร้างโครงการใหม่ได้' : undefined}
           />
         </div>

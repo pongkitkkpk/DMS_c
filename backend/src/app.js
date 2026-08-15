@@ -23,6 +23,7 @@ const attachmentRoutes = require('./routes/attachments');
 const authRoutes = require('./routes/auth');
 const budgetRoutes = require('./routes/budget');
 const documentRoutes = require('./routes/documents');
+const historyRoutes = require('./routes/history');
 const projectRoutes = require('./routes/projects');
 const referenceRoutes = require('./routes/reference');
 
@@ -54,6 +55,7 @@ function createApp() {
   app.use('/api', projectRoutes);
   app.use('/api', budgetRoutes);
   app.use('/api', documentRoutes);
+  app.use('/api', historyRoutes);
   // Note what is NOT here: any `express.static` over the upload directory. The
   // old system had one, which is why a guessable filename returned somebody
   // else's document (Q21). Attachments leave only through authorized handlers.

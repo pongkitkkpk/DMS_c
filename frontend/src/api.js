@@ -88,6 +88,9 @@ export const api = {
   disburse: (id, body) => client.post(`/projects/${id}/disbursements`, body).then((r) => r.data),
   allocations: (params) => client.get('/allocations', { params }).then((r) => r.data),
   setAllocation: (body) => client.put('/allocations', body).then((r) => r.data),
+  // Every year at once, summarised. Takes no parameters on purpose: the scope
+  // is the caller's membership and there is nothing here a client may widen.
+  history: () => client.get('/history').then((r) => r.data),
 
   // Documents. `documents()` answers with both forms and, where one cannot be
   // produced, the server's own reason — too early in the phase machine, or more
