@@ -23,6 +23,12 @@ class HttpError extends Error {
   static unauthorized(message = 'ไม่ได้เข้าสู่ระบบ') { return new HttpError(401, message); }
   static forbidden(message = 'ไม่มีสิทธิ์ใช้งาน') { return new HttpError(403, message); }
   static notFound(message = 'ไม่พบข้อมูล') { return new HttpError(404, message); }
+  /**
+   * The request was understood and refused because the thing already exists.
+   * Distinct from the 409 `app.js` returns for lock contention: that one means
+   * "try again", this one means "you already did this".
+   */
+  static conflict(message, detail) { return new HttpError(409, message, detail); }
 }
 
 module.exports = { HttpError };

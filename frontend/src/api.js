@@ -92,6 +92,15 @@ export const api = {
   // is the caller's membership and there is nothing here a client may widen.
   history: () => client.get('/history').then((r) => r.data),
 
+  // Roles. `people` is a search and refuses a short term — `person` is every
+  // human who has ever signed in, and a listing endpoint would be a directory
+  // export. `memberships` answers with what the caller may grant as well as
+  // what exists, so the form never offers a choice the server will refuse.
+  clubGroups: () => client.get('/reference/club-groups').then((r) => r.data),
+  memberships: (params) => client.get('/memberships', { params }).then((r) => r.data),
+  people: (q) => client.get('/people', { params: { q } }).then((r) => r.data),
+  grantMembership: (body) => client.post('/memberships', body).then((r) => r.data),
+
   // Documents. `documents()` answers with both forms and, where one cannot be
   // produced, the server's own reason — too early in the phase machine, or more
   // rows than the government form has boxes for.

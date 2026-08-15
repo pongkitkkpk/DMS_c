@@ -94,6 +94,25 @@ router.get('/reference/clubs', asyncRoute(async (req, res) => {
 }));
 
 /**
+ * The club groups — the jurisdictions a STUACT membership is scoped to.
+ *
+ * Not scoped by the caller, unlike the clubs above, and that is not an
+ * oversight: a group is a name and a code, the same reference data the club
+ * list already exposes one level down, and the only screen that needs the whole
+ * list is the one where an Admin appoints a STUACT to a jurisdiction — which by
+ * definition is not a jurisdiction they are already inside. Nothing here says
+ * who belongs to what.
+ */
+router.get('/reference/club-groups', asyncRoute(async (req, res) => {
+  const [rows] = await pool.query(
+    'SELECT id, code, name_th FROM club_group ORDER BY code'
+  );
+  res.json({
+    clubGroups: rows.map((row) => ({ id: row.id, code: row.code, nameTh: row.name_th })),
+  });
+}));
+
+/**
  * How many rows of each list the government forms can actually print.
  *
  * Served rather than hard-coded in the client for the same reason the taxonomy

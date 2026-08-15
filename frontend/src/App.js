@@ -18,6 +18,7 @@ import ProjectFormPage from './pages/ProjectFormPage';
 import DashboardPage from './pages/DashboardPage';
 import AllocationsPage from './pages/AllocationsPage';
 import HistoryPage from './pages/HistoryPage';
+import RolesPage from './pages/RolesPage';
 import ProfilePage from './pages/ProfilePage';
 
 /** Renders nothing until the session is known, so a reload cannot flash the login screen. */
@@ -105,6 +106,7 @@ export default function App() {
                 last, so the menu is designed around screens that exist. */}
             <Route exact path="/allocations" render={() => <RequireAuth><AllocationsPage /></RequireAuth>} />
             <Route exact path="/history" render={() => <RequireAuth><HistoryPage /></RequireAuth>} />
+            <Route exact path="/roles" render={() => <RequireAuth><RolesPage /></RequireAuth>} />
             <Route exact path="/profile" render={() => <RequireAuth><ProfilePage /></RequireAuth>} />
             <Redirect to="/projects" />
           </Switch>

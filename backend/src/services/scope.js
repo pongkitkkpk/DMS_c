@@ -92,6 +92,57 @@ function assertCanEnterAllocation(actor, club) {
 }
 
 /**
+ * Which roles each role may hand out.
+ *
+ * A membership row *is* authority in this system — it is what every other rule
+ * in this file reads — so granting one is the most privileged thing an officer
+ * can do, and it is the one place where the usual "STUACT and ADMIN are
+ * equivalent inside a jurisdiction" shorthand has to stop.
+ *
+ * ADMIN may grant anything. STUACT may grant only the two club roles, and only
+ * inside its own jurisdiction (`assertCanGrantRole`). It may not mint another
+ * STUACT or an ADMIN: both would be handing out authority at or above its own
+ * level, and a STUACT that can appoint STUACTs can reach any jurisdiction in
+ * two steps, which makes the scope check below decorative.
+ *
+ * The owner settled the jurisdiction question on 2026-08-15 ("เฉพาะในฝ่ายตัวเอง").
+ * The narrower rule about *which* roles is the conservative reading of it and is
+ * recorded in DMS_REBUILD_STRATEGY.md rather than assumed silently.
+ */
+const GRANTABLE_ROLES = {
+  ADMIN: ['SH', 'AD', 'STUACT', 'ADMIN'],
+  STUACT: ['SH', 'AD'],
+};
+
+/**
+ * Who may create a membership, and for whom.
+ *
+ * `target` carries the role being granted and the club it attaches to
+ * (`club`, a row with `id` and `club_group_id`) — or, for a STUACT membership,
+ * the jurisdiction it would oversee.
+ */
+function assertCanGrantRole(actor, target) {
+  const membership = actor.membership;
+  const role = membership ? membership.role : null;
+  const grantable = GRANTABLE_ROLES[role];
+
+  if (!grantable) {
+    throw HttpError.forbidden('กำหนดสิทธิ์ได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+  }
+  if (!grantable.includes(target.role)) {
+    throw HttpError.forbidden(`สิทธิ์ระดับ ${target.role} กำหนดได้เฉพาะผู้ดูแลระบบ`);
+  }
+  if (role === 'ADMIN') return;
+
+  // STUACT from here down. Every role it may grant is a club role, so the club
+  // is always present and its group is the only thing to check.
+  const groupId = target.club ? target.club.club_group_id : null;
+  if (groupId == null || Number(groupId) !== Number(membership.jurisdiction_club_group_id)) {
+    throw HttpError.forbidden('ชมรมนี้อยู่นอกกลุ่มที่รับผิดชอบ');
+  }
+}
+
+/**
  * Who may approve a project's money and record its disbursements: the same two
  * roles that own the `PROJECT_APPROVED → BUDGET_APPROVED` transition. Approving
  * one's own request is the thing this exists to prevent.
@@ -223,6 +274,8 @@ module.exports = {
   visibilityClause,
   clubVisibilityClause,
   assertCanEnterAllocation,
+  assertCanGrantRole,
+  GRANTABLE_ROLES,
   assertCanApproveBudget,
   permits,
   isInScope,

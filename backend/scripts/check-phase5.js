@@ -347,6 +347,124 @@ async function login(username) {
     (await call('GET', '/api/history', { token: ad })).status === 200);
   ok('unauthenticated summary 401', (await call('GET', '/api/history')).status === 401);
 
+  // ------------------------------------------------------------------
+  // Granting roles. This is the only endpoint in the system that creates
+  // authority rather than spending it, so the assertions that matter are the
+  // refusals — a STUACT that can mint a STUACT can reach any jurisdiction in
+  // two steps, and a role backdated into a closed year is authority over
+  // decisions already made.
+  console.log('\n--- granting roles ---');
+
+  ok('a student cannot list who holds what',
+    (await call('GET', '/api/memberships', { token: sh })).status === 403);
+  ok('  …nor search people',
+    (await call('GET', '/api/people?q=fixture', { token: sh })).status === 403);
+  ok('  …nor grant anything',
+    (await call('POST', '/api/memberships', {
+      token: sh, body: { personId: 1, role: 'SH', academicYear: year, clubId },
+    })).status === 403);
+  ok('an adviser cannot grant either',
+    (await call('POST', '/api/memberships', {
+      token: ad, body: { personId: 1, role: 'SH', academicYear: year, clubId },
+    })).status === 403);
+  ok('unauthenticated memberships 401', (await call('GET', '/api/memberships')).status === 401);
+
+  const found = await call('GET', '/api/people?q=fixture', { token: stuact });
+  ok('an officer can search people who have signed in', found.status === 200 && found.body.people.length >= 4,
+    found.text.slice(0, 200));
+  ok('  …but a listing is refused — the term has a minimum',
+    (await call('GET', '/api/people?q=fi', { token: stuact })).status === 400);
+
+  const advisorPerson = found.body.people.find((p) => p.idStudent === 'fixture.advisor');
+  const adminPerson = found.body.people.find((p) => p.idStudent === 'fixture.admin');
+
+  ok('an unknown person is refused, not created',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: 999999, role: 'SH', academicYear: year, clubId },
+    })).status === 400);
+
+  // A4 made concrete: the adviser already holds AD at this club for this year,
+  // and is about to hold SH as well. If person and membership had been collapsed
+  // this call could not succeed.
+  const second = await call('POST', '/api/memberships', {
+    token: stuact, body: { personId: advisorPerson.id, role: 'SH', academicYear: year, clubId },
+  });
+  ok('A4: one person may hold a second role in the same year', second.status === 201,
+    second.text.slice(0, 250));
+  ok('  …and granting the same one twice is a conflict, not a silent success',
+    (await call('POST', '/api/memberships', {
+      token: stuact, body: { personId: advisorPerson.id, role: 'SH', academicYear: year, clubId },
+    })).status === 409);
+
+  // The other student's own club, which the fixtures put in a different group —
+  // read through their token rather than hard-coded, so it stays the right club
+  // if the fixtures move.
+  const outsideClub = (await call('GET', '/api/reference/clubs', { token: otherSh })).body.clubs[0];
+  ok('STUACT cannot grant into a club outside its jurisdiction',
+    (await call('POST', '/api/memberships', {
+      token: stuact, body: { personId: adminPerson.id, role: 'SH', academicYear: year, clubId: outsideClub.id },
+    })).status === 403);
+  ok('STUACT cannot mint another STUACT',
+    (await call('POST', '/api/memberships', {
+      token: stuact,
+      body: { personId: adminPerson.id, role: 'STUACT', academicYear: year, jurisdictionClubGroupId: 1 },
+    })).status === 403);
+  ok('STUACT cannot mint an ADMIN',
+    (await call('POST', '/api/memberships', {
+      token: stuact, body: { personId: adminPerson.id, role: 'ADMIN', academicYear: year },
+    })).status === 403);
+  ok('  …and the list it is offered says so',
+    (await call('GET', '/api/memberships', { token: stuact })).body.grantableRoles.join() === 'SH,AD');
+
+  const groups = await call('GET', '/api/reference/club-groups', { token: admin });
+  const grantStuact = await call('POST', '/api/memberships', {
+    token: admin,
+    body: {
+      personId: advisorPerson.id, role: 'STUACT', academicYear: year,
+      jurisdictionClubGroupId: groups.body.clubGroups[0].id,
+    },
+  });
+  ok('ADMIN may appoint a STUACT to a jurisdiction', grantStuact.status === 201,
+    grantStuact.text.slice(0, 250));
+
+  // The shape `ck_membership_scope` insists on, refused with a sentence.
+  ok('a club role without a club is refused',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year },
+    })).status === 400);
+  ok('a STUACT membership cannot also carry a club',
+    (await call('POST', '/api/memberships', {
+      token: admin,
+      body: { personId: adminPerson.id, role: 'STUACT', academicYear: year, clubId, jurisdictionClubGroupId: 1 },
+    })).status === 400);
+  ok('an ADMIN membership carries neither',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: adminPerson.id, role: 'ADMIN', academicYear: year, clubId },
+    })).status === 400);
+
+  ok('a role cannot be granted into a year that has closed',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year - 1, clubId },
+    })).status === 400);
+  const nextYearGrant = await call('POST', '/api/memberships', {
+    token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year + 1, clubId },
+  });
+  ok('  …but next year may be prepared in advance', nextYearGrant.status === 201,
+    nextYearGrant.text.slice(0, 250));
+  ok('  …and no further than that',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year + 2, clubId },
+    })).status === 400);
+
+  const listedNext = await call('GET', `/api/memberships?year=${year + 1}`, { token: admin });
+  ok('the list is per year, so next year\'s grant shows there and not in this one',
+    listedNext.body.items.some((m) => m.person.idStudent === 'fixture.admin') &&
+    !(await call('GET', `/api/memberships?year=${year}`, { token: admin }))
+      .body.items.some((m) => m.person.idStudent === 'fixture.admin' && m.role === 'SH'));
+  ok('STUACT sees club roles in its jurisdiction and not the officers beside it',
+    (await call('GET', '/api/memberships', { token: stuact })).body.items
+      .every((m) => m.club !== null));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

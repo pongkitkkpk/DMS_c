@@ -374,11 +374,11 @@ Four things the owner asked for, to be built later rather than now. Written down
 with what the code already does for each, so picking them up does not start with
 re-reading the codebase.
 
-**Progress: items 2 and 3 are built (2026-08-15). Items 1 and 4 remain.** Item 4
-is next and still needs two answers before it can be built — see below. Item 1
-stays last by design, so the menu is drawn around screens that exist; it now has
-three officer-side entries waiting for it (`/allocations`, `/history`, and
-whatever item 4 becomes), which is exactly the situation it was parked for.
+**Progress: items 2, 3 and 4 are built (2026-08-15). Only item 1 remains**, which
+is where it was always meant to be — last, so the menu is drawn around screens
+that exist rather than guessed at. It now has three officer-side entries waiting
+for it: `/allocations`, `/history` and `/roles`, none of which is reachable from
+the nav yet.
 
 ### 1. The officer's screen needs a menu
 
@@ -487,7 +487,7 @@ Twelve assertions in `check-phase5.js`. The valuable ones cross-check the
 summary against the single-year screens: the two read different tables, so
 agreement is evidence rather than tautology.
 
-### 4. A page for adding roles, usable by ADMIN and STUACT
+### 4. A page for adding roles, usable by ADMIN and STUACT — **built 2026-08-15**
 
 The biggest of the four, and the one that touches decisions already made.
 
@@ -499,8 +499,50 @@ roles rather than treating a second one as replacing the first. But roles are cu
 *seeded*, never created through the API, so this needs new write endpoints, and
 those endpoints hand out authority. Two things to decide before building:
 
-- **Can STUACT create a role outside its own jurisdiction group?** If not, the
-  scope rules that guard projects have to guard membership writes too.
-- **Can a role be granted for a past or future academic year?** Membership is
-  per year, so the form has to ask, and the answer changes what the officer can
-  quietly rewrite.
+- ~~**Can STUACT create a role outside its own jurisdiction group?**~~
+  **Settled 2026-08-15: no, only inside its own.** So the scope rules that guard
+  projects now guard membership writes too (`scope.assertCanGrantRole`).
+- ~~**Can a role be granted for a past or future academic year?**~~
+  **Settled 2026-08-15: next year yes, a year that has closed no.** Preparing
+  next year is planning; backdating a role hands someone authority over projects
+  that were already decided, and unlike a corrected allocation there is no
+  figure to compare afterwards. Note this is deliberately *not* the same answer
+  as the allocations screen got for the same-shaped question.
+
+**What was built**
+
+- **`scope.assertCanGrantRole` + `GRANTABLE_ROLES`** — ADMIN may grant anything;
+  STUACT may grant `SH` and `AD`, and only inside its own jurisdiction.
+- **`membershipService.js`** — list (per year, scoped), search people, create.
+- **`routes/memberships.js`** (`GET/POST /api/memberships`, `GET /api/people`)
+  and **`GET /api/reference/club-groups`** for the jurisdiction selector.
+- **`/roles`** (`frontend/src/pages/RolesPage.js`). `grantableRoles` and
+  `grantableYears` come from the server, so the form cannot offer a choice the
+  server will refuse, and the confirmation names person, role, scope and year in
+  full before writing.
+- `HttpError.conflict` (409), so granting the same role twice is a refusal
+  rather than a silent success.
+
+**A decision made rather than asked, and worth revisiting if it is wrong:**
+STUACT may not grant `STUACT` or `ADMIN`. The owner settled the *jurisdiction*
+question, not which roles; this is the conservative reading. The reasoning is
+that a STUACT who can appoint another STUACT can reach any jurisdiction in two
+steps, which would make the scope check decorative. If officers are in practice
+expected to appoint their own successors, this is one line in `GRANTABLE_ROLES`.
+
+**Two things it deliberately cannot do**
+
+- **Revoke.** There is no `DELETE`. Taking a role away has to answer what
+  happens to the projects that person is mid-way through, and whether the row
+  should disappear or be marked ended — `membership` has no end date and
+  `project_event.actor_person_id` is a hard FK. Inventing an answer here would
+  be worse than the gap. This is the next piece of work in this area.
+- **Create a person.** Identity belongs to ICIT: `person` rows are written on
+  login and nowhere else (`identityService`). So a recipient is searched for,
+  not typed in — they sign in once holding nothing, which is a supported state,
+  and then they can be found. `GET /people` is a search with a three-character
+  minimum rather than a listing, because an endpoint answering "everyone" would
+  be a directory export available to any officer.
+
+Twenty-three assertions in `check-phase5.js`, most of them refusals — this is
+the only endpoint that creates authority rather than spending it.
