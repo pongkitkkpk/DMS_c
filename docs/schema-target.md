@@ -1,8 +1,8 @@
 # Target Schema — the design
 
-**Status**: Complete. Every one of the 843 current columns is accounted for in the coverage map. Four decisions are taken here on assumptions rather than confirmation — listed under "Assumptions taken" and each marked in place.
+**Status**: Complete and built. Every one of the 843 current columns is accounted for in the coverage map. The four decisions taken here on assumptions rather than confirmation (**A1–A4**, under "Assumptions taken") are now **all confirmed** — A1–A3 on 2026-08-12, A4 on 2026-08-15. One table has been added since: `membership_event`, migration 002.
 **Phase**: Phase 0 deliverable 5 of 5 (per `docs/DECISIONS.md` Q23).
-**Last updated**: 2026-08-12
+**Last updated**: 2026-08-15
 
 ---
 
@@ -177,6 +177,40 @@ CREATE TABLE person (
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_person_id_student (id_student)          -- [A4] safe here: one row per human
+);
+
+-- NEW, migration 002 (2026-08-15). No table exists today, and none was needed
+-- while roles could only be seeded. Once they can be granted and revoked
+-- through the API, "who may do what" changes over time and nothing recorded the
+-- changes. Deliberately not a `revoked_at` column on `membership`: a soft
+-- delete would put `revoked_at IS NULL` on the conscience of every read across
+-- the twenty files that touch it, and one missed filter is a revoked person
+-- still holding their role. Deleting the row cannot fail that way, and it costs
+-- nothing that matters — every other table references `person`, never
+-- `membership`, so a project's owner, an event's actor and an approval's
+-- approver all survive the membership that authorised them.
+CREATE TABLE membership_event (
+  id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  action         ENUM('GRANT','REVOKE') NOT NULL,
+  -- The membership as it stood, copied rather than referenced: by the time a
+  -- REVOKE row is read, the row it describes is gone.
+  person_id                  INT UNSIGNED NOT NULL,
+  role                       ENUM('SH','AD','STUACT','ADMIN') NOT NULL,
+  academic_year              SMALLINT UNSIGNED NOT NULL,
+  club_id                    INT UNSIGNED NULL,
+  jurisdiction_club_group_id INT UNSIGNED NULL,
+  actor_person_id INT UNSIGNED NOT NULL,
+  occurred_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_membership_event_subject (person_id, academic_year, occurred_at),
+  KEY ix_membership_event_actor   (actor_person_id, occurred_at),
+  -- No ON DELETE CASCADE anywhere here, unlike `membership` itself: removing a
+  -- person must not quietly erase the record of authority they were given, or
+  -- of authority they handed out.
+  CONSTRAINT fk_membership_event_person FOREIGN KEY (person_id)       REFERENCES person(id),
+  CONSTRAINT fk_membership_event_actor  FOREIGN KEY (actor_person_id) REFERENCES person(id),
+  CONSTRAINT fk_membership_event_club   FOREIGN KEY (club_id)         REFERENCES club(id),
+  CONSTRAINT fk_membership_event_group  FOREIGN KEY (jurisdiction_club_group_id)
+      REFERENCES club_group(id)
 );
 
 CREATE TABLE membership (                      -- (person, role, club, year) — the old `users`
@@ -619,6 +653,15 @@ Every current table, and where its 843 columns go. Nothing is dropped silently.
 | `p_addfile` | 6 | `project_attachment` | `filepath` becomes relative (Q21) |
 | `login` | 4 | `login_attempt` | |
 | **Total** | **843** | **29 tables** | |
+
+> **29 is the number of tables the old columns land in, not the size of the
+> schema.** Two tables receive nothing from the old system because nothing like
+> them existed: `agency_allocation` (Q20/Q25, the yearly ceiling) and
+> `membership_event` (migration 002, the record of roles granted and revoked).
+> The built schema is therefore **31 tables across two migrations** — 30 in
+> `001_initial_schema.sql` and 1 in `002_membership_event.sql`. The count above
+> is left as it is because it is answering a different question: whether all 843
+> columns are accounted for.
 
 **Deliberately dropped or replaced by a derived value**, with the reason. Counts are exact and
 were taken from `schema-current.md`'s column inventory, not estimated:

@@ -2,7 +2,7 @@
 
 **Status**: Complete for organisation, identity, scope, the project aggregate and the budget aggregate. Award categories (`D06`–`D12`) are described from their labels only — no workflow was found that uses them.
 **Phase**: Phase 0 deliverable 4 of 5 (per `docs/DECISIONS.md` Q23).
-**Last updated**: 2026-08-12
+**Last updated**: 2026-08-15 — "Person vs. account" revised when A4 was confirmed.
 
 ---
 

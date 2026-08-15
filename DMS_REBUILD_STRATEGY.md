@@ -1,11 +1,13 @@
 # DMS Rebuild — Build Plan
 
-**Status**: Phases 0–6 complete. v1 is feature-complete against the old system's screens, with
-one item deliberately not built (email — see Phase 6). **This is a demonstration system**: the
-ICIT integration is out of scope by the owner's decision and `AUTH_PROVIDER=mock` is where it
-is meant to stop.
+**Status**: Phases 0–6 complete, plus the five post-v1 features at the end of this file
+(2026-08-15) — per-year allocations, the year summary, granting and revoking roles, the
+officer's menu, and next-year readiness. v1 is feature-complete against the old system's
+screens, with one item deliberately not built (email — see Phase 6). **This is a demonstration
+system**: the ICIT integration is out of scope by the owner's decision and `AUTH_PROVIDER=mock`
+is where it is meant to stop.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
-**Last updated**: 2026-08-14
+**Last updated**: 2026-08-15
 
 ---
 
@@ -23,7 +25,7 @@ research — every phase points into the Phase 0 documents instead.
 | `docs/schema-current.md` | what the old database actually contains — 15 tables, 843 columns, 11 defects |
 | `docs/business-rules.md` | what the old system actually enforces, with `file:line` |
 | `docs/domain-model.md` | the vocabulary and the entities |
-| `docs/schema-target.md` | the schema being built — 29 tables, full coverage map |
+| `docs/schema-target.md` | the schema — 31 tables across two migrations, full coverage map |
 | `docs/template-contract.md` | the Word forms' 1,426 + 241 tags and their arity |
 
 Two standing rules from the decision record govern every phase:

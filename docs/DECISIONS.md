@@ -1,7 +1,7 @@
 # DMS Rebuild — Decision Record
 
-**Status**: Design settled, implementation not started
-**Last updated**: 2026-08-12
+**Status**: Phases 0–6 complete, plus the post-v1 work recorded at the end of this file. All four Phase 0 assumptions (A1–A4) are closed.
+**Last updated**: 2026-08-15
 **Relationship to `DMS_REBUILD_STRATEGY.md`**: that file has been **rewritten** against these docs and is now the build plan — what to build and in what order. This file remains the record of *why*. The section "Why the strategy doc is obsolete" below refers to its **original** version (commit `b8c7d31`) and is kept as the reason the rewrite was needed.
 
 ---
@@ -921,3 +921,61 @@ From `domain-model.md`:
   assumes this; the "annual" wording elsewhere in this file is loose. **Consequence: the
   per-agency yearly ceiling in Q20/Q25 layer (c) has no table today at all** — it is new
   construction, not a re-typing of this one.
+
+---
+
+## Post-v1 work (2026-08-15)
+
+Everything in this section was built after the six phases closed. The reasoning
+and the measurements live in `DMS_REBUILD_STRATEGY.md`; what is recorded here is
+the decisions themselves, so this file stays the place a decision can be looked
+up.
+
+### Answered by the owner
+
+| | Question | Answer |
+| --- | --- | --- |
+| **A4** | Do `person` and `membership` stay split? | **Yes — one person may hold several roles.** Closes the last of the four Phase 0 assumptions. Q39's original "one role per user" is superseded. |
+| | Where does the current academic year come from? | **`ACADEMIC_YEAR` in `.env`, for now.** Acknowledged as a poor home for a value that must be set fresh each year; deliberately parked, because `config.academicYear` is what resolves every membership and getting it wrong gives every user `role: null`. |
+| | May an allocation be written into a past year? | **Yes, but warned clearly** — the Q33 bargain applied to the year instead of the amount. |
+| | May a role be granted into a past year? | **No.** Next year yes. Deliberately *not* the same answer as the allocation question: correcting a past figure leaves something to compare against, backdating authority does not. |
+| | May a STUACT grant roles outside its own jurisdiction? | **No.** |
+| | Revoke: keep the row or delete it? | **Delete it, and log the change separately** (`membership_event`, migration 002). |
+
+### Decided in the work, and open to revision
+
+- **A STUACT may not grant `STUACT` or `ADMIN`** (`scope.GRANTABLE_ROLES`). The
+  owner settled the *jurisdiction* question, not which roles; this is the
+  conservative reading, because a STUACT who can appoint another STUACT reaches
+  any jurisdiction in two steps and makes the scope check decorative. One line
+  to change if officers are meant to appoint their own successors.
+- **The last-`ADMIN` guard in `revokeMembership` is unreachable today** and says
+  so in the code. Only an ADMIN may revoke an ADMIN, and nobody may revoke their
+  own membership, so one always survives. Kept against the day the second rule
+  is relaxed.
+- **Next-year readiness is reported as state, never as a deadline.** Nagging in
+  June would mean trusting the June boundary, which is still open below; a
+  reminder built on that guess would be wrong once a year.
+
+### Defects found in this work and fixed
+
+Not deviations from the old system — these were introduced here, and are listed
+because Q22's habit of never fixing something silently is worth keeping whatever
+the code's age.
+
+- `GET /memberships/:id/impact` checked the caller's role but not their scope,
+  so an officer could learn another jurisdiction's project count through a
+  membership id. Deviation 1's shape, reached by a different route.
+- `GET /people` returned an `email` no screen used, and passed `%`/`_` into
+  `LIKE` unescaped, so `q=%%%` matched everyone and defeated the search's
+  three-character minimum.
+- The dashboard's allocation card listed every club in scope — 69 rows for an
+  Admin, 89% of the page — which was correct until `/allocations` existed and
+  duplication afterwards.
+- `/history` offered "กำหนดวงเงิน" to roles that may only read one (Q30).
+
+### Still open
+
+The two items in "Open items" above that this work did not close remain open:
+the **academic year boundary** (June is still a guess) and, newly, whether a
+STUACT may appoint another STUACT. Everything else on the post-v1 list is built.
