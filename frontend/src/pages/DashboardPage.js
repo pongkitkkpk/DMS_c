@@ -37,7 +37,13 @@ export default function DashboardPage() {
   const load = useCallback(() => {
     setError(null);
     Promise.all([
-      api.listProjects({ pageSize: 200 }),
+      // Scoped to the year this page says it is showing, for the same reason
+      // the allocations below are. Found by rolling the academic year forward
+      // and looking: the header read 2568, the money card read 2568, and the
+      // phase tiles counted eight projects of which one was 2568's. A year's
+      // overview that silently includes every previous year is worse than no
+      // overview, because it looks like an answer.
+      api.listProjects({ pageSize: 200, year: session.academicYear }),
       // Pinned to the current year on purpose. Asking with no year returns
       // every year the actor may see, and this table renders the club name
       // alone — so the moment a second year existed, each club appeared twice
@@ -168,7 +174,9 @@ export default function DashboardPage() {
               {phases.map((phase) => (
                 <Link
                   key={phase.code}
-                  to={`/projects?phase=${phase.code}`}
+                  // Carries the year too, so the list a tile opens shows the
+                  // number the tile promised rather than every year's.
+                  to={`/projects?year=${session.academicYear}&phase=${phase.code}`}
                   className="kpi"
                   style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >

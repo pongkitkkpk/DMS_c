@@ -718,3 +718,42 @@ because `club_id` leads it. The table grows by one row per funded club per year
 of that is not worth a migration. Recorded because it was checked, not because
 it needs doing. `membership_event`'s own indexes cover both the per-person and
 the newest-first reads.
+
+---
+
+## Year-rollover rehearsal (2026-08-15)
+
+The five post-v1 features exist so a year can be prepared before it starts.
+Nobody had ever run a year that was. This does, and it found something nothing
+else could have.
+
+**Method — no file is edited.** `dotenv` does not overwrite variables already in
+the environment, so the server can be moved to another year for one process:
+
+```
+# prepare next year through the API, as an officer would — allocation + roles
+ACADEMIC_YEAR=2568 npm start          # in place of `npm start`
+```
+
+Then sign in as each fixture and look. Do not run `check:all` during a
+rehearsal: it reseeds between suites and will erase the prepared year.
+
+**What held.** All four prepared roles resolved in the new year, and
+`fixture.otherstudent` — whose club was not prepared — came back `role: null`,
+which is the "known and permitted nothing" state working as designed rather
+than an error. Numbering restarted: the first project of the new year is draft 1.
+The readiness banner moved itself on to 2569. The allocations screen, the roles
+screen and the money rules all followed the year without being told.
+
+**What did not.** The dashboard's phase tiles were not year-scoped. The page
+header said 2568, the allocation card said 2568, and the tiles counted **eight
+projects across two years, of which one was 2568's** — the same defect fixed for
+allocations earlier the same day, still present for projects and invisible until
+a year actually turned. A year's overview that quietly includes every previous
+year is worse than no overview, because it looks like an answer. Fixed, and the
+tiles now carry the year into the list they open, so the list shows the number
+the tile promised.
+
+**Worth repeating** before any real rollover, and worth repeating for 2569 once
+2568 has data in it — the interesting cases are the ones where both years are
+non-empty.
