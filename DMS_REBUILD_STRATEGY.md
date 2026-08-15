@@ -385,10 +385,23 @@ so it was drawn around screens that existed. `check:all` went from 285 to 332.
    deliberate hold rather than an oversight. See item 2.
 3. **Whether STUACT may appoint another STUACT.** Currently no; the reasoning is
    under item 4 and it is one line to change.
-4. **Nothing reminds anyone to set up a new year.** Allocations, roles and the
-   year itself all have to be prepared, all three are now possible in advance,
-   and nothing in the system says when. Related to (2): a year that turns over
-   silently in an `.env` file is a year nobody is warned about.
+4. ~~**Nothing reminds anyone to set up a new year.**~~ **Built 2026-08-15.**
+   `GET /readiness` (`historyService.nextYearReadiness`) reports next year's
+   state in the caller's scope — how many clubs have a ceiling, a student head
+   and an adviser — and the dashboard shows it to ADMIN and STUACT until all
+   three are complete.
+
+   **Deliberately state, not a deadline.** Nagging in June would mean trusting
+   the June boundary, which is still the unconfirmed guess in the open
+   questions; a reminder built on a guess about when the year turns is a
+   reminder that is wrong once a year. This reports what is prepared and lets
+   the reader decide whether it is early. It also means (2) can stay parked
+   without the reminder being wrong.
+
+   The counts are per club, not per person: what matters is whether each club
+   has somebody who can act, not how many people hold cards. The dashboard
+   fetch is `.catch(() => null)` — a banner that cannot be computed must not
+   take the dashboard down with it.
 
 ### 1. The officer's screen needs a menu — **built 2026-08-15**
 

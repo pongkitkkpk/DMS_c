@@ -91,6 +91,9 @@ export const api = {
   // Every year at once, summarised. Takes no parameters on purpose: the scope
   // is the caller's membership and there is nothing here a client may widen.
   history: () => client.get('/history').then((r) => r.data),
+  // Officers only. Answers "has anyone set next year up yet", which nothing
+  // else in the system would ever volunteer.
+  readiness: () => client.get('/readiness').then((r) => r.data),
 
   // Roles. `people` is a search and refuses a short term — `person` is every
   // human who has ever signed in, and a listing endpoint would be a directory

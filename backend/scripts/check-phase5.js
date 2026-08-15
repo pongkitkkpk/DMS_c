@@ -551,6 +551,73 @@ async function login(username) {
   ok('  …and "events" is not read as a membership id',
     (await call('GET', '/api/memberships/events', { token: admin })).status === 200);
 
+  // ------------------------------------------------------------------
+  // Next year's readiness. The interesting property is that it moves: it must
+  // read zero before anything is prepared and count up as things are, or it is
+  // just a banner that always says the same thing.
+  console.log('\n--- is next year ready ---');
+
+  // Measured as deltas, not as absolutes: earlier blocks in this run have
+  // already prepared parts of next year, and a check that assumed a clean slate
+  // would be asserting the order of this file rather than the behaviour.
+  const inScope = (await call('GET', '/api/reference/clubs', { token: stuact })).body.clubs;
+  const ready = await call('GET', '/api/readiness', { token: stuact });
+
+  ok('the readiness report names the year after this one',
+    ready.status === 200 && ready.body.academicYear === year + 1, ready.text.slice(0, 200));
+  ok('  …counts the clubs in scope, not every club',
+    ready.body.clubsTotal === inScope.length && inScope.length > 1,
+    `${ready.body.clubsTotal} vs ${inScope.length}`);
+  ok('  …and a year with most of its clubs unprepared is not ready',
+    ready.body.ready === false && ready.body.clubsWithHead < ready.body.clubsTotal,
+    JSON.stringify(ready.body));
+
+  // A club that nothing in this run has touched yet, so the numbers have to
+  // move rather than merely already being right.
+  const untouched = inScope.find((c) => c.id !== clubId);
+
+  await call('PUT', '/api/allocations', {
+    token: stuact, body: { clubId: untouched.id, academicYear: year + 1, amount: '10000' },
+  });
+  const afterFunding = await call('GET', '/api/readiness', { token: stuact });
+  ok('funding another club for next year moves the count',
+    afterFunding.body.clubsFunded === ready.body.clubsFunded + 1,
+    `${ready.body.clubsFunded} -> ${afterFunding.body.clubsFunded}`);
+
+  await call('POST', '/api/memberships', {
+    token: stuact,
+    body: { personId: adminPerson.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
+  });
+  const afterRole = await call('GET', '/api/readiness', { token: stuact });
+  ok('granting another club\'s student head moves the count',
+    afterRole.body.clubsWithHead === ready.body.clubsWithHead + 1,
+    `${ready.body.clubsWithHead} -> ${afterRole.body.clubsWithHead}`);
+  ok('  …counted per club, so a second head at the same club adds nothing',
+    (await call('POST', '/api/memberships', {
+      token: stuact,
+      body: { personId: advisorPerson.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
+    })).status === 201 &&
+    (await call('GET', '/api/readiness', { token: stuact })).body.clubsWithHead ===
+      afterRole.body.clubsWithHead);
+  ok('  …and it is still not ready while other clubs are unprepared',
+    afterRole.body.ready === false && afterRole.body.clubsTotal > 2);
+
+  ok('a student cannot read the readiness report',
+    (await call('GET', '/api/readiness', { token: sh })).status === 403);
+  ok('  …nor a student in another club',
+    (await call('GET', '/api/readiness', { token: otherSh })).status === 403);
+
+  // A4 in the wild. `fixture.advisor` was an adviser and was granted STUACT
+  // earlier in this run, so they now hold both; ROLE_PRECEDENCE resolves them
+  // as a STUACT and the officer endpoints open up. Worth pinning, because it is
+  // the one place a person's permissions change without their AD role changing.
+  ok('an adviser who was also made an officer is treated as the officer',
+    (await call('GET', '/api/readiness', { token: ad })).status === 200 &&
+    (await call('GET', '/api/me', { token: ad })).body.role === 'STUACT' &&
+    (await call('GET', '/api/me', { token: ad })).body.memberships.length === 2);
+
+  ok('unauthenticated readiness 401', (await call('GET', '/api/readiness')).status === 401);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

@@ -24,4 +24,12 @@ router.get('/history', asyncRoute(async (req, res) => {
   res.json(await history.listYears(req.actor));
 }));
 
+/**
+ * The same question asked of the year ahead. Officers only — it exists to tell
+ * the people who would prepare a year whether anyone has.
+ */
+router.get('/readiness', asyncRoute(async (req, res) => {
+  res.json(await history.nextYearReadiness(req.actor));
+}));
+
 module.exports = router;

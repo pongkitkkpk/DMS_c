@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [allocations, setAllocations] = useState(null);
   const [clubs, setClubs] = useState([]);
   const [phases, setPhases] = useState([]);
+  const [readiness, setReadiness] = useState(null);
   const [error, setError] = useState(null);
 
   const mayAllocate = MAY_ALLOCATE.includes(session.role);
@@ -45,12 +46,17 @@ export default function DashboardPage() {
       api.allocations({ year: session.academicYear }),
       api.phases(),
       mayAllocate ? api.clubs() : Promise.resolve({ clubs: [] }),
+      // Officers only, and never allowed to break the page it sits on: a
+      // dashboard that fails to load because a readiness banner could not be
+      // computed would be a poor trade for a reminder.
+      mayAllocate ? api.readiness().catch(() => null) : Promise.resolve(null),
     ])
-      .then(([p, a, r, c]) => {
+      .then(([p, a, r, c, next]) => {
         setProjects(p);
         setAllocations(a);
         setPhases(r.phases);
         setClubs(c.clubs);
+        setReadiness(next);
       })
       .catch((err) => setError(messageOf(err)));
   }, [mayAllocate, session.academicYear]);
@@ -119,6 +125,29 @@ export default function DashboardPage() {
         </div>
         <Link className="u-spacer u-small u-muted" to="/projects">ดูรายการโครงการทั้งหมด →</Link>
       </div>
+
+      {/* Three things have to exist before a year can be worked in — its
+          allocations, its roles, and the year itself — and all three can now be
+          prepared in advance while nothing anywhere says they should be. A club
+          with no ceiling cannot have money approved and a year with no student
+          head has nobody who can open a project; both fail at the moment
+          somebody needs them. Shown as state rather than as a deadline: the
+          June boundary is still a guess, and a reminder built on a guess about
+          when the year turns would be wrong once a year. */}
+      {readiness && !readiness.ready && (
+        <div className="notice mb-4">
+          <span className="notice__mark" aria-hidden="true">i</span>
+          <span>
+            ปีการศึกษา <strong>{readiness.academicYear}</strong> ยังไม่ได้เตรียม —{' '}
+            วงเงิน {readiness.clubsFunded}/{readiness.clubsTotal} ชมรม ·{' '}
+            หัวหน้านักศึกษา {readiness.clubsWithHead}/{readiness.clubsTotal} ชมรม ·{' '}
+            อาจารย์ที่ปรึกษา {readiness.clubsWithAdvisor}/{readiness.clubsTotal} ชมรม{' '}
+            <Link to={`/allocations?year=${readiness.academicYear}`}>กำหนดวงเงิน</Link>
+            {' · '}
+            <Link to="/roles">กำหนดสิทธิ์</Link>
+          </span>
+        </div>
+      )}
 
       {allocations.overCommitted.length > 0 && (
         <div className="notice notice--danger mb-4">

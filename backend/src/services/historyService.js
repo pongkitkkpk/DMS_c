@@ -1,6 +1,12 @@
 /**
- * One row per academic year: what was allocated, what was approved against it,
- * and how the year's projects ended up distributed across the phase machine.
+ * How a year is doing — looking back across all of them, and forward at the one
+ * that has not started.
+ *
+ * `listYears` gives one row per academic year: what was allocated, what was
+ * approved against it, and how the year's projects ended up distributed across
+ * the phase machine. `nextYearReadiness` asks the same kind of question of the
+ * year ahead, where every count is expected to be zero until somebody prepares
+ * it.
  *
  * Nothing here is new information. Every figure already existed somewhere —
  * `allocationService` computes allocated/committed/remaining per (club, year),
@@ -18,6 +24,7 @@
  *   `allocationService` makes, for the same reason.
  */
 const { pool } = require('../db/pool');
+const { HttpError } = require('../lib/httpError');
 const { satang, fromSatang } = require('../lib/money');
 const { clubVisibilityClause, visibilityClause } = require('./scope');
 
@@ -145,4 +152,74 @@ async function listYears(actor) {
   return { items };
 }
 
-module.exports = { listYears };
+/**
+ * Whether next year has been set up yet, for the officers who would set it up.
+ *
+ * Three things now have to be prepared before an academic year can be worked
+ * in — its allocations, its roles, and the year itself — and all three became
+ * preparable in advance without anything ever saying that they should be. A
+ * club with no ceiling cannot have money approved; a year with no `SH` has
+ * nobody who can open a project. Both fail at the moment someone needs them,
+ * which is the worst moment to discover a form nobody filled in.
+ *
+ * Deliberately **not** time-based. Nagging in June would mean trusting the
+ * June boundary, which is still the unconfirmed guess recorded in the open
+ * questions (`config.currentAcademicYear`), and a reminder built on a guess
+ * about when the year turns is a reminder that will be wrong once a year. This
+ * just reports the state and lets the reader decide whether it is early.
+ *
+ * Scoped like everything else, so a STUACT sees its own group's readiness and
+ * an Admin the whole institution's.
+ */
+async function nextYearReadiness(actor) {
+  const role = actor.membership ? actor.membership.role : null;
+  if (role !== 'ADMIN' && role !== 'STUACT') {
+    throw HttpError.forbidden('ดูความพร้อมของปีถัดไปได้เฉพาะผู้ดูแลระบบและกองกิจการนักศึกษา');
+  }
+
+  const academicYear = Number(actor.academicYear) + 1;
+  const visibility = clubVisibilityClause(actor);
+
+  const [[clubs]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM club c WHERE ${visibility.sql}`,
+    visibility.params
+  );
+  const [[funded]] = await pool.query(
+    `SELECT COUNT(*) AS total
+       FROM agency_allocation a
+       JOIN club c ON c.id = a.club_id
+      WHERE a.academic_year = ? AND ${visibility.sql}`,
+    [academicYear, ...visibility.params]
+  );
+
+  // Club roles only, and counted by club rather than by person: what matters is
+  // whether each club has someone who can act, not how many people hold cards.
+  const [roleRows] = await pool.query(
+    `SELECT m.role, COUNT(DISTINCT m.club_id) AS clubs
+       FROM membership m
+       JOIN club c ON c.id = m.club_id
+      WHERE m.academic_year = ? AND m.role IN ('SH','AD') AND ${visibility.sql}
+      GROUP BY m.role`,
+    [academicYear, ...visibility.params]
+  );
+  const byRole = new Map(roleRows.map((row) => [row.role, Number(row.clubs)]));
+
+  const clubsTotal = Number(clubs.total);
+  const clubsFunded = Number(funded.total);
+  const clubsWithHead = byRole.get('SH') || 0;
+  const clubsWithAdvisor = byRole.get('AD') || 0;
+
+  return {
+    academicYear,
+    clubsTotal,
+    clubsFunded,
+    clubsWithHead,
+    clubsWithAdvisor,
+    // One flag rather than three, because the screen's question is "is there
+    // anything to do here", and a club that is funded but has no student head
+    // is no more ready than one with neither.
+    ready: clubsTotal > 0 && clubsFunded === clubsTotal && clubsWithHead === clubsTotal,
+  };
+}
+
+module.exports = { listYears, nextYearReadiness };
