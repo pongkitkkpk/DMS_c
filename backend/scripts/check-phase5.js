@@ -542,6 +542,18 @@ async function login(username) {
   const survives = await call('GET', `/api/projects/${id}`, { token: stuact });
   ok('the projects and history the row authorised are untouched', survives.status === 200);
 
+  // Newly reachable: a STUACT may now grant its own kind, so it may also take
+  // one back. Symmetric on purpose — an officer able to appoint a colleague and
+  // not to remove them would leave the same write-only gap the list fix closed.
+  // Two officers can therefore remove each other, which is not a lockout: only
+  // an empty ADMIN set is unrecoverable, and ADMIN is not theirs to touch.
+  const colleague = (await call('GET', '/api/memberships', { token: stuact }))
+    .body.items.find((m) => m.role === 'STUACT' && m.person.idStudent !== 'fixture.stuact');
+  ok('STUACT may revoke a fellow officer of its own jurisdiction',
+    colleague !== undefined &&
+    (await call('DELETE', `/api/memberships/${colleague.id}`, { token: stuact })).status === 200,
+    colleague ? `membership ${colleague.id}` : 'no colleague found to revoke');
+
   ok('STUACT cannot revoke a role it could not have granted',
     (await call('DELETE', `/api/memberships/${grantStuact.body.membership.id}`, { token: stuact }))
       .status === 403);
