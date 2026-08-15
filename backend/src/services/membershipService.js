@@ -23,7 +23,10 @@
  *    yes, a year that has closed no. Backdating a role would hand someone
  *    authority over projects that were already decided, and unlike a corrected
  *    allocation there is no figure to compare afterwards.
- * 4. **The shape the schema demands.** `ck_membership_scope` requires a club
+ * 4. **`SH` must be a student account.** หัวหน้าชมรม is a student by definition,
+ *    which `domain-model.md` has always said and no rule had ever read. See the
+ *    check itself for why enforcing it also closes a self-approval path.
+ * 5. **The shape the schema demands.** `ck_membership_scope` requires a club
  *    for SH/AD, a jurisdiction for STUACT and neither for ADMIN. That check is
  *    the real guarantee; what this file adds is a readable error instead of a
  *    constraint violation.
@@ -302,11 +305,26 @@ async function createMembership(actor, body) {
 
   return transaction(async (conn) => {
     const [[person]] = await conn.query(
-      'SELECT id, full_name_th FROM person WHERE id = ?', [personId]
+      'SELECT id, full_name_th, account_type FROM person WHERE id = ?', [personId]
     );
     // The chicken-and-egg this design deliberately does not have: they sign in
     // once, holding nothing, and then they can be given something.
     if (!person) throw HttpError.badRequest('ไม่พบผู้ใช้ — ผู้รับสิทธิ์ต้องเคยเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง');
+
+    // `SH` is หัวหน้าชมรม — a student, by definition (docs/domain-model.md).
+    // The system stored `account_type` from the day it was built and no rule had
+    // ever read it, so nothing stopped an officer being made a club head. That
+    // combination is impossible in the university and, left possible here, it was
+    // the one way a single person could hold `SH` (which opens projects) and
+    // `STUACT` (which approves their money) and so approve their own request.
+    // Enforcing what was already true closes that without needing a separate
+    // separation-of-duties rule. Only `SH` is constrained: the owner confirmed
+    // this one, and guessing the rest would refuse grants nobody asked to refuse.
+    if (role === 'SH' && person.account_type !== 'students') {
+      throw HttpError.badRequest(
+        `${person.full_name_th} เป็นบัญชีบุคลากร — หัวหน้าชมรมต้องเป็นบัญชีนักศึกษา`
+      );
+    }
 
     let club = null;
     if (clubId) {

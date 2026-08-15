@@ -170,7 +170,7 @@ migrating into an empty staff table.
 
 | Code | Thai | Scope | Notes |
 | --- | --- | --- | --- |
-| `SH` | หัวหน้าชมรม / นักศึกษาเจ้าของโครงการ | own club | the proposing role |
+| `SH` | หัวหน้าชมรม / นักศึกษาเจ้าของโครงการ | own club | the proposing role. **A student by definition** — enforced since 2026-08-16: `createMembership` refuses `SH` for a `personel` account. |
 | `AD` | อาจารย์ที่ปรึกษา | own club | read-only in v1 (Q5) |
 | `Stuact` | เจ้าหน้าที่กองกิจการนักศึกษา | **one club group** | the reviewing role |
 | `Admin` | ผู้ดูแลระบบ | global | |

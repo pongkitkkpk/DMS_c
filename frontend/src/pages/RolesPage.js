@@ -120,9 +120,13 @@ export default function RolesPage() {
   const grantableGroups = session.role === 'ADMIN'
     ? clubGroups
     : clubGroups.filter((g) => Number(g.id) === Number(myJurisdiction));
+  // หัวหน้าชมรม is a student. The server refuses otherwise; saying so here
+  // means the officer reads it while choosing rather than after submitting.
+  const wrongAccountType = role === 'SH' && person && person.accountType !== 'students';
   const ready =
     person &&
     role &&
+    !wrongAccountType &&
     (scopeKind === 'club' ? Boolean(clubId) : scopeKind === 'group' ? Boolean(groupId) : true);
 
   const resetForm = () => {
@@ -389,6 +393,12 @@ export default function RolesPage() {
                 </Button>
               </div>
             </div>
+
+            {wrongAccountType && (
+              <div className="u-small" style={{ color: 'var(--c-danger)' }}>
+                {person.fullNameTh} เป็นบัญชีบุคลากร — หัวหน้าชมรมต้องเป็นบัญชีนักศึกษา
+              </div>
+            )}
           </div>
         </Card>
 

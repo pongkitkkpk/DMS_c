@@ -377,6 +377,10 @@ async function login(username) {
 
   const advisorPerson = found.body.people.find((p) => p.idStudent === 'fixture.advisor');
   const adminPerson = found.body.people.find((p) => p.idStudent === 'fixture.admin');
+  // หัวหน้าชมรม must be a student account, so every SH grant below that is meant
+  // to succeed uses one. The staff accounts stay where the point is a refusal.
+  const studentPerson = found.body.people.find((p) => p.idStudent === 'fixture.otherstudent');
+  const shPerson2 = found.body.people.find((p) => p.idStudent === 'fixture.student');
 
   ok('an unknown person is refused, not created',
     (await call('POST', '/api/memberships', {
@@ -387,22 +391,33 @@ async function login(username) {
   // and is about to hold SH as well. If person and membership had been collapsed
   // this call could not succeed.
   const second = await call('POST', '/api/memberships', {
-    token: stuact, body: { personId: advisorPerson.id, role: 'SH', academicYear: year, clubId },
+    token: stuact, body: { personId: studentPerson.id, role: 'SH', academicYear: year, clubId },
   });
   ok('A4: one person may hold a second role in the same year', second.status === 201,
     second.text.slice(0, 250));
   ok('  …and granting the same one twice is a conflict, not a silent success',
     (await call('POST', '/api/memberships', {
-      token: stuact, body: { personId: advisorPerson.id, role: 'SH', academicYear: year, clubId },
+      token: stuact, body: { personId: studentPerson.id, role: 'SH', academicYear: year, clubId },
     })).status === 409);
 
-  // The other student's own club, which the fixtures put in a different group —
-  // read through their token rather than hard-coded, so it stays the right club
-  // if the fixtures move.
-  const outsideClub = (await call('GET', '/api/reference/clubs', { token: otherSh })).body.clubs[0];
+  // A club in a different group from the STUACT's, found through the Admin's
+  // full list and the STUACT's own jurisdiction.
+  //
+  // It used to be read through `otherSh`'s token — their own club, which the
+  // fixtures put in another group. That broke the moment the A4 test above
+  // granted that same student a second club: `clubVisibilityClause` resolves
+  // from their *primary* membership, and with two equal-precedence SH rows the
+  // choice between them is arbitrary, so "the other student's club" quietly
+  // became a club inside the jurisdiction and the refusal under test stopped
+  // being the one intended. Derived from the group id, it cannot drift.
+  const stuactGroup = (await call('GET', '/api/me', { token: stuact })).body.membership.jurisdiction_club_group_id;
+  const outsideClub = (await call('GET', '/api/reference/clubs', { token: admin }))
+    .body.clubs.find((c) => Number(c.clubGroupId) !== Number(stuactGroup));
   ok('STUACT cannot grant into a club outside its jurisdiction',
     (await call('POST', '/api/memberships', {
-      token: stuact, body: { personId: adminPerson.id, role: 'SH', academicYear: year, clubId: outsideClub.id },
+      // A student, so the refusal is the jurisdiction rule and not the
+      // account-type rule that would fire first for a staff account.
+      token: stuact, body: { personId: shPerson2.id, role: 'SH', academicYear: year, clubId: outsideClub.id },
     })).status === 403);
   // A STUACT may appoint a colleague beside it — the owner's call — but only
   // into its own jurisdiction. Into another group it would be reaching that
@@ -455,23 +470,28 @@ async function login(username) {
 
   ok('a role cannot be granted into a year that has closed',
     (await call('POST', '/api/memberships', {
-      token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year - 1, clubId },
+      token: admin, body: { personId: studentPerson.id, role: 'SH', academicYear: year - 1, clubId },
     })).status === 400);
   const nextYearGrant = await call('POST', '/api/memberships', {
-    token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year + 1, clubId },
+    token: admin, body: { personId: studentPerson.id, role: 'SH', academicYear: year + 1, clubId },
   });
   ok('  …but next year may be prepared in advance', nextYearGrant.status === 201,
     nextYearGrant.text.slice(0, 250));
   ok('  …and no further than that',
     (await call('POST', '/api/memberships', {
-      token: admin, body: { personId: adminPerson.id, role: 'SH', academicYear: year + 2, clubId },
+      token: admin, body: { personId: studentPerson.id, role: 'SH', academicYear: year + 2, clubId },
     })).status === 400);
 
   const listedNext = await call('GET', `/api/memberships?year=${year + 1}`, { token: admin });
+  // Identified by the membership's own id, not by who holds it. The same
+  // student legitimately holds a role in both years by now, so matching on the
+  // person would be asserting the fixtures rather than the year filter.
+  const nextYearId = nextYearGrant.body.membership.id;
   ok('the list is per year, so next year\'s grant shows there and not in this one',
-    listedNext.body.items.some((m) => m.person.idStudent === 'fixture.admin') &&
+    listedNext.body.items.some((m) => m.id === nextYearId) &&
     !(await call('GET', `/api/memberships?year=${year}`, { token: admin }))
-      .body.items.some((m) => m.person.idStudent === 'fixture.admin' && m.role === 'SH'));
+      .body.items.some((m) => m.id === nextYearId),
+    `membership ${nextYearId}`);
   // What an officer may list is what it may hand out. Before a STUACT could
   // appoint another STUACT this list was club roles only, which after the change
   // meant it could create a colleague it could then never see or revoke — a
@@ -494,8 +514,12 @@ async function login(username) {
   console.log('\n--- revoking roles ---');
 
   const beforeRevoke = await call('GET', '/api/memberships', { token: stuact });
+  // The second SH the A4 test granted at this club — a role the STUACT may act
+  // on, and not the club's original head, so revoking it leaves the fixtures
+  // usable for everything after this point.
   const target = beforeRevoke.body.items.find(
-    (m) => m.person.idStudent === 'fixture.advisor' && m.role === 'SH');
+    (m) => m.person.idStudent === 'fixture.otherstudent' && m.role === 'SH' &&
+           m.club && m.club.id === clubId);
 
   ok('a student cannot revoke',
     (await call('DELETE', `/api/memberships/${target.id}`, { token: sh })).status === 403);
@@ -632,7 +656,7 @@ async function login(username) {
 
   await call('POST', '/api/memberships', {
     token: stuact,
-    body: { personId: adminPerson.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
+    body: { personId: studentPerson.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
   });
   const afterRole = await call('GET', '/api/readiness', { token: stuact });
   ok('granting another club\'s student head moves the count',
@@ -641,7 +665,7 @@ async function login(username) {
   ok('  …counted per club, so a second head at the same club adds nothing',
     (await call('POST', '/api/memberships', {
       token: stuact,
-      body: { personId: advisorPerson.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
+      body: { personId: shPerson2.id, role: 'SH', academicYear: year + 1, clubId: untouched.id },
     })).status === 201 &&
     (await call('GET', '/api/readiness', { token: stuact })).body.clubsWithHead ===
       afterRole.body.clubsWithHead);
@@ -652,6 +676,23 @@ async function login(username) {
     (await call('GET', '/api/readiness', { token: sh })).status === 403);
   ok('  …nor a student in another club',
     (await call('GET', '/api/readiness', { token: otherSh })).status === 403);
+
+  // หัวหน้าชมรม is a student — what `domain-model.md` always said and no rule
+  // had ever read. Enforcing it also closes the only route by which one person
+  // could hold SH (opens projects) and STUACT (approves their money).
+  const stuactPerson = found.body.people.find((p) => p.idStudent === 'fixture.stuact');
+  ok('a staff account cannot be made หัวหน้าชมรม',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: stuactPerson.id, role: 'SH', academicYear: year, clubId },
+    })).status === 400);
+  ok('  …including by the officer themselves, which is what closes self-approval',
+    (await call('POST', '/api/memberships', {
+      token: stuact, body: { personId: stuactPerson.id, role: 'SH', academicYear: year, clubId },
+    })).status === 400);
+  ok('  …while the other roles are unconstrained by account type',
+    (await call('POST', '/api/memberships', {
+      token: admin, body: { personId: stuactPerson.id, role: 'AD', academicYear: year, clubId },
+    })).status === 201);
 
   // A4 in the wild. `fixture.advisor` was an adviser and was granted STUACT
   // earlier in this run, so they now hold both; ROLE_PRECEDENCE resolves them

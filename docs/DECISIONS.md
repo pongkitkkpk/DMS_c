@@ -996,7 +996,20 @@ the single action that can lock the system, which is an argument for moving the
 year somewhere an officer sets deliberately — and for the readiness banner that
 warns before the moment arrives.
 
-### Separation of duties across roles — open (raised 2026-08-16)
+### Separation of duties across roles — closed (2026-08-16)
+
+**The owner's clarification closed it: `SH` is หัวหน้าชมรม, which is a student.**
+`domain-model.md` had always said so and no rule had ever read `account_type`,
+so nothing stopped an officer being made a club head — the one combination by
+which a single person could hold `SH` (opens projects) and `STUACT` (approves
+their money) and approve their own request. `createMembership` now refuses `SH`
+for a `personel` account, which closes it by encoding something already true
+rather than by inventing a separation-of-duties rule.
+
+Only `SH` is constrained. Whether `AD`/`STUACT` must be `personel` is equally
+plausible and was not asked, so it is not assumed.
+
+<details><summary>The question as originally raised</summary>
 
 A4 lets one person hold several memberships, and a STUACT may grant club roles
 inside its own jurisdiction — including to itself. So one person can hold `SH`
@@ -1007,6 +1020,8 @@ to prevent", which is now true of the role and not of the person.
 Left as it is deliberately: whether the university enforces separation of duties
 is a process question, not a code one, and an ADMIN could always do the same.
 Needs an explicit answer before it is either enforced or written off.
+
+</details>
 
 ### Still open
 
