@@ -129,19 +129,32 @@ a:hover {
   margin: 0 auto;
   padding: var(--s-3) var(--s-5);
   display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Who you are and how to leave. The nav is the row below. */
+.app-bar__top {
+  display: flex;
   align-items: center;
   gap: var(--s-4);
 }
 
+/* Nothing in the bar shrinks, and every `nowrap` is paired with an `overflow`.
+   Text that cannot wrap and is not clipped does not stay inside its box — it
+   paints over its neighbour, which is how the brand name came to be printed
+   across the first nav link. With the nav on its own row there is room for
+   every label at full length, so shrinking is not the answer to anything here;
+   below 768px the user's name still drops out entirely (`d-none d-md-block`),
+   leaving the avatar and the role badge. */
 .app-brand {
   display: flex;
   align-items: center;
   gap: var(--s-3);
   font-weight: 600;
   color: var(--c-text);
-  /* Without this the brand's long Thai name is treated as an unshrinkable
-     minimum and everything to its right is squeezed instead. */
-  min-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 .app-brand:hover { color: var(--c-text); }
 
@@ -149,14 +162,12 @@ a:hover {
    a sign-out button all shrinking at once turned a full bar into four ragged
    two-line blocks; giving way in one deliberate step reads as a layout rather
    than a collision. */
-.app-brand__text { white-space: nowrap; }
-.app-brand__name { display: none; }
-
-@media (min-width: 1100px) {
-  .app-brand__name { display: inline; }
-}
+.app-brand__text { white-space: nowrap; overflow: hidden; }
 
 .app-brand__mark {
+  /* A 32px square is a size, not a suggestion. As a flex child it was being
+     squeezed narrower than it is tall and the มจพ inside it clipped. */
+  flex: none;
   width: 32px;
   height: 32px;
   border-radius: var(--r-sm);
@@ -183,7 +194,12 @@ a:hover {
   padding: var(--s-1) var(--s-2) var(--s-1) var(--s-1);
   border-radius: var(--r-pill);
   white-space: nowrap;
+  flex-shrink: 0;
 }
+
+/* The avatar and the role badge are fixed sizes, not suggestions. */
+.user-chip > .avatar,
+.user-chip > .pill { flex: none; }
 
 .avatar {
   width: 32px;
@@ -456,16 +472,12 @@ a.table-x__title::after {
 /* Five entries for an officer, in Thai, next to a long brand and a user chip.
    The nav is the part allowed to give way: it may wrap to a second line rather
    than push the sign-out button off the bar. */
+/* Its own row, so it never competes with the brand or the user chip for width.
+   Aligned with the brand mark above it rather than indented. */
 .app-nav {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-1);
-  margin-left: var(--s-5);
-  /* Explicitly not shrinkable. As a flex item next to a `u-spacer` the nav was
-     being compressed below its own content and wrapping the last entry onto a
-     second line while the bar still had room to its right — the room the
-     spacer was holding. Wrapping stays as a last resort for real narrowness. */
-  flex-shrink: 0;
 }
 
 .app-nav__link {
@@ -488,7 +500,6 @@ a.table-x__title::after {
 }
 
 @media (max-width: 640px) {
-  .app-nav { margin-left: var(--s-2); }
   .app-nav__link { padding: var(--s-2); }
 }
 

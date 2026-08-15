@@ -404,15 +404,40 @@ so hiding them would have made the nav claim a restriction the API does not
 have. A person holding no membership sees every entry and finds every list
 empty, which is the honest answer.
 
-**The layout work was the real content of this item.** Five Thai labels next to
-a long brand, a name, a scope line and a sign-out button do not fit at the
-layout's own width, and the first attempt let all four give way at once — the
-bar became four ragged two-line blocks. Fixed by deciding what yields, in order:
-nothing in the bar wraps its own text; the brand's full name disappears below
-1100px leaving the mark and the year; and the nav is `flex-shrink: 0`, which was
-the actual bug — as a flex item beside a `u-spacer` it was being compressed
-below its own content and wrapping its last entry while the bar still had the
-room the spacer was holding.
+**The layout work was the real content of this item, and it took measuring to
+get right.** Five Thai labels next to a long brand, a name, a scope line and a
+sign-out button do not fit on one row, and two rounds of guessing made it worse
+before the numbers settled it:
+
+| | width |
+| --- | ---: |
+| brand (mark, name, year) | 286 |
+| nav, five entries | 400 |
+| user chip | 276 |
+| sign-out | 118 |
+| gaps + padding | 112 |
+| **needed** | **1192** |
+| **`.app-bar__inner` max-width** | **1140** |
+
+Short by 52px, and — the decisive part — `max-width` means **a wider screen
+never helps**, so the media query that hid the brand's name below 1100px could
+not have worked at any size. On one row, something had to be permanently
+deleted: the app's own name, or the meaning of the nav labels.
+
+So the nav gets its own row. Every label stays whole, the top row has room to
+spare, and the bar aligns exactly with the content column below it. The cost is
+about 40px of vertical chrome, which is the cheaper thing to spend.
+
+Two real bugs found on the way, both introduced by the earlier guesses:
+
+- `min-width: 0` on `.app-brand` plus `white-space: nowrap` and no `overflow`.
+  Text that cannot wrap and is not clipped does not stay in its box — the brand
+  name was painted straight across the first nav link.
+- `.app-brand__mark` had a 32px width but no `flex: none`, so as a flex child it
+  was squeezed narrower than it was tall and the มจพ inside it clipped.
+
+The rule now: nothing in the bar shrinks, and every `nowrap` is paired with an
+`overflow`.
 
 ### 2. Allocations are per academic year, and each year is set fresh — **built 2026-08-15**
 

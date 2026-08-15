@@ -68,6 +68,13 @@ function AppBar() {
   return (
     <header className="app-bar">
       <div className="app-bar__inner">
+        {/* Two rows, measured rather than guessed. Brand, user and sign-out
+            come to 680px and the five nav entries to 400; with gaps and
+            padding that is 1192 against a container capped at 1140, so on one
+            row it overflowed at every viewport width — the cap means a wider
+            screen never helps. Giving the nav its own row keeps every label
+            whole instead of hiding the app's own name to buy 200px. */}
+        <div className="app-bar__top">
         <Link to="/projects" className="app-brand">
           <span className="app-brand__mark">มจพ</span>
           <span className="app-brand__text">
@@ -81,19 +88,6 @@ function AppBar() {
             </span>
           </span>
         </Link>
-
-        <nav className="app-nav">
-          {NAV.filter((item) => !item.roles || item.roles.includes(session.role)).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className="app-nav__link"
-              activeClassName="is-current"
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
 
         <div className="u-spacer" />
 
@@ -118,6 +112,20 @@ function AppBar() {
         >
           ออกจากระบบ
         </Button>
+        </div>
+
+        <nav className="app-nav">
+          {NAV.filter((item) => !item.roles || item.roles.includes(session.role)).map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className="app-nav__link"
+              activeClassName="is-current"
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
       </div>
     </header>
   );
