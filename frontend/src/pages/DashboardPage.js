@@ -37,7 +37,12 @@ export default function DashboardPage() {
     setError(null);
     Promise.all([
       api.listProjects({ pageSize: 200 }),
-      api.allocations(),
+      // Pinned to the current year on purpose. Asking with no year returns
+      // every year the actor may see, and this table renders the club name
+      // alone — so the moment a second year existed, each club appeared twice
+      // with nothing to tell the two rows apart. The year-by-year view lives on
+      // /allocations, which asks the question properly.
+      api.allocations({ year: session.academicYear }),
       api.phases(),
       mayAllocate ? api.clubs() : Promise.resolve({ clubs: [] }),
     ])
@@ -48,7 +53,7 @@ export default function DashboardPage() {
         setClubs(c.clubs);
       })
       .catch((err) => setError(messageOf(err)));
-  }, [mayAllocate]);
+  }, [mayAllocate, session.academicYear]);
 
   useEffect(load, [load]);
 
@@ -149,8 +154,14 @@ export default function DashboardPage() {
         </Card>
 
         <Card
-          title="วงเงินจัดสรรรายชมรม"
-          aside={mayAllocate ? 'แก้ไขได้' : 'อ่านอย่างเดียว'}
+          title={`วงเงินจัดสรรรายชมรม · ปีการศึกษา ${session.academicYear}`}
+          aside={
+            <>
+              {mayAllocate ? 'แก้ไขได้' : 'อ่านอย่างเดียว'}
+              {' · '}
+              <Link className="u-muted" to="/allocations">ดูรายปี →</Link>
+            </>
+          }
         >
           {allocations.items.length === 0 && unfunded.length === 0 ? (
             <Empty mark="฿" title="ยังไม่มีวงเงินจัดสรรในขอบเขตของบัญชีนี้" />

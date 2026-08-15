@@ -377,6 +377,79 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
       token: admin, body: { amount: '1', receivedByName: 'a', issuedByName: 'b' },
     })).status === 400);
 
+  // ------------------------------------------------------------------
+  // The ceiling is per (club, year) and each year is set fresh, so a second
+  // year must be reachable and must not disturb the first. Until the year
+  // filter was used by a caller this was only true in the schema: the list
+  // answered with every year at once, and the dashboard rendered the club name
+  // alone, so two years would have shown each club twice, indistinguishably.
+  console.log('\n--- allocations are per academic year ---');
+
+  const nextYear = year + 1;
+  const thisYearBefore = await call('GET', `/api/allocations?year=${year}&clubId=${clubId}`, { token: admin });
+  const thisYearAmount = thisYearBefore.body.items[0].amount;
+
+  ok('an allocation can be set for a year that is not the current one',
+    (await call('PUT', '/api/allocations', {
+      token: admin, body: { clubId, academicYear: nextYear, amount: '123456' },
+    })).status === 200);
+
+  const next = await call('GET', `/api/allocations?year=${nextYear}`, { token: admin });
+  ok('the year filter returns only that year',
+    next.status === 200 && next.body.items.length > 0 &&
+    next.body.items.every((a) => a.academicYear === nextYear),
+    next.text.slice(0, 200));
+
+  const current = await call('GET', `/api/allocations?year=${year}`, { token: admin });
+  ok('the current year does not see the other year\'s row',
+    current.body.items.every((a) => a.academicYear === year));
+
+  ok('setting one year left the other year\'s amount alone',
+    current.body.items.find((a) => a.club.id === clubId).amount === thisYearAmount,
+    `${thisYearAmount} -> ${(current.body.items.find((a) => a.club.id === clubId) || {}).amount}`);
+
+  ok('committed is counted per year, so the new year starts uncommitted',
+    Number(next.body.items.find((a) => a.club.id === clubId).committed) === 0);
+
+  ok('`years` lists every year in scope, newest first',
+    Array.isArray(next.body.years) &&
+    next.body.years.includes(year) && next.body.years.includes(nextYear) &&
+    next.body.years[0] >= next.body.years[next.body.years.length - 1],
+    JSON.stringify(next.body.years));
+
+  // A year picker built from another club's years would name years this caller
+  // cannot see a single row of — so the data half of the range is scoped like
+  // the rows are. Tested with a far year, because the current one and the one
+  // after it are offered to everybody by design.
+  const farYear = year + 3;
+  await call('PUT', '/api/allocations', {
+    token: admin, body: { clubId, academicYear: farYear, amount: '1000' },
+  });
+  ok('`years` picks up a far year for the club that has one',
+    (await call('GET', '/api/allocations', { token: sh })).body.years.includes(farYear));
+  ok('`years` is scoped — another club\'s far year is not offered',
+    !(await call('GET', '/api/allocations', { token: otherSh })).body.years.includes(farYear));
+
+  ok('`years` is not narrowed by the year asked for',
+    (await call('GET', `/api/allocations?year=${nextYear}`, { token: admin }))
+      .body.years.includes(year));
+
+  // The state a fresh academic year opens in. If the picker were derived from
+  // the rows on screen, filtering to an empty year would leave nothing to
+  // choose — including the year the officer came to the screen to fill in.
+  ok('the current year is always offered even with nothing recorded in it',
+    (await call('GET', `/api/allocations?year=${year + 5}`, { token: admin }))
+      .body.years.includes(year));
+
+  // Without this the year is unreachable until it has been funded, and it
+  // cannot be funded until it is reachable — so next year could never be set up
+  // in advance, which is the workflow the whole screen exists for.
+  ok('next year is offered before anything has been recorded in it',
+    (await call('GET', '/api/allocations', { token: otherSh })).body.years.includes(year + 1));
+
+  ok('a year outside the Buddhist-era range is refused',
+    (await call('GET', '/api/allocations?year=1999', { token: admin })).status === 400);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

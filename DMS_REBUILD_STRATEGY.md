@@ -374,6 +374,10 @@ Four things the owner asked for, to be built later rather than now. Written down
 with what the code already does for each, so picking them up does not start with
 re-reading the codebase.
 
+**Progress: item 2 is built (2026-08-15). Items 1, 3 and 4 remain.** Item 3 was
+always going to follow from item 2, and now can: allocations are addressable per
+year, so the history is a matter of reading them.
+
 ### 1. The officer's screen needs a menu
 
 The nav is two links — ภาพรวม and โครงการ — which was enough while every role had
@@ -381,24 +385,52 @@ the same two screens. The three items below are all officer-side screens, so
 STUACT and ADMIN need somewhere to put them. Worth doing **after** the other
 three exist, so the menu is designed around real entries rather than guessed at.
 
-### 2. Allocations are per academic year, and each year is set fresh
+### 2. Allocations are per academic year, and each year is set fresh — **built 2026-08-15**
 
-**The data model already does this.** `agency_allocation` carries `academic_year`,
-`allocationService.listAllocations` accepts a `year` filter, and the money rules
-already sum approvals per (club, academic year) — budget layer (c). So this is a
-screen gap, not a schema change.
+**The data model already did this.** `agency_allocation` carries `academic_year`,
+`allocationService.listAllocations` accepted a `year` filter, and the money rules
+already sum approvals per (club, academic year) — budget layer (c). So this was a
+screen gap, not a schema change, and that is how it was closed.
 
-> **There is a latent bug waiting here.** The dashboard calls `api.allocations()`
-> with no year, and the query orders by `academic_year DESC` and returns *every*
-> year the actor may see. Today only 2567 is seeded so it looks correct, but the
-> moment a second year exists the table grows a second row per club — and the
-> table has no year column, so the two are indistinguishable. Whoever builds this
-> should pass the year and add the column in the same change.
+What was built:
 
-Also settle where the year comes from. It is `ACADEMIC_YEAR` in `.env` today, and
-it is still the guess recorded in the open questions: that the academic year turns
-over in June. A year that must be "set fresh" each year should probably not be an
-environment variable that someone has to remember to edit.
+- **`/allocations`** (`frontend/src/pages/AllocationsPage.js`) — one year at a
+  time, chosen in the page head and carried in the URL so a year can be
+  bookmarked. The edit writes to the *selected* year, not the ambient
+  `session.academicYear`, which is the whole point of the screen. Viewing a year
+  that is not the current one says so in a notice rather than doing it quietly.
+- **`listAllocations` now answers with `years`** — a range to *offer*, not an
+  inventory of what exists. It unions the years in scope with the current year
+  and **the year after it**. Without that last part a fresh year is unreachable
+  until it has been funded and cannot be funded until it is reachable, so next
+  year could never be set up in advance — found by opening the page, not by any
+  test. Ten assertions in `check-phase3.js` cover it.
+- **The latent bug below is fixed.** The dashboard now passes
+  `{ year: session.academicYear }` and names the year in the card title, with a
+  "ดูรายปี →" link to the new page.
+
+> ~~**There is a latent bug waiting here.**~~ **Fixed 2026-08-15.** The dashboard
+> called `api.allocations()` with no year, and the query orders by
+> `academic_year DESC` and returns *every* year the actor may see. With only 2567
+> seeded it looked correct; the moment a second year existed the table grew a
+> second row per club, indistinguishable because the table has no year column.
+> The fix pins the dashboard to one year rather than adding the column — a card
+> titled "ปีการศึกษา 2567" that shows exactly that year is clearer than a mixed
+> table that explains itself per row, and the year-by-year view now has a page of
+> its own.
+
+**Still open: where the year comes from.** It is `ACADEMIC_YEAR` in `.env` today,
+and it is still the guess recorded in the open questions — that the academic year
+turns over in June. A year that must be "set fresh" each year should probably not
+be an environment variable someone has to remember to edit. This is deliberately
+untouched: `config.academicYear` is what `requireAuth` resolves memberships
+against, so getting it wrong gives every user `role: null`, and that is a change
+worth making on purpose rather than as a side effect of a screen.
+
+**Not decided, currently permissive:** any year in 2400–2700 can be written,
+including past ones. `assertCanEnterAllocation` still checks *who* and *which
+club*, but nothing checks *which year*. This is the same question item 4 asks
+about granting roles, and the two should be answered together.
 
 ### 3. A page summarising previous years
 

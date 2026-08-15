@@ -71,10 +71,52 @@ function present(row) {
 }
 
 /**
+ * The academic years a caller can usefully address, newest first.
+ *
+ * This is a **range to offer, not an inventory of what exists**, and the
+ * difference is the whole point. A picker derived from the rows on screen dies
+ * twice over: filter to a year with no allocations and the only years left to
+ * offer are the ones you can no longer see; and a year that has never been
+ * funded — which is every year on the day it starts — would be unreachable, so
+ * the officer could never set the allocations that would make it appear.
+ *
+ * Hence three sources, unioned:
+ *
+ * - every year the caller can see an allocation in, scoped like the rows are;
+ * - the current academic year, because "nothing recorded yet" is the state a
+ *   fresh year opens in and the one the officer came to fix;
+ * - the year after it, because allocations are set fresh each year and setting
+ *   next year's before it begins is ordinary work, not an edge case.
+ */
+async function listAllocationYears(actor) {
+  const visibility = clubVisibilityClause(actor);
+  const [rows] = await pool.query(
+    `SELECT DISTINCT a.academic_year
+       FROM agency_allocation a
+       JOIN club c ON c.id = a.club_id
+      WHERE ${visibility.sql}`,
+    visibility.params
+  );
+
+  const years = new Set(rows.map((row) => Number(row.academic_year)));
+  if (actor.academicYear) {
+    years.add(Number(actor.academicYear));
+    years.add(Number(actor.academicYear) + 1);
+  }
+  return [...years].sort((a, b) => b - a);
+}
+
+/**
  * Every allocation the caller may see, newest year first.
  *
  * Scoped in the query like everything else (Q16): a student sees their own
  * club's ceiling, a STUACT sees its group's, and nobody pages past that.
+ *
+ * **Pass `year` unless you genuinely want every year at once.** Without it this
+ * answers with all of them, and since allocations are per (club, year) a club
+ * appears once per year it has been funded — rows that are indistinguishable to
+ * anything rendering the club name alone. The `years` field is here so a caller
+ * can offer the choice rather than silently take the union.
  */
 async function listAllocations(actor, query = {}) {
   const visibility = clubVisibilityClause(actor);
@@ -98,7 +140,11 @@ async function listAllocations(actor, query = {}) {
   );
 
   const items = rows.map(present);
-  return { items, overCommitted: items.filter((item) => item.overCommitted) };
+  return {
+    items,
+    years: await listAllocationYears(actor),
+    overCommitted: items.filter((item) => item.overCommitted),
+  };
 }
 
 /**
@@ -177,4 +223,4 @@ async function upsertAllocation(actor, body) {
   }, { retries: 2 });
 }
 
-module.exports = { listAllocations, upsertAllocation };
+module.exports = { listAllocations, listAllocationYears, upsertAllocation };
