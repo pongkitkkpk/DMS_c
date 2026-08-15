@@ -313,7 +313,7 @@ async function createMembership(actor, body) {
       if (!group) throw HttpError.badRequest('ไม่พบกลุ่มชมรม');
     }
 
-    assertCanGrantRole(actor, { role, club });
+    assertCanGrantRole(actor, { role, club, jurisdictionId });
 
     // A4: one person may hold several memberships, so a duplicate is only a
     // duplicate on the whole key. Answering 409 rather than silently upserting
@@ -402,6 +402,7 @@ async function revokeMembership(actor, membershipId) {
     assertCanGrantRole(actor, {
       role: row.role,
       club: row.club_id ? { id: row.club_id, club_group_id: row.club_group_id } : null,
+      jurisdictionId: row.jurisdiction_club_group_id,
     });
 
     if (Number(row.id) === Number(actor.membership && actor.membership.id)) {
@@ -458,7 +459,8 @@ async function advisorImpact(actor, membershipId) {
   const id = check.integer({ min: 1, required: true })(membershipId, 'id');
 
   const [[row]] = await pool.query(
-    `SELECT m.person_id, m.role, m.academic_year, m.club_id, c.club_group_id
+    `SELECT m.person_id, m.role, m.academic_year, m.club_id,
+            m.jurisdiction_club_group_id, c.club_group_id
        FROM membership m
        LEFT JOIN club c ON c.id = m.club_id
       WHERE m.id = ?`,
@@ -475,6 +477,7 @@ async function advisorImpact(actor, membershipId) {
   assertCanGrantRole(actor, {
     role: row.role,
     club: row.club_id ? { id: row.club_id, club_group_id: row.club_group_id } : null,
+    jurisdictionId: row.jurisdiction_club_group_id,
   });
 
   if (row.role !== 'AD') return { projects: 0 };

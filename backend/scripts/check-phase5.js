@@ -404,17 +404,28 @@ async function login(username) {
     (await call('POST', '/api/memberships', {
       token: stuact, body: { personId: adminPerson.id, role: 'SH', academicYear: year, clubId: outsideClub.id },
     })).status === 403);
-  ok('STUACT cannot mint another STUACT',
+  // A STUACT may appoint a colleague beside it — the owner's call — but only
+  // into its own jurisdiction. Into another group it would be reaching that
+  // group in two steps, which would make every other scope check decorative.
+  const groups0 = await call('GET', '/api/reference/club-groups', { token: admin });
+  const myGroup = (await call('GET', '/api/me', { token: stuact })).body.membership.jurisdiction_club_group_id;
+  const otherGroup = groups0.body.clubGroups.find((g) => Number(g.id) !== Number(myGroup));
+  ok('STUACT may appoint another STUACT in its own jurisdiction',
     (await call('POST', '/api/memberships', {
       token: stuact,
-      body: { personId: adminPerson.id, role: 'STUACT', academicYear: year, jurisdictionClubGroupId: 1 },
+      body: { personId: adminPerson.id, role: 'STUACT', academicYear: year, jurisdictionClubGroupId: myGroup },
+    })).status === 201);
+  ok('  …but never into another one — that would be reach, not delegation',
+    (await call('POST', '/api/memberships', {
+      token: stuact,
+      body: { personId: advisorPerson.id, role: 'STUACT', academicYear: year, jurisdictionClubGroupId: otherGroup.id },
     })).status === 403);
-  ok('STUACT cannot mint an ADMIN',
+  ok('STUACT still cannot mint an ADMIN',
     (await call('POST', '/api/memberships', {
       token: stuact, body: { personId: adminPerson.id, role: 'ADMIN', academicYear: year },
     })).status === 403);
   ok('  …and the list it is offered says so',
-    (await call('GET', '/api/memberships', { token: stuact })).body.grantableRoles.join() === 'SH,AD');
+    (await call('GET', '/api/memberships', { token: stuact })).body.grantableRoles.join() === 'SH,AD,STUACT');
 
   const groups = await call('GET', '/api/reference/club-groups', { token: admin });
   const grantStuact = await call('POST', '/api/memberships', {
@@ -507,10 +518,14 @@ async function login(username) {
   ok('an officer cannot revoke the membership they are acting under',
     (await call('DELETE', `/api/memberships/${meAsAdmin.membership.id}`, { token: admin }))
       .status === 400);
-  ok('  …and a STUACT is refused earlier still, by the role rule',
+  // A STUACT reaches the same rule now that it may grant its own kind. Before
+  // the owner widened GRANTABLE_ROLES it was stopped one step earlier, by the
+  // role check — so widening what an officer may hand out also widened what the
+  // self-revoke guard has to catch, and this is where that shows.
+  ok('  …and a STUACT is caught by the same rule, not by the role check',
     (await call('DELETE',
       `/api/memberships/${(await call('GET', '/api/me', { token: stuact })).body.membership.id}`,
-      { token: stuact })).status === 403);
+      { token: stuact })).status === 400);
   ok('  …so the acting officer is still there afterwards',
     (await call('GET', '/api/me', { token: admin })).body.role === 'ADMIN');
 

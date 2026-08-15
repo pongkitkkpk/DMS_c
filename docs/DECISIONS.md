@@ -944,11 +944,13 @@ up.
 
 ### Decided in the work, and open to revision
 
-- **A STUACT may not grant `STUACT` or `ADMIN`** (`scope.GRANTABLE_ROLES`). The
-  owner settled the *jurisdiction* question, not which roles; this is the
-  conservative reading, because a STUACT who can appoint another STUACT reaches
-  any jurisdiction in two steps and makes the scope check decorative. One line
-  to change if officers are meant to appoint their own successors.
+- ~~**A STUACT may not grant `STUACT` or `ADMIN`.**~~ **Revised 2026-08-15 by the
+  owner: a STUACT may appoint another STUACT — but only into its own
+  jurisdiction.** That last clause is not decoration. A STUACT able to appoint an
+  officer into *another* group would reach that group in two steps, and every
+  individual scope check would still pass while the boundary as a whole leaked.
+  Appointing a colleague beside you extends nobody's reach, which is the
+  difference between sharing a job and escalating. `ADMIN` remains ADMIN-only.
 - **The last-`ADMIN` guard in `revokeMembership` is unreachable today** and says
   so in the code. Only an ADMIN may revoke an ADMIN, and nobody may revoke their
   own membership, so one always survives. Kept against the day the second rule

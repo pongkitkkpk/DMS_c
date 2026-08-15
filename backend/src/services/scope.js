@@ -99,27 +99,36 @@ function assertCanEnterAllocation(actor, club) {
  * can do, and it is the one place where the usual "STUACT and ADMIN are
  * equivalent inside a jurisdiction" shorthand has to stop.
  *
- * ADMIN may grant anything. STUACT may grant only the two club roles, and only
- * inside its own jurisdiction (`assertCanGrantRole`). It may not mint another
- * STUACT or an ADMIN: both would be handing out authority at or above its own
- * level, and a STUACT that can appoint STUACTs can reach any jurisdiction in
- * two steps, which makes the scope check below decorative.
+ * ADMIN may grant anything. STUACT may grant the two club roles **and another
+ * STUACT** — the owner's call, 2026-08-15 — but never an ADMIN, which would be
+ * handing out authority above its own level.
  *
- * The owner settled the jurisdiction question on 2026-08-15 ("เฉพาะในฝ่ายตัวเอง").
- * The narrower rule about *which* roles is the conservative reading of it and is
- * recorded in DMS_REBUILD_STRATEGY.md rather than assumed silently.
+ * **The escalation this could have opened, and what closes it.** A STUACT that
+ * could appoint a STUACT *to another jurisdiction* would reach that jurisdiction
+ * in two steps: appoint a colleague there, and everything they may do is now
+ * reachable. The scope check below would still pass every individual call while
+ * the boundary as a whole leaked. So the jurisdiction rule the owner already
+ * settled — "เฉพาะในฝ่ายตัวเอง" — is applied to this role too: a STUACT may
+ * appoint another STUACT **to its own jurisdiction and no other**. Appointing a
+ * colleague beside you extends nobody's reach, which is the difference between
+ * sharing a job and escalating.
  */
 const GRANTABLE_ROLES = {
   ADMIN: ['SH', 'AD', 'STUACT', 'ADMIN'],
-  STUACT: ['SH', 'AD'],
+  STUACT: ['SH', 'AD', 'STUACT'],
 };
 
 /**
  * Who may create a membership, and for whom.
  *
- * `target` carries the role being granted and the club it attaches to
- * (`club`, a row with `id` and `club_group_id`) — or, for a STUACT membership,
- * the jurisdiction it would oversee.
+ * `target` carries the role being granted and the scope it attaches to — a
+ * `club` (a row with `id` and `club_group_id`) for `SH`/`AD`, or a
+ * `jurisdictionId` for `STUACT`. `ADMIN` has neither.
+ *
+ * The two scopes are checked separately rather than through one clause that
+ * guesses which is present. `ck_membership_scope` guarantees exactly one of them
+ * is set, and a single clause that read the wrong column would refuse
+ * everything — or, worse, pass everything.
  */
 function assertCanGrantRole(actor, target) {
   const membership = actor.membership;
@@ -134,10 +143,21 @@ function assertCanGrantRole(actor, target) {
   }
   if (role === 'ADMIN') return;
 
-  // STUACT from here down. Every role it may grant is a club role, so the club
-  // is always present and its group is the only thing to check.
+  // STUACT from here down. Its own jurisdiction is the whole of its reach, for
+  // both kinds of target.
+  const mine = Number(membership.jurisdiction_club_group_id);
+
+  if (target.role === 'STUACT') {
+    // Appointing a colleague beside you, never one in another group — see the
+    // escalation note on GRANTABLE_ROLES.
+    if (target.jurisdictionId == null || Number(target.jurisdictionId) !== mine) {
+      throw HttpError.forbidden('กำหนดเจ้าหน้าที่ได้เฉพาะกลุ่มชมรมที่ตนรับผิดชอบ');
+    }
+    return;
+  }
+
   const groupId = target.club ? target.club.club_group_id : null;
-  if (groupId == null || Number(groupId) !== Number(membership.jurisdiction_club_group_id)) {
+  if (groupId == null || Number(groupId) !== mine) {
     throw HttpError.forbidden('ชมรมนี้อยู่นอกกลุ่มที่รับผิดชอบ');
   }
 }

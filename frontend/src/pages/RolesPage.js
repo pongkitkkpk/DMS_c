@@ -116,6 +116,10 @@ export default function RolesPage() {
   if (!data) return <div className="card-x card-x__body"><Skeleton rows={8} /></div>;
 
   const scopeKind = scopeKindOf(role);
+  const myJurisdiction = session.membership && session.membership.jurisdiction_club_group_id;
+  const grantableGroups = session.role === 'ADMIN'
+    ? clubGroups
+    : clubGroups.filter((g) => Number(g.id) === Number(myJurisdiction));
   const ready =
     person &&
     role &&
@@ -366,7 +370,13 @@ export default function RolesPage() {
                     onChange={(e) => setGroupId(e.target.value)}
                   >
                     <option value="">— เลือกกลุ่มชมรม —</option>
-                    {clubGroups.map((group) => (
+                    {/* An Admin appoints an officer to any jurisdiction; a
+                        STUACT may only appoint a colleague beside them, in
+                        their own. Offering the full list to a STUACT would put
+                        every other group one click from a refusal — and the
+                        refusal is the thing keeping the boundary, so the form
+                        should not be inviting people to test it. */}
+                    {grantableGroups.map((group) => (
                       <option key={group.id} value={group.id}>{group.nameTh}</option>
                     ))}
                   </Input>

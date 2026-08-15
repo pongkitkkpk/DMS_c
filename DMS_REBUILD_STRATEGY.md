@@ -592,12 +592,25 @@ those endpoints hand out authority. Two things to decide before building:
 - `HttpError.conflict` (409), so granting the same role twice is a refusal
   rather than a silent success.
 
-**A decision made rather than asked, and worth revisiting if it is wrong:**
-STUACT may not grant `STUACT` or `ADMIN`. The owner settled the *jurisdiction*
-question, not which roles; this is the conservative reading. The reasoning is
-that a STUACT who can appoint another STUACT can reach any jurisdiction in two
-steps, which would make the scope check decorative. If officers are in practice
-expected to appoint their own successors, this is one line in `GRANTABLE_ROLES`.
+~~**A decision made rather than asked:** STUACT may not grant `STUACT`.~~
+**Revised 2026-08-15 — the owner's answer: a STUACT may appoint another STUACT.**
+
+It was not one line in `GRANTABLE_ROLES`, and the reason is the escalation the
+original note worried about. A `STUACT` membership carries a *jurisdiction* and
+no club, while `assertCanGrantRole` only knew how to check a club — so the naive
+change would have refused every such grant with a message about clubs. Worse, a
+version that "fixed" that by skipping the check would have let an officer appoint
+a colleague into **another** group, reaching it in two steps while every
+individual call still passed.
+
+So the rule the owner already set is applied to this role too: **a STUACT may
+appoint another STUACT into its own jurisdiction and no other.** Appointing a
+colleague beside you extends nobody's reach. `ADMIN` is still ADMIN-only.
+
+One consequence worth knowing: the self-revoke guard is now the rule that stops
+a STUACT removing its own membership. It used to be stopped one step earlier by
+the role check, so widening what an officer may hand out also widened what that
+guard has to catch — `check-phase5` records the change.
 
 **Revoking — added 2026-08-15**
 
