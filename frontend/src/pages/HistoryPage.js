@@ -23,6 +23,9 @@ import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Empty, PhasePill, Skeleton, money } from '../components/ui';
 
+/** Q30 again — who may set a ceiling, as opposed to read one. */
+const MAY_ALLOCATE = ['ADMIN', 'STUACT'];
+
 export default function HistoryPage() {
   const { session } = useAuth();
   const [data, setData] = useState(null);
@@ -61,7 +64,14 @@ export default function HistoryPage() {
             {years.length} ปีการศึกษา · {totalProjects} โครงการ ในขอบเขตของบัญชีนี้
           </div>
         </div>
-        <Link className="u-spacer u-small u-muted" to="/allocations">กำหนดวงเงิน →</Link>
+        {/* Q30: only Admin and STUACT set a ceiling, everyone in scope reads
+            one. Labelling this "กำหนดวงเงิน" for an adviser or a student sent
+            them to a page where every control is hidden and the header says
+            read-only — an invitation to do something the system had already
+            decided they may not. */}
+        <Link className="u-spacer u-small u-muted" to="/allocations">
+          {MAY_ALLOCATE.includes(session.role) ? 'กำหนดวงเงิน →' : 'ดูวงเงินจัดสรร →'}
+        </Link>
       </div>
 
       {years.length === 0 ? (

@@ -233,29 +233,23 @@ export default function DashboardPage() {
                     </tr>
                   ))}
 
-                  {unfunded.map((club) => (
-                    <tr key={`u${club.id}`}>
-                      <td>
-                        <div className="table-x__title">{club.nameTh}</div>
-                        <div className="u-small u-dim u-mono">{club.code} · {club.campusName}</div>
+                  {/* Counted, not listed. Every unfunded club used to get its
+                      own row and its own button here, which was right while
+                      this card was the only way to reach an allocation at all.
+                      With /allocations built, an Admin's dashboard became 69
+                      rows and 68 of them said the same sentence — 89% of a page
+                      called "ภาพรวม", pushing the actual overview off the top of
+                      it. The fact still matters, so it stays; the list and the
+                      buttons belong on the page that is about them. */}
+                  {unfunded.length > 0 && (
+                    <tr>
+                      <td colSpan={mayAllocate ? 5 : 4} className="u-small u-muted">
+                        อีก <strong>{unfunded.length} ชมรม</strong> ยังไม่ได้กำหนดวงเงินของปี{' '}
+                        {session.academicYear} — อนุมัติเงินโครงการของชมรมเหล่านั้นไม่ได้จนกว่าจะกำหนด{' '}
+                        <Link to="/allocations">กำหนดวงเงิน →</Link>
                       </td>
-                      <td colSpan={3} className="u-small u-muted">
-                        ยังไม่ได้กำหนดวงเงิน — อนุมัติเงินโครงการของชมรมนี้ไม่ได้จนกว่าจะกำหนด
-                      </td>
-                      {mayAllocate && (
-                        <td>
-                          {/* Outline, not accent: a jurisdiction has dozens of
-                              clubs and most have no projects yet, so a column of
-                              filled buttons would put the loudest colour on the
-                              least urgent thing on the page. */}
-                          <Button size="sm" outline color="secondary"
-                            onClick={() => editAllocation(club.id, club.nameTh, null)}>
-                            กำหนด
-                          </Button>
-                        </td>
-                      )}
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

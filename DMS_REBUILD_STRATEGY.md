@@ -645,3 +645,34 @@ it, because nothing about a button labelled "ถอน" would suggest it.
 
 Twenty-three assertions in `check-phase5.js`, most of them refusals — this is
 the only endpoint that creates authority rather than spending it.
+
+---
+
+## Browser pass 5 (2026-08-15)
+
+Every screen in every role after the eight changes above. Two defects, both
+invisible to 363 passing checks and to a clean build, and both created by this
+session's own work rather than inherited.
+
+1. **An Admin's dashboard was 6.3 screens tall, 89% of it one table.** The
+   allocation card listed every club in scope with a button each — 69 rows for
+   an Admin, 68 of them repeating "ยังไม่ได้กำหนดวงเงิน" and pushing the phase
+   counts, the over-committed warning and the readiness banner off the top of a
+   page called ภาพรวม. That listing was right when the card was the only route
+   to an allocation; `/allocations` made it duplication. The fact is kept as one
+   counted line with a link, and the page is back to a single screen.
+
+2. **`/history` offered "กำหนดวงเงิน →" to advisers and students**, who may read
+   a ceiling and never set one (Q30). It sent them to a page with every control
+   hidden and "อ่านอย่างเดียว" in the header — an invitation to do something the
+   system had already decided they may not. The label now follows the role.
+
+Checked and not a defect: the project detail, the project list and the forms all
+render correctly under the two-row bar; an Admin sees no scope line in the page
+head, which is right, since Admin has neither a club nor a group; the year picker
+offers next year to read-only roles, which is honest rather than misleading —
+they get an empty table and a plain reason.
+
+**Method note.** Signing in through the form was flaky all session and cost many
+retries; posting to `/api/auth/login` and putting the token straight into
+`sessionStorage.dms.token` is reliable and much faster for a sweep like this.
