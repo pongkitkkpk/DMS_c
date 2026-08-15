@@ -43,11 +43,10 @@ Recorded so they can be challenged cheaply later. Each is marked **[A*n*]** at i
   parallel structure. *Same status.*
 - **[A4]** Q39 is **revised**, not applied as written. `person` and `membership` are separate
   tables and the unique constraint lands on `(person_id, academic_year, club_id, role)`, not on
-  `id_student` alone. *Status: the data half is settled — the `karoms` rows were confirmed as
-  mock data on 2026-08-12 and are dropped rather than migrated. The modelling half is
-  deliberately kept: one person may hold several memberships. Collapsing `membership` into
-  `person` later is cheap; splitting it later is not.* See `domain-model.md` →
-  "Person vs. account".
+  `id_student` alone. *Status: **confirmed in full.** The data half settled 2026-08-12 — the
+  `karoms` rows were mock data and are dropped rather than migrated. The modelling half settled
+  2026-08-15 — the owner confirmed that one person may hold several roles, so the split is
+  permanent rather than provisional.* See `domain-model.md` → "Person vs. account".
 
 ---
 

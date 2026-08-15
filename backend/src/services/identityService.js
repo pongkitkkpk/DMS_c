@@ -15,10 +15,10 @@
 const { pool } = require('../db/pool');
 
 /**
- * Most privileged first. Used only to pick a default when one person holds
- * several memberships in the same year — a case A4 allows and the fixtures do
- * not yet exercise. If A4 collapses `membership` into `person`, every list here
- * is length 1 and the precedence becomes a no-op.
+ * Most privileged first. Used to pick a default when one person holds several
+ * memberships in the same year — a case A4 allows and the fixtures do not yet
+ * exercise. A4 was confirmed on 2026-08-15 (docs/DECISIONS.md), so this is a
+ * live path, not a contingency: people really do hold more than one role.
  */
 const ROLE_PRECEDENCE = ['ADMIN', 'STUACT', 'AD', 'SH'];
 

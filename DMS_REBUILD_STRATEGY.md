@@ -345,11 +345,13 @@ changes a previously settled answer.
 | **A1** | Q37 — money is `DECIMAL(12,2)` | low; no data to convert |
 | **A2** | Q38 — surrogate `INT` PKs, `project_number` a separate business key | low |
 | **A3** | Q41 — disbursement ledger built on today's `logstudentgetmoney` shape | low |
-| **A4** | Q39 **revised** — `person` and `membership` split, so one person may hold several roles | **medium** — cheap to collapse later, expensive to split later |
+| **A4** | Q39 **revised** — `person` and `membership` split, so one person may hold several roles | **settled 2026-08-15** — confirmed by the owner; no longer an assumption |
 
-The stack and the theme are **settled** (see "Stack" above). A1–A3 are proceeding as written —
-with no data to migrate the cost of being wrong is a schema edit, not a re-migration. **A4 is
-the one still worth a deliberate look**, because reversing it later is the expensive direction.
+The stack and the theme are **settled** (see "Stack" above). A1–A3 proceeded as written — with
+no data to migrate the cost of being wrong is a schema edit, not a re-migration. ~~**A4 is the
+one still worth a deliberate look**~~ — **A4 is now confirmed (2026-08-15): one person may hold
+several roles, so the split is permanent.** All four assumptions are closed; nothing in this
+section is still waiting on an answer.
 
 ---
 
@@ -411,7 +413,9 @@ The biggest of the four, and the one that touches decisions already made.
 
 `membership` is what grants a role, and A4 in this document deliberately split
 `person` from `membership` so one person can hold several roles across years —
-that split is what makes this page buildable at all. But roles are currently
+that split is what makes this page buildable at all, and it is now confirmed
+rather than provisional (2026-08-15), so the form must let one person accumulate
+roles rather than treating a second one as replacing the first. But roles are currently
 *seeded*, never created through the API, so this needs new write endpoints, and
 those endpoints hand out authority. Two things to decide before building:
 

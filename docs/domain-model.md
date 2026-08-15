@@ -131,20 +131,22 @@ proves it: `karoms` appears three times.
 | 26 | `AD` | สภานักศึกษา มจพ.กรุงเทพฯ | NULL | องค์กรนักศึกษาส่วนกลาง | 2567 |
 
 **Decision (2026-08-12): the `karoms` rows are mock data and are dropped, not migrated.**
-That settles the *data* question. It does not settle the *modelling* question, and the two
-should not be confused:
+That settles the *data* question. The *modelling* question was answered separately — see the
+decision below — and the two should not be confused:
 
 - **As data** — all three rows go. They are the dump's only `personel` rows, so the migrated
   dataset will contain **no `Stuact` and no `AD` user at all**; both roles have to come from
   seed or from real staff records. See "What dropping `karoms` costs" below.
-- **As a model** — the question Q39 raises stands on its own. Rows 23/24 (identical) and row 26
-  (`AD` in a different club) are the only evidence in the dump either way, and deleting the
-  evidence does not answer whether a real person may hold two roles. The design keeps `person`
-  (unique by `id_student`) separate from `membership` (`person × club × role × year`) because
-  a university officer plausibly advises one club while administering another, and because the
-  split costs nothing if it turns out to be unused. If the rule really is "one role per person,
-  ever", `membership` collapses into `person` later — a cheap change in that direction, an
-  expensive one in reverse.
+- **As a model** — the question Q39 raises stands on its own, and deleting the evidence did not
+  answer it. Rows 23/24 (identical) and row 26 (`AD` in a different club) were the only
+  evidence in the dump either way. **Decision (2026-08-15): the owner confirmed that one person
+  may hold several roles.** So the design is now the rule, not a hedge: `person` (unique by
+  `id_student`) stays separate from `membership` (`person × club × role × year`), because a
+  university officer really does advise one club while administering another. The earlier
+  argument that the split "costs nothing if unused" no longer has to carry the decision — it is
+  used. Two consequences worth remembering: the `ROLE_PRECEDENCE` tie-break in
+  `identityService.js` is a live code path rather than a contingency, and any screen that
+  grants roles must let one person accumulate them.
 
 ### What dropping `karoms` costs
 
@@ -377,5 +379,6 @@ Every one of these is carried into the new code only as a migration mapping.
    name lists, not from a declaration in the file. Verify against one real faculty before the
    seed treats it as a relationship.
 4. **Rayong has zero clubs** in all five `D04` groups. Missing data or genuinely no clubs?
-5. **Q39 needs revisiting** — see "Person vs. account". A unique constraint on `id_student`
-   alone would destroy the `karoms` adviser role.
+5. ~~**Q39 needs revisiting**~~ — **closed 2026-08-15**, see "Person vs. account". A unique
+   constraint on `id_student` alone would have destroyed the `karoms` adviser role; the owner
+   confirmed that one person may hold several roles, so `person` and `membership` stay split.

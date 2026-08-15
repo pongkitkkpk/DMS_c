@@ -107,7 +107,7 @@ CREATE TABLE `person` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- The old `users` table was really a (person, role, club, year) enrolment.
--- A4: one person may hold several memberships.
+-- A4 (confirmed 2026-08-15): one person may hold several memberships.
 CREATE TABLE `membership` (
   `id`                         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `person_id`                  INT UNSIGNED NOT NULL,

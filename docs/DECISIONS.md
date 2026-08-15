@@ -269,7 +269,7 @@ Stack: CRA + Bootstrap 4/reactstrap + React Router **v5** + `AuthContext` + swee
 | --- | --- |
 | Q16 | **Scope comes from the JWT, never from URL params.** Fixes the cross-club leak. |
 | Q21 | Attachments stay on local disk, served **only through an authorization check**; store relative paths. |
-| Q39 | **One role per user.** The duplicate `karoms` rows are dirty data — de-duplicate during migration, add unique constraint on `id_student`. |
+| Q39 | ~~**One role per user.** The duplicate `karoms` rows are dirty data — de-duplicate during migration, add unique constraint on `id_student`.~~ **Superseded by A4 (2026-08-15): one person may hold several roles.** The unique constraint lands on `(person_id, academic_year, club_id, role)` instead. |
 
 ### Frontend & scope
 
@@ -374,16 +374,17 @@ Required by Q22 — each is an intentional departure, not a porting bug:
   assumptions in `schema-target.md` need an explicit yes: **A1** = Q37 (money → `DECIMAL(12,2)`),
   **A2** = Q38 (surrogate PKs), **A3** = Q41 (ledger built on `logstudentgetmoney`), and
   **A4** = the Q39 revision below. A1–A3 were already "recommended, not objected to"; **A4 is
-  the only one that overturns a settled decision.**
+  the only one that overturns a settled decision.** *(All four are now confirmed — A1–A3 on
+  2026-08-12, A4 on 2026-08-15.)*
 - **The orphaned-log-row question is now blocking.** `project_event.project_id` is a hard FK,
   so `logstatus_project`'s 16 references to non-existent projects cannot be migrated as-is.
   Decide: drop them, or create tombstone `project` rows. This was Phase 0's last open question
   and it is now on the migration's critical path.
-- ~~**Q39 must be revisited before the migration is written.**~~ **Data half settled
-  (2026-08-12): the three `karoms` rows are mock data and are dropped, not migrated.** The
-  modelling half is kept as designed — `person` and `membership` stay separate, so one person
-  may hold several memberships. Deleting the evidence does not answer whether that happens in
-  reality, and collapsing the two tables later is cheap while splitting them later is not.
+- ~~**Q39 must be revisited before the migration is written.**~~ **Both halves settled.**
+  *Data (2026-08-12):* the three `karoms` rows are mock data and are dropped, not migrated.
+  *Modelling (2026-08-15):* the owner confirmed that one person may hold several roles, so
+  `person` and `membership` stay separate permanently. This is no longer a provisional design
+  kept because collapsing it later would be cheap — it is the rule.
   **Consequence to plan for:** those were the dump's only `personel` rows, so the migrated
   dataset has **no `Stuact` and no `AD` user**, and 12 of 30 projects lose their adviser link.
   Seed replacement staff. See `domain-model.md` → "What dropping `karoms` costs".
@@ -427,7 +428,8 @@ frontend is ~20 screens. Plan in **weeks**.
    6-phase build plan that points into the Phase 0 docs instead of restating them.
 4. ~~Re-confirm the open items — A1–A4 and the stack table.~~ **Settled 2026-08-12**: stack =
    the old stack (see the build plan); theme = standard Bootstrap 4, **no dark mode**;
-   A1–A3 proceeding as written. **A4 is the one still open** — see below.
+   A1–A3 proceeding as written. ~~**A4 is the one still open**~~ — **A4 confirmed 2026-08-15:
+   one person may hold several roles. All four assumptions are now closed.**
 5. **Phase 1 — in progress.**
    - [x] Repo scaffold: `backend/` (`frontend/` not started).
    - [x] Schema — `backend/src/db/migrations/001_initial_schema.sql`. 30 tables, 1 view,
@@ -463,9 +465,9 @@ frontend is ~20 screens. Plan in **weeks**.
   Authenticating successfully while holding no membership is a supported state: `role: null`,
   permitted nothing. Verified by logging in against a year with no memberships.
 - **`GET /me` returns `memberships[]` plus a primary `membership`/`role`**, picked by
-  precedence `ADMIN > STUACT > AD > SH`. That precedence exists only because **A4** allows one
-  person to hold several memberships in a year; if A4 collapses, every list is length 1 and it
-  becomes a no-op. The client is never left guessing whether it saw all of them.
+  precedence `ADMIN > STUACT > AD > SH`. That precedence exists because **A4** allows one
+  person to hold several memberships in a year — confirmed 2026-08-15, so it is a real code
+  path and not a contingency. The client is never left guessing whether it saw all of them.
 - **The local admin fallback is kept and defanged.** It supplies identity only, so
   `ADMIN_USERNAME` must hold a real `membership` to be able to do anything — the backdoor
   cannot mint privileges that are not in the database. `config.assertValid()` refuses to boot
@@ -835,8 +837,9 @@ neutrals, in IBM Plex Sans Thai. Every colour is a `--c-*` custom property in
 - **Verified, not assumed**: the membership CHECK, both project-sequence unique keys, the
   disbursement sign check, event FKs, and that `budget_line.amount` cannot be forced. The
   pool sets `STRICT_ALL_TABLES` on connect because XAMPP does not.
-- **Still to decide**: **A4** — whether `person` and `membership` stay split. Everything
-  built so far assumes they do; collapsing them later is cheap, splitting later is not.
+- ~~**Still to decide**: **A4** — whether `person` and `membership` stay split.~~ **Closed
+  2026-08-15**: they stay split, because one person may hold several roles. Everything built
+  so far already assumed this, so nothing had to change.
 
 ### Phase 0 findings that change the picture
 
