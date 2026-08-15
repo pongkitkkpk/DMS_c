@@ -10,8 +10,11 @@
  *
  * Writing to a year that is not the current one is allowed on purpose: an
  * officer setting up next year before June, or correcting last year's figure,
- * is ordinary work. It is not silent, though — the page says which year it is
- * looking at whenever that is not today's.
+ * is ordinary work. It is not silent, though, and the two directions are not
+ * the same thing. Next year is *planning*; a past year is *rewriting a figure
+ * projects were already approved against*, so it warns in its own right and
+ * asks again at the moment of the edit. That is the Q33 bargain applied to the
+ * year rather than the amount: allowed, never quiet.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useHistory } from 'react-router-dom';
@@ -64,6 +67,33 @@ export default function AllocationsPage() {
   };
 
   const editAllocation = async (clubId, clubName, current) => {
+    // A past year's ceiling is the one this year's approvals were already
+    // judged against, so the edit asks once more before opening the amount.
+    // The page banner alone is not enough: by the time someone has scrolled to
+    // a club and clicked, the banner is off screen and out of mind.
+    if (year < session.academicYear) {
+      // Two different acts, and the warning has to say which one it is. A club
+      // that already has a ceiling for that year had its approvals judged
+      // against it; a club that has none never did, and telling that officer
+      // about a "วงเงินเดิม" that does not exist is simply wrong.
+      const hasExisting = current !== null && current !== undefined;
+      const confirmed = await Swal.fire({
+        icon: 'warning',
+        title: hasExisting ? `แก้ไขวงเงินของปี ${year}` : `กำหนดวงเงินย้อนหลังให้ปี ${year}`,
+        html:
+          `ปี ${year} ผ่านไปแล้ว (ปีปัจจุบันคือ ${session.academicYear})<br>` +
+          (hasExisting
+            ? 'โครงการของปีนั้นถูกอนุมัติเงินไปแล้วโดยเทียบกับวงเงินเดิม ' +
+              'การแก้ตัวเลขย้อนหลังจะทำให้ยอดคงเหลือของปีนั้นเปลี่ยนไปด้วย'
+            : 'ชมรมนี้ยังไม่เคยมีวงเงินของปีนั้น การกำหนดตอนนี้เป็นการบันทึกย้อนหลัง'),
+        showCancelButton: true,
+        confirmButtonText: hasExisting ? `แก้ไขปี ${year} ต่อ` : `กำหนดปี ${year} ต่อ`,
+        cancelButtonText: 'ยกเลิก',
+        reverseButtons: true,
+      });
+      if (!confirmed.isConfirmed) return;
+    }
+
     const asked = await Swal.fire({
       title: `วงเงินจัดสรร — ${clubName}`,
       input: 'text',
@@ -105,7 +135,8 @@ export default function AllocationsPage() {
 
   const funded = new Set(data ? data.items.map((a) => a.club.id) : []);
   const unfunded = clubs.filter((club) => !funded.has(club.id));
-  const isCurrentYear = year === session.academicYear;
+  const isPastYear = year < session.academicYear;
+  const isFutureYear = year > session.academicYear;
 
   return (
     <>
@@ -138,12 +169,30 @@ export default function AllocationsPage() {
 
       {error && <Alert color="danger">{error}</Alert>}
 
-      {!isCurrentYear && (
+      {/* Two different situations, not one. Planning next year is routine and
+          says so plainly; reaching back into a closed year is the one that
+          earns a warning colour. */}
+      {isFutureYear && (
         <div className="notice mb-4">
           <span className="notice__mark" aria-hidden="true">i</span>
           <span>
-            กำลังดูปีการศึกษา <strong>{year}</strong> ซึ่งไม่ใช่ปีปัจจุบัน ({session.academicYear})
-            {mayAllocate && ' — การแก้ไขจะบันทึกลงปี ' + year}
+            กำลังตั้งวงเงินล่วงหน้าสำหรับปีการศึกษา <strong>{year}</strong>{' '}
+            (ปีปัจจุบันคือ {session.academicYear})
+            {mayAllocate && ` — การแก้ไขจะบันทึกลงปี ${year}`}
+          </span>
+        </div>
+      )}
+
+      {isPastYear && (
+        <div className="notice notice--warn mb-4">
+          <span className="notice__mark" aria-hidden="true">!</span>
+          <span>
+            กำลังดูปีการศึกษา <strong>{year}</strong> ซึ่งผ่านไปแล้ว
+            (ปีปัจจุบันคือ {session.academicYear})
+            {/* Deliberately general: this year may hold clubs that were funded
+                and clubs that never were, and the banner covers both. The
+                consequence specific to a club is stated at the edit itself. */}
+            {mayAllocate && ` — แก้ไขได้ แต่เป็นการบันทึกย้อนหลัง`}
           </span>
         </div>
       )}

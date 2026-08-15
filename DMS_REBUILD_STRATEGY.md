@@ -419,18 +419,30 @@ What was built:
 > table that explains itself per row, and the year-by-year view now has a page of
 > its own.
 
-**Still open: where the year comes from.** It is `ACADEMIC_YEAR` in `.env` today,
-and it is still the guess recorded in the open questions — that the academic year
-turns over in June. A year that must be "set fresh" each year should probably not
-be an environment variable someone has to remember to edit. This is deliberately
-untouched: `config.academicYear` is what `requireAuth` resolves memberships
-against, so getting it wrong gives every user `role: null`, and that is a change
-worth making on purpose rather than as a side effect of a screen.
+**Where the year comes from — settled 2026-08-15: `ACADEMIC_YEAR` in `.env`
+stays, for now.** The owner's call. It is still the guess recorded in the open
+questions — that the academic year turns over in June — and a year that must be
+"set fresh" each year is a poor fit for an environment variable someone has to
+remember to edit. But `config.academicYear` is what `requireAuth` resolves every
+membership against, so getting it wrong gives *every* user `role: null`, and that
+is a change to make deliberately rather than as a side effect of building a
+screen. Revisit it as its own piece of work, not inside item 3.
 
-**Not decided, currently permissive:** any year in 2400–2700 can be written,
-including past ones. `assertCanEnterAllocation` still checks *who* and *which
-club*, but nothing checks *which year*. This is the same question item 4 asks
-about granting roles, and the two should be answered together.
+**Past years may be written — settled 2026-08-15: allowed, but warned clearly.**
+Also the owner's call, and the same bargain Q33 strikes over the amount, applied
+to the year: correcting a figure is legitimate, doing it quietly is not. So the
+server stays permissive (`assertCanEnterAllocation` checks *who* and *which
+club*; nothing checks *which year*), and the loudness is on the screen:
+
+- viewing a past year raises a `notice--warn` banner naming it, distinct from the
+  plain informational banner for planning next year;
+- and the edit itself asks a second time before opening the amount, because by
+  the time an officer has scrolled to a club and clicked, the page banner is off
+  screen.
+
+Note that this is deliberately *not* the same answer as item 4's year question.
+Rewriting a number that projects were judged against is recoverable and visible;
+granting a role in a past year hands out authority. Decide that one separately.
 
 ### 3. A page summarising previous years
 
