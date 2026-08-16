@@ -516,8 +516,35 @@ async function replaceTags(actor, project, body) {
   return unique.length;
 }
 
-/** Hard delete; children cascade. `project_event` goes with it — there is nothing left to log against. */
+/**
+ * Hard delete; children cascade. `project_event` goes with it — there is
+ * nothing left to log against.
+ *
+ * **Except `disbursement`, which does not cascade** — its foreign key is the
+ * one of the fourteen pointing at `project` that never said `ON DELETE`, so it
+ * restricts. Left alone, that made `DELETE /projects/:id` answer a bare 500 for
+ * exactly the projects where money had moved, with the driver's constraint name
+ * in the server log and "เกิดข้อผิดพลาดภายในระบบ" on the screen.
+ *
+ * Turned into a refusal rather than into a cascade, on purpose. A disbursement
+ * records that money left the university's account, and whether an Admin may
+ * erase that by deleting the project is a question for whoever runs the
+ * process — not something to settle by adding a keyword to a migration.
+ * Refusing is the answer that cannot destroy anything while it waits, and if
+ * the answer comes back "cascade", it is a one-line migration.
+ */
 async function deleteProject(project) {
+  const [[{ disbursements }]] = await pool.query(
+    'SELECT COUNT(*) AS disbursements FROM disbursement WHERE project_id = ?',
+    [project.id]
+  );
+  if (disbursements > 0) {
+    throw HttpError.conflict(
+      `โครงการนี้มีการเบิกจ่ายแล้ว ${disbursements} รายการ จึงลบไม่ได้ ` +
+      'เพราะจะทำให้หลักฐานการจ่ายเงินหายไปด้วย',
+      { disbursements }
+    );
+  }
   await pool.query('DELETE FROM project WHERE id = ?', [project.id]);
 }
 

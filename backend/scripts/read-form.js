@@ -31,11 +31,29 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Wingdings code points the forms use for their checkboxes, as characters a
+ * terminal can print.
+ *
+ * Without this the boxes vanish: a `<w:sym/>` is an empty element carrying its
+ * glyph in an attribute, so stripping tags strips the tick as well — every
+ * option printed identically whether or not it was chosen, on a form that is
+ * mostly checkboxes. Which box is ticked is then only answerable by reading the
+ * XML by hand, which is what this script exists to save someone from.
+ */
+const WINGDINGS = {
+  F0A8: '[ ]',  // an empty box
+  F0FE: '[x]',  // a box with a tick in it
+  F0FC: '✔',    // a bare tick, used on its own in the template
+};
+
 /** Text runs in document order, one line per paragraph. */
 function linesOf(buffer) {
   const xml = new PizZip(buffer).file('word/document.xml').asText();
   return xml
     .replace(/<w:p[ >]/g, '\n<w:p ')
+    .replace(/<w:sym[^>]*w:char="([0-9A-Fa-f]+)"[^>]*\/>/g,
+      (whole, code) => WINGDINGS[code.toUpperCase()] || `[${code}]`)
     .replace(/<[^>]+>/g, '')
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())

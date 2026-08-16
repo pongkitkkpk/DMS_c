@@ -331,6 +331,11 @@ Required by Q22 — each is an intentional departure, not a porting bug:
 16. **Ordinals are assigned server-side** from array position, never accepted from the client:
     a client-chosen ordinal decides which box a line prints in on a government form
     (`docs/template-contract.md`), so it is not the client's to choose
+17. **A project money has been paid out of cannot be deleted.** The v1 decision was that
+    `DELETE FROM project` cascades, and thirteen of the fourteen child tables do; the
+    `disbursement` foreign key does not, so the delete answered a 500. Narrowed to a 409
+    naming the payments rather than widened to a cascade — **keeps the record that money
+    left the university's account** until someone who runs the process says otherwise
 
 ---
 
@@ -1074,6 +1079,38 @@ university's decision. Reproduce with `npm run forms:read`. See
 DMS_REBUILD_STRATEGY.md → "Reading the forms" for the two possible fixes.
 
 </details>
+
+### Two more wrong literals in the government forms — open (2026-08-17)
+
+Found by rendering a project filled to every printable capacity
+(`npm run forms:review`). Both are the same shape as the ประธานชมรม defect: the
+wrong word is *in the template*, so no data-side change can reach it, and each
+is proved by the same document contradicting itself.
+
+- **กนศ.04 §19 doubles บาทถ้วน.** The covering letter has `({thailistSAll})` and
+  reads correctly; §19 has `({thailistSAll} บาทถ้วน)`. `bahtText` cannot be
+  changed to suit, because it would then break the correct one — and for a
+  satang amount the literal is not merely doubled but wrong.
+- **กนศ.06 §10 labels the ผู้ทรงคุณวุฒิ row "นักศึกษาเข้าร่วมโครงการ"**, the same
+  literal as the row above it, while its tags are `{grandTotalExpert}`. The
+  numbers are right and the name over them is not.
+
+Both are one-run template edits of the kind `scripts/patch-head-title.js`
+already performed, and both are the university's call. Not changed.
+
+### Deleting a project money has left — refused, and why not cascaded (2026-08-17)
+
+`disbursement` is the only one of the fourteen foreign keys referencing
+`project` whose definition omits `ON DELETE`; the other thirteen say `CASCADE`.
+`DELETE /projects/:id` therefore answered a bare **500** for any project with a
+payment against it.
+
+Made a **409** naming the payments rather than a cascade. "Soft delete — DELETE
+FROM project cascades" is the recorded v1 decision, and this is a deliberate
+narrowing of it: a disbursement records money leaving the university's account,
+and whether an Admin may erase that by deleting the project is a process
+question. Refusing destroys nothing while the answer is outstanding; cascading
+would be irreversible and is a one-line migration whenever the answer arrives.
 
 ### Still open
 

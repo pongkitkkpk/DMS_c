@@ -1075,3 +1075,75 @@ happens when the database is down must not achieve that by taking it down.
 three separate defects — the dashboard counting every year, the `.env` lockout,
 and this. Every one was found by *running* the system in a state nobody had run
 it in, and none by a test. The pattern worth keeping is the rehearsal.
+
+---
+
+## A project filled to every capacity (2026-08-17)
+
+`npm run forms:review` builds one project that fills **every fixed-arity family
+to its limit** — 5 objectives, 15 activities, 57 budget rows across all four
+printable categories, both attendance variants in all five attendee types, one
+tick in each of the 8 checkbox vocabularies — walks it to CLOSED through the
+real endpoints as the real roles, and writes both `.docx` files to
+`generated/forms/`.
+
+It exists because the two questions left open by "Reading the forms" — whether
+the tick marks land in the visually correct cell, and where the pages break —
+are questions about the page, and the fixture project cannot ask them. A table
+that fits at three rows and overflows at fifteen looks perfect until somebody's
+real project has fifteen. The capacities are read from `docs/template-tags.json`,
+the same inventory `arity.js` enforces against, so replacing a template moves
+them.
+
+**`forms:read` now prints the checkboxes.** A `<w:sym/>` carries its glyph in an
+attribute, so stripping tags stripped the tick as well and every option printed
+identically whether or not it had been chosen — on a form that is mostly
+checkboxes. They render as `[x]` and `[ ]` now, and the first read confirmed the
+box-then-label order is right in all eight vocabularies and that
+`11. ลักษณะโครงการ[ ]โครงการใหม่[x] โครงการต่อเนื่อง` ticks the correct one.
+
+**What the full form showed.** Section 11 renders with all three problems paired
+against their resolutions. The money round-trips: 131,640 requested, 118,476
+approved, 100,705 spent, 19,622 returned, and กนศ.06's three category subtotals
+add up to the spend. Fifteen activity rows each shade a different month of the
+Gantt.
+
+### Two more literals in the forms, for the owner — same shape as ประธานชมรม
+
+Both are wrong words *in the templates*, unreachable from any data-side change,
+and both are proved by the same document contradicting itself.
+
+| Where | Prints | Should be |
+| --- | --- | --- |
+| กนศ.04 §19 | `(หนึ่งแสน…บาทถ้วน บาทถ้วน)` | one บาทถ้วน |
+| กนศ.06 §10 row 4 | `- นักศึกษาเข้าร่วมโครงการ` | ผู้ทรงคุณวุฒิ / วิทยากร |
+
+1. **The doubled บาทถ้วน.** temp04 uses `{thailistSAll}` twice: the covering
+   letter has `({thailistSAll})` and prints correctly, and §19 has
+   `({thailistSAll} บาทถ้วน)` — so the same value reads right on page 1 and
+   doubles on page 12 of one document. `bahtText` cannot fix it: dropping the
+   suffix would break the correct one. For a satang amount it is worse than
+   doubled — "…สามสิบสี่สตางค์ บาทถ้วน" says "exactly" after the satang.
+2. **The mislabelled row.** temp06's attendee table has five rows; the fourth is
+   labelled "- นักศึกษาเข้าร่วมโครงการ", the same literal as the third, but its
+   tags are `{grandTotalExpert}`. So the ผู้ทรงคุณวุฒิ headcount is printed under
+   the students' name, twice on the same page, and the total below is correct
+   while the rows do not explain it. The data is right; the label is not.
+
+Both are one-run edits of the kind `scripts/patch-head-title.js` already did,
+and both are the university's call, not this rebuild's. Recorded, not changed.
+
+### And one defect the run found in the system rather than the form
+
+`disbursement` is the only one of the fourteen foreign keys pointing at
+`project` whose definition never said `ON DELETE`; the other thirteen all say
+`CASCADE`. So `DELETE /projects/:id` hit the constraint for exactly the projects
+money had been paid out of and answered a bare **500** with
+"เกิดข้อผิดพลาดภายในระบบ" on screen and the constraint name in the log.
+
+Now a **409** naming the payments and why they stop it. Refused rather than
+cascaded on purpose: a disbursement records that money left the university's
+account, and whether an Admin may erase that is a question for whoever runs the
+process. Refusing is the answer that destroys nothing while it waits; if the
+answer comes back "cascade", it is a one-line migration. Four assertions in
+`check-phase3.js`, including that a project no money has left still deletes.

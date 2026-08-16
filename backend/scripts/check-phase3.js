@@ -304,6 +304,28 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   ok('the refund is approved - actual', closing.body.money.refundTotal === '1000.00', closing.body.money.refundTotal);
   ok('closing the project needs no further check', (await advance(stuact, p, 'CLOSED')).status === 200);
 
+  // ------------------------------------------------------------------
+  // `disbursement` is the one foreign key of the fourteen pointing at `project`
+  // that does not cascade, so deleting a project money was paid out of used to
+  // hit the constraint and answer a bare 500. The ledger is the reason to
+  // refuse, so the refusal says so.
+  console.log('\n--- a project that money has left cannot be deleted ---');
+
+  const undeletable = await call('DELETE', `/api/projects/${p}`, { token: admin });
+  ok('an Admin deleting a project with disbursements is refused, not crashed',
+    undeletable.status === 409, `${undeletable.status} ${undeletable.text.slice(0, 200)}`);
+  ok('  …and told it is the money that stops it',
+    // Two payments were recorded above: 9,000 then 3,000. The count is in the
+    // message because "it has money against it" is not actionable on its own.
+    /เบิกจ่าย/.test(undeletable.body.error) && undeletable.body.disbursements === 2,
+    undeletable.text.slice(0, 200));
+  ok('  …and the project is still there',
+    (await call('GET', `/api/projects/${p}`, { token: admin })).status === 200);
+
+  const spendless = await draft('โครงการที่ยังไม่มีการเบิกจ่าย', 1000, 1000);
+  ok('a project no money has left still deletes',
+    (await call('DELETE', `/api/projects/${spendless}`, { token: admin })).status === 200);
+
   console.log('\n--- the three refusals are three different messages ---');
   const messages = [blockedA.body.error, blockedB.body.error, blockedC.body.error];
   ok('distinct messages per layer (Q32)', new Set(messages).size === 3, JSON.stringify(messages));
