@@ -996,6 +996,35 @@ the single action that can lock the system, which is an argument for moving the
 year somewhere an officer sets deliberately — and for the readiness banner that
 warns before the moment arrives.
 
+### The lockout had a third way in: boot order — closed (2026-08-16)
+
+Moving the year into the database closed the `.env`-edit route, and
+`setAcademicYear`'s guard made the deliberate route impossible. **A third route
+was open and needed no decision by anybody: start the API before MariaDB.**
+
+`academicYearService.load()` treated "the database says there is no row" and
+"the database could not be answered" as the same outcome, and cached the
+date-derived year for both. The first is right — a fresh install has no row. The
+second put the running system into a year it may never have prepared, and
+**cached it for the life of the process**. MariaDB then comes up a second later,
+`/api/health` goes back to `ok`, and every account resolves to `role: null`
+because no membership exists in the guessed year. Nothing looks broken. On this
+machine, where XAMPP's MySQL is started by hand, it is the likeliest of the
+three routes rather than the most obscure.
+
+The fix keeps `unresolved` as a state of its own: nothing is cached, and
+`retryUntilResolved()` asks every five seconds until the database answers, so
+the system heals when MariaDB arrives instead of waiting to be restarted.
+`/api/health` reports `academicYearResolved` and answers 503 while the year is a
+guess — a reachable database is not on its own a healthy system. Rehearsed the
+way it was found: API up first, health `degraded`, MariaDB started, health `ok`
+at **2567** with `academic year: resolved to 2567 (database) — requests before
+now were served against 2569` in the log.
+
+Three assertions in `check-phase6.js`, the last two driven in-process by
+stubbing `pool.query` — the state machine is what is under test, and a check
+suite must not take the database down to prove a point.
+
 ### Separation of duties across roles — closed (2026-08-16)
 
 **The owner's clarification closed it: `SH` is หัวหน้าชมรม, which is a student.**

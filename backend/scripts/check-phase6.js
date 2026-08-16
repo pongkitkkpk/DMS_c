@@ -391,6 +391,45 @@ function fileForm(name, bytes, type = 'application/pdf') {
   ok('  …and everything followed it back',
     JSON.parse((await call('GET', '/api/health')).text).academicYear === yr);
 
+  // ------------------------------------------------------------------
+  // The boot-order lockout (found 2026-08-16 by starting the API before
+  // MariaDB). An unreadable database used to be indistinguishable from an
+  // unseeded one: both fell to the date and cached it *permanently*. MariaDB
+  // then came up, health said `ok`, and every account resolved to `role: null`
+  // because no membership exists in the guessed year.
+  console.log('\n--- 9. a database that was not up when the API started ---');
+
+  const health = JSON.parse((await call('GET', '/api/health')).text);
+  ok('health says whether the year is the stored one or a guess',
+    health.status === 'ok' && health.academicYearResolved === true,
+    JSON.stringify(health));
+
+  // Driven in-process rather than by stopping MariaDB: the state machine is
+  // the thing under test, and a check suite must not take the database down.
+  if (process.env.ACADEMIC_YEAR) {
+    console.log('  (skipped: ACADEMIC_YEAR is overriding the year in this process)');
+  } else {
+    const yearService = require('../src/services/academicYearService');
+    const realQuery = pool.query.bind(pool);
+    pool.query = async () => {
+      // What mysql2 actually throws for a refused connection: a `code`, and an
+      // empty `message`. The empty message is why the log line prints the code.
+      const err = new Error('');
+      err.code = 'ECONNREFUSED';
+      throw err;
+    };
+    const down = await yearService.load();
+    ok('an unreadable database leaves the year unresolved rather than guessed',
+      down.source === 'unresolved' && yearService.isResolved() === false, down.source);
+
+    yearService.retryUntilResolved(50);
+    pool.query = realQuery;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ok('  …and it heals itself when the database arrives, with no restart',
+      yearService.isResolved() === true && yearService.current() === yr,
+      `${yearService.current()}`);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();
   process.exit(fail ? 1 : 0);

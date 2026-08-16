@@ -43,10 +43,19 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // A reachable database is not on its own a healthy system: if the API started
+  // before MariaDB, the academic year is still a guess until the retry lands,
+  // and every membership resolves against it. Both facts are reported.
   app.get('/api/health', async (req, res) => {
     try {
       await pool.query('SELECT 1');
-      res.json({ status: 'ok', database: 'ok', academicYear: academicYear.current() });
+      const resolved = academicYear.isResolved();
+      res.status(resolved ? 200 : 503).json({
+        status: resolved ? 'ok' : 'degraded',
+        database: 'ok',
+        academicYear: academicYear.current(),
+        academicYearResolved: resolved,
+      });
     } catch (err) {
       res.status(503).json({ status: 'degraded', database: err.code || 'error' });
     }

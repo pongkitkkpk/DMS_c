@@ -55,11 +55,20 @@ async function reportDatabase() {
 // could be served against a stale year and resolve the wrong memberships.
 async function start() {
 const yearSource = await academicYear.load();
+// The database was not up. Serving on a guessed year is what put every account
+// on `role: null` the one time this happened, so the API keeps asking rather
+// than settling for the guess and waiting to be restarted.
+academicYear.retryUntilResolved();
 
 const server = createApp().listen(config.port, () => {
   console.log(`DMS API listening on http://localhost:${config.port}`);
   console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? '  (any password is accepted)' : ''}`);
-  console.log(`  academic year   ${yearSource.academicYear}  (${yearSource.source})`);
+  if (yearSource.source === 'unresolved') {
+    console.log(`  academic year   ${yearSource.academicYear}  ⚠ เดาจากวันที่ — ยังอ่านจากฐานข้อมูลไม่ได้`);
+    console.log('                  ทุกบัญชีจะยังไม่มีสิทธิ์จนกว่าจะอ่านค่าจริงได้ (ระบบจะลองใหม่เอง)');
+  } else {
+    console.log(`  academic year   ${yearSource.academicYear}  (${yearSource.source})`);
+  }
   console.log(`  cors origins    ${config.corsOrigins.join(', ')}${config.isProduction ? '' : '  (+ any http://localhost:* in development)'}`);
   if (config.localAdmin.enabled) {
     console.log(`  local admin     ${config.localAdmin.username}  (non-production fallback)`);

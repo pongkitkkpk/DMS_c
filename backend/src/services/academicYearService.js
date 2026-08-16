@@ -25,6 +25,20 @@
  * breath as the database. A second API process would not see another's change
  * until restarted — acceptable here (one process, one machine) and written down
  * rather than discovered.
+ *
+ * **Source 3 is not the same thing as "the database was unreachable".** They
+ * were conflated once, and the result was the documented lockout arriving
+ * through an ordinary boot order: start the API before MariaDB — the usual
+ * accident on a machine where XAMPP is started by hand — and the year fell to
+ * the date and was cached there *permanently*. MariaDB comes up a second later,
+ * `/api/health` returns `ok`, and every account in the system resolves to
+ * `role: null` because no membership exists in the guessed year. Nothing is
+ * broken enough to notice and nobody can do anything.
+ *
+ * So a failed read is now its own state. Nothing is cached, the year is
+ * `unresolved`, and `retryUntilResolved()` keeps asking until the database
+ * answers. The system heals itself when MariaDB arrives instead of waiting for
+ * somebody to work out that the API needs restarting.
  */
 const { pool, transaction } = require('../db/pool');
 const { HttpError } = require('../lib/httpError');
@@ -34,18 +48,38 @@ const { config } = require('../config');
 /** Set by `load()`. Never read directly — `current()` is the accessor. */
 let cached = null;
 
+/**
+ * Where `cached` came from. `'unresolved'` is the one that matters: it means
+ * the database could not be read and the value being served is a guess, which
+ * is a state every caller is entitled to know about.
+ */
+let source = 'unresolved';
+
+/** The pending `retryUntilResolved` timer, so a second call does not stack. */
+let retryTimer = null;
+
+/** Whether the unreachable-database line has been printed for this outage. */
+let reportedUnresolved = false;
+
 /** True when the environment is forcing the year, which makes it unsettable. */
 const isOverridden = () => Boolean(process.env.ACADEMIC_YEAR);
+
+/** How long between attempts to reach a database that was not up at startup. */
+const RETRY_INTERVAL_MS = 5000;
 
 /**
  * Read the stored year into the cache. Called once, at startup, before the port
  * is bound — a request served with the wrong year would resolve the wrong
  * memberships, so there is no "load it lazily on first use".
+ *
+ * Returns the source as well as the value, because "2569, derived from the
+ * date" and "2569, and we could not ask" are different facts.
  */
 async function load() {
   if (isOverridden()) {
     cached = Number(process.env.ACADEMIC_YEAR);
-    return { academicYear: cached, source: 'env' };
+    source = 'env';
+    return { academicYear: cached, source };
   }
   try {
     const [[row]] = await pool.query(
@@ -53,20 +87,69 @@ async function load() {
     );
     if (row) {
       cached = Number(row.academic_year);
-      return { academicYear: cached, source: 'database' };
+      source = 'database';
+      return { academicYear: cached, source };
     }
+    // The database answered and holds no row: a fresh install that has not been
+    // seeded. This is the real source 3, and caching the date is right here.
+    cached = Number(config.fallbackAcademicYear);
+    source = 'derived from the date';
+    return { academicYear: cached, source };
   } catch (err) {
     // A database that is not up yet must not stop the API from starting —
-    // `server.js` reports that separately and the year falls back to the date.
-    console.error('academic year: could not be read from the database:', err.message);
+    // `server.js` reports that separately. But it must not be mistaken for an
+    // unseeded one either: nothing is cached, and the retry keeps asking.
+    //
+    // Said once and not once per retry: an aggregate ECONNREFUSED carries no
+    // `message`, so a five-second loop of it would be blank lines scrolling the
+    // startup banner — the one thing worth reading — off the screen.
+    if (!reportedUnresolved) {
+      console.error(`academic year: could not be read from the database (${err.code || err.message})`);
+      reportedUnresolved = true;
+    }
+    cached = null;
+    source = 'unresolved';
+    return { academicYear: current(), source };
   }
-  cached = Number(config.fallbackAcademicYear);
-  return { academicYear: cached, source: 'derived from the date' };
+}
+
+/**
+ * Keep asking until the database answers. Started by `server.js` when `load()`
+ * came back unresolved, and a no-op otherwise.
+ *
+ * The timer is `unref`ed so an API waiting for a database it will never get
+ * still exits on Ctrl-C rather than hanging on its own retry.
+ */
+function retryUntilResolved(intervalMs = RETRY_INTERVAL_MS) {
+  if (source !== 'unresolved' || retryTimer) return;
+  retryTimer = setInterval(async () => {
+    const before = current();
+    const result = await load();
+    if (result.source === 'unresolved') return;
+    clearInterval(retryTimer);
+    retryTimer = null;
+    console.info(
+      `academic year: resolved to ${result.academicYear} (${result.source})` +
+      // Loud, because everything served in the meantime was served against the
+      // guess, and whoever reads the log should know which requests those were.
+      (result.academicYear === before ? '' : ` — requests before now were served against ${before}`)
+    );
+  }, intervalMs);
+  if (retryTimer.unref) retryTimer.unref();
 }
 
 /** The year everything else asks for. Synchronous on purpose — see the header. */
 function current() {
   return cached === null ? Number(config.fallbackAcademicYear) : cached;
+}
+
+/**
+ * Whether `current()` is the stored year or a guess standing in for one. The
+ * health endpoint reports it, so "the database is back" and "the year is right
+ * again" can be told apart from outside the process.
+ */
+function isResolved() {
+  return source !== 'unresolved';
 }
 
 /**
@@ -123,6 +206,7 @@ async function setAcademicYear(actor, body) {
 
     const from = current();
     cached = academicYear;
+    source = 'database';
     // The one action that changes what every user of the system may do. It gets
     // a line in the server log whether or not anyone is reading it today.
     console.info(
@@ -158,4 +242,6 @@ async function describe(actor) {
   };
 }
 
-module.exports = { load, current, setAcademicYear, describe, isOverridden };
+module.exports = {
+  load, current, setAcademicYear, describe, isOverridden, isResolved, retryUntilResolved,
+};

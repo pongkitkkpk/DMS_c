@@ -1027,3 +1027,51 @@ Two things this pass could not check and a person still should: whether the
 tick marks land in the *visually* correct cell of a table, and how the page
 breaks. Reading XML establishes that a value arrived, not that it looks right on
 paper.
+
+---
+
+## The lockout's third way in: boot order (2026-08-16)
+
+Found by starting the API before MariaDB — not by looking for it. The session
+opened with `npm start` against a database that was not running, and every one
+of 400 checks failed for the same reason: the system was sitting in **2569**,
+a year nothing was prepared for, so every fixture account resolved to
+`role: null`.
+
+That is the lockout of 2026-08-15, arriving by a route neither mitigation
+covers. The `.env` edit was closed by moving the year into the database. The
+deliberate move was closed by `setAcademicYear`'s guard. **Boot order needs no
+decision by anybody**, and on a machine where XAMPP's MySQL is started by hand
+it is the likeliest route of the three.
+
+**The cause is one conflated case.** `load()` had three sources and four
+outcomes. "The database says there is no row" — a fresh install — and "the
+database could not be answered" both fell to the date, and both cached it *for
+the life of the process*. The first is correct. The second means MariaDB comes
+up a second later, `/api/health` returns to `ok`, and the system goes on
+resolving memberships against a guess with nothing to say so.
+
+**`unresolved` is now a state of its own.** Nothing is cached, and
+`retryUntilResolved()` asks every five seconds until the database answers, so
+the system heals when MariaDB arrives rather than waiting for someone to work
+out that the API needs restarting. The startup banner says the year is a guess,
+in Thai, next to the line that already says the database is down. `/api/health`
+carries `academicYearResolved` and answers **503 while the year is a guess** —
+a reachable database is not on its own a healthy system, and health is what a
+person checks after starting MySQL.
+
+**Rehearsed in the order that found it.** API up with MariaDB down:
+`{"status":"degraded","database":"ECONNREFUSED"}`. MariaDB started, nothing else
+touched: `{"status":"ok","academicYear":2567,"academicYearResolved":true}`, and
+in the log `academic year: resolved to 2567 (database) — requests before now
+were served against 2569`. Before the change the same sequence left the server
+on 2569 until it was restarted.
+
+Three assertions in `check-phase6.js` (403 total). The last two drive the state
+machine in-process by stubbing `pool.query`, because a check suite proving what
+happens when the database is down must not achieve that by taking it down.
+
+**What this says about the rest of the work.** The year has now been the root of
+three separate defects — the dashboard counting every year, the `.env` lockout,
+and this. Every one was found by *running* the system in a state nobody had run
+it in, and none by a test. The pattern worth keeping is the rehearsal.
