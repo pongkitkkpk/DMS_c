@@ -98,17 +98,33 @@ export function PhaseStepper({ phases, currentOrdinal }) {
 
 /** Thai-formatted money. The API sends DECIMAL as a string so it cannot float-round. */
 /**
- * A timestamp as a Thai reader expects it — "1 มิ.ย. 2567 14:30".
+ * `'2024-06-01'` or `'2026-08-17 00:03:18'` → the numbers in it.
  *
- * Unlike `ProjectPage`'s `date`, this takes a full DATETIME rather than a
- * date-only string, so parsing it is unambiguous and there is no UTC-midnight
- * trap to sidestep. Kept here because it is the shared home; the date-only
- * helper stays where its one caller is until something else needs it.
+ * Every date the API sends is the string a `DATE` or `DATETIME` column holds,
+ * with no timezone (see `backend/src/db/pool.js`). So they are read as digits
+ * and handed to `new Date(y, m, d, …)`, which builds a local time from parts.
+ * Never `new Date(string)`: it applies a UTC rule to date-only values and its
+ * handling of a space-separated datetime is not something the language
+ * guarantees at all.
  */
+function partsOf(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(value));
+  if (!match) return null;
+  const [, y, mo, d, h, mi] = match;
+  return new Date(Number(y), Number(mo) - 1, Number(d), Number(h || 0), Number(mi || 0));
+}
+
+/** A date as a Thai reader expects it — "1 มิ.ย. 2567", Buddhist year. */
+export function calendarDate(value) {
+  const at = value && partsOf(value);
+  if (!at) return '—';
+  return at.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** The same, with the time — "1 มิ.ย. 2567 14:30". */
 export function dateTime(value) {
-  if (!value) return '—';
-  const at = new Date(value);
-  if (Number.isNaN(at.getTime())) return '—';
+  const at = value && partsOf(value);
+  if (!at) return '—';
   return at.toLocaleString('th-TH', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',

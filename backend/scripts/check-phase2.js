@@ -206,6 +206,17 @@ async function login(username) {
   ok('edits logged with their section',
     events.body.events.some((e) => e.event_type === 'EDITED' && e.edited_section === 'attendance'));
 
+  // Dates leave as the strings their columns hold, with no timezone claimed.
+  // The driver used to be told they were UTC while MariaDB writes local
+  // wall-clock, which put every timestamp on the screens seven hours after it
+  // happened. Pinned here because nothing else would notice it come back.
+  ok('a timestamp is the wall clock, not an instant in a timezone',
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(events.body.events[0].occurred_at),
+    String(events.body.events[0].occurred_at));
+  ok('  …and a date is a date',
+    /^\d{4}-\d{2}-\d{2}$/.test(finalState.body.eventStartOn),
+    String(finalState.body.eventStartOn));
+
   console.log('\n--- out of scope ---');
   const outside = adminList.body.items.find((p) => p.club.id !== shList.body.items[0].club.id);
   ok('SH: another club 404s, not 403 (no existence leak)',

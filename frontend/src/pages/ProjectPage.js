@@ -18,7 +18,7 @@ import { api, messageOf } from '../api';
 import AttachmentsCard from '../components/AttachmentsCard';
 import BudgetPanel from '../components/BudgetPanel';
 import DocumentsCard from '../components/DocumentsCard';
-import { Card, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
+import { calendarDate, Card, dateTime, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
 
 const SECTION_LABELS = {
   objectives: 'วัตถุประสงค์',
@@ -43,22 +43,28 @@ const EVENT_LABELS = {
 /**
  * A date as a Thai reader expects it — "1 มิ.ย. 2567", Buddhist year.
  *
- * This used to slice the first ten characters off the API's ISO string, which
- * put "2024-06-01" on the schedule card while the timeline beside it, the
- * attachment list, the budget panel and both government forms all printed Thai
- * dates. The schedule is the one card whose dates people actually plan around,
- * so it was the worst place to be four hundred and forty-three years out.
- *
- * Built from the parts rather than `new Date(value)`: an ISO date-only string
- * parses as UTC midnight, which in this timezone can render as the day before.
+ * This once printed "2024-06-01" on the schedule card while the timeline beside
+ * it, the attachment list and both government forms printed Thai dates. The
+ * schedule is the one card whose dates people actually plan around, so it was
+ * the worst place to be four hundred and forty-three years out. It now shares
+ * one helper with every other date on every screen, which is what stopped the
+ * three of them drifting apart again.
  */
-const date = (value) => {
-  if (!value) return '—';
-  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
-  if (!year || !month || !day) return '—';
-  return new Date(year, month - 1, day)
-    .toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+const date = calendarDate;
+
+/** The same words the create form offers, so a row reads back as it was entered. */
+const ATTENDEE_TYPE_LABELS = {
+  STUDENT: 'นักศึกษา',
+  PROFESSOR: 'อาจารย์',
+  EXECUTIVE: 'ผู้บริหาร',
+  EXPERT: 'วิทยากร / ผู้ทรงคุณวุฒิ',
+  OTHER: 'อื่น ๆ',
 };
+
+const ATTENDANCE_VARIANTS = [
+  ['PLANNED', 'ตามแผน', 'ตัวเลขที่พิมพ์บนแบบ กนศ.04'],
+  ['ACTUAL', 'เข้าร่วมจริง', 'ตัวเลขที่พิมพ์บนแบบ กนศ.06'],
+];
 
 /** One row of a child list, rendered from whichever fields that section has. */
 function SectionRow({ row }) {
@@ -70,11 +76,51 @@ function SectionRow({ row }) {
       {row.start_on && (
         <div className="u-small u-dim">{date(row.start_on)} — {date(row.end_on)}</div>
       )}
-      {row.headcount !== undefined && (
-        <span className="u-small u-dim"> · {row.attendee_type} {row.headcount} คน</span>
-      )}
       {row.volume_target && <div className="u-small u-dim">เป้าหมาย: {row.volume_target}</div>}
     </li>
+  );
+}
+
+/**
+ * Attendance, split by variant.
+ *
+ * It used to go through `SectionRow` like every other child list, which printed
+ * the rows in whatever order they arrived and showed the raw enum: "นักศึกษา
+ * ผู้เข้าร่วม · STUDENT 100 คน" followed by "นักศึกษาผู้เข้าร่วม · STUDENT 92 คน".
+ * Those are the *same* group of students planned and counted, and the card gave
+ * a reader no way to know that — it read as two different groups, on the one
+ * screen where the comparison between them is the point. กนศ.06 prints them as
+ * two columns and works out the percentage between; the screen should not be
+ * harder to read than the form it feeds.
+ */
+function AttendanceCard({ rows }) {
+  const total = (list) => list.reduce((sum, row) => sum + Number(row.headcount || 0), 0);
+
+  return (
+    <Card title="ผู้เข้าร่วม" aside={`${rows.length} รายการ`}>
+      {ATTENDANCE_VARIANTS.map(([variant, title, hint]) => {
+        const group = rows.filter((row) => row.variant === variant);
+        if (!group.length) return null;
+        return (
+          <div key={variant} className="mb-3">
+            <div className="u-row" style={{ alignItems: 'baseline', gap: 'var(--s-2)' }}>
+              <strong className="u-small">{title}</strong>
+              <span className="u-small u-dim">{hint}</span>
+              <span className="u-spacer u-small u-dim">รวม {total(group)} คน</span>
+            </div>
+            <ul className="mb-0 pl-3">
+              {group.map((row) => (
+                <li key={row.id}>
+                  {ATTENDEE_TYPE_LABELS[row.attendee_type] || row.attendee_type}
+                  {row.label ? ` — ${row.label}` : ''}
+                  <span className="u-small u-dim"> · {row.headcount} คน</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </Card>
   );
 }
 
@@ -260,6 +306,9 @@ export default function ProjectPage() {
             {Object.entries(SECTION_LABELS).map(([key, label]) => {
               const rows = project.sections[key] || [];
               if (!rows.length) return null;
+              // Attendance is the one section whose rows mean nothing without
+              // the variant they belong to — see `AttendanceCard`.
+              if (key === 'attendance') return <AttendanceCard key={key} rows={rows} />;
               return (
                 <Card key={key} title={label} aside={`${rows.length} รายการ`}>
                   <ol className="mb-0 pl-3">
@@ -299,7 +348,7 @@ export default function ProjectPage() {
                       {e.edited_section && ` (${SECTION_LABELS[e.edited_section] || e.edited_section})`}
                     </div>
                     <div className="tl-item__meta">
-                      {e.actor_name} · {new Date(e.occurred_at).toLocaleString('th-TH')}
+                      {e.actor_name} · {dateTime(e.occurred_at)}
                     </div>
                   </div>
                 ))}

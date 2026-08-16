@@ -22,7 +22,7 @@ import { Button, Input } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
-import { Card, Empty, Skeleton, money } from './ui';
+import { calendarDate, Card, dateTime, Empty, Skeleton, money } from './ui';
 
 /**
  * The categories as the government form names them (docs/schema-current.md →
@@ -309,7 +309,7 @@ function Disbursements({ projectId, rows, editable, onSaved }) {
                 <span className="u-mono">{money(row.amount)}</span> บาท · รับโดย {row.received_by_name}
               </div>
               <div className="tl-item__meta">
-                จ่ายโดย {row.issued_by_name} · {new Date(row.disbursed_at).toLocaleString('th-TH')}
+                จ่ายโดย {row.issued_by_name} · {dateTime(row.disbursed_at)}
               </div>
             </div>
           ))}
@@ -391,7 +391,7 @@ export default function BudgetPanel({ projectId, onChange }) {
           <Kpi label="ตามแผน" value={figures.plannedAmount} note="เพดานของรายการที่ขอ" />
           <Kpi label="ขอมา" value={figures.requestedTotal} note="ผลรวมของรายการ" />
           <Kpi label="อนุมัติ" value={figures.approvedAmount}
-            note={figures.approvedAt ? new Date(figures.approvedAt).toLocaleDateString('th-TH') : 'ยังไม่อนุมัติ'} />
+            note={figures.approvedAt ? calendarDate(figures.approvedAt) : 'ยังไม่อนุมัติ'} />
           <Kpi label="เบิกแล้ว" value={figures.disbursedTotal}
             note={figures.remaining === null ? undefined : `คงเหลือ ${money(figures.remaining)}`} />
           <Kpi label="ใช้จริง" value={figures.actualTotal}

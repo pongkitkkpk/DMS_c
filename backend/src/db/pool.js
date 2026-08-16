@@ -17,7 +17,26 @@ const pool = mysql.createPool({
   charset: 'utf8mb4_unicode_ci',
   // Keep DECIMAL as a string rather than letting JS float-round money.
   decimalNumbers: false,
-  timezone: 'Z',
+  /**
+   * Dates and timestamps come back as the strings the columns hold, and are
+   * never turned into a JS `Date` on the way out.
+   *
+   * This used to be `timezone: 'Z'`, which told the driver that every DATETIME
+   * in the database was UTC. It is not: MariaDB here runs on the system
+   * timezone and `NOW()` writes Thai wall-clock time, so a row written at
+   * 00:03 came back as the instant `2026-08-17T00:03:18.000Z` and every screen
+   * that rendered it as a local time printed **07:03** — seven hours after it
+   * happened, on the timeline whose whole job is to say when things happened.
+   *
+   * A `DATETIME` column carries no timezone, so the honest thing is to stop
+   * claiming one. `'2026-08-17 00:03:18'` is what the column says and what the
+   * clock on the wall said; the frontend reads the parts and never asks a
+   * `Date` to guess an offset.
+   */
+  dateStrings: true,
+  // Only for writes now — a JS `Date` parameter is stored as local wall-clock,
+  // which is what `NOW()` and `CURRENT_TIMESTAMP` in the same tables write.
+  timezone: 'local',
 });
 
 // XAMPP/MariaDB ships without STRICT_TRANS_TABLES, so a too-long string is

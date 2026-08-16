@@ -13,7 +13,7 @@ import { Button } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, filenameOf, messageOf } from '../api';
-import { Card, Empty, Skeleton } from './ui';
+import { calendarDate, Card, Empty, Skeleton } from './ui';
 
 /** Bytes as something a person reads. */
 function size(bytes) {
@@ -122,7 +122,7 @@ export default function AttachmentsCard({ projectId }) {
                 </div>
                 <div className="u-small u-dim">
                   {size(attachment.byteSize)} · {attachment.uploadedByName} ·{' '}
-                  {new Date(attachment.uploadedAt).toLocaleDateString('th-TH')}
+                  {calendarDate(attachment.uploadedAt)}
                 </div>
               </div>
               <Button size="sm" outline color="secondary" disabled={busy === `d${attachment.id}`}
