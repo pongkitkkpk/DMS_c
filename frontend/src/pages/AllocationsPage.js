@@ -264,15 +264,29 @@ export default function AllocationsPage() {
                     </tr>
                   ))}
 
+                  {/* Said once, above the block, rather than on every row.
+                      There are 69 clubs and in a year nobody has prepared, 68
+                      of them are unfunded — the same sentence repeated down a
+                      whole page stops being read after the second time, and it
+                      buries the club names, which are what the reader is
+                      actually scanning for. */}
+                  {unfunded.length > 0 && (
+                    <tr>
+                      <td colSpan={mayAllocate ? 5 : 4} className="u-small u-muted"
+                          style={{ paddingTop: 'var(--s-4)' }}>
+                        อีก {unfunded.length} ชมรมยังไม่ได้กำหนดวงเงินของปี {year} —
+                        อนุมัติเงินโครงการของชมรมเหล่านี้ไม่ได้จนกว่าจะกำหนด
+                      </td>
+                    </tr>
+                  )}
+
                   {unfunded.map((club) => (
                     <tr key={`u${club.id}`}>
                       <td>
                         <div className="table-x__title">{club.nameTh}</div>
                         <div className="u-small u-dim u-mono">{club.code} · {club.campusName}</div>
                       </td>
-                      <td colSpan={3} className="u-small u-muted">
-                        ยังไม่ได้กำหนดวงเงินของปี {year} — อนุมัติเงินโครงการของชมรมนี้ไม่ได้จนกว่าจะกำหนด
-                      </td>
+                      <td colSpan={3} className="u-dim" style={{ textAlign: 'right' }}>—</td>
                       {mayAllocate && (
                         <td>
                           <Button size="sm" outline color="secondary"

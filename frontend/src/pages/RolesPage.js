@@ -460,6 +460,16 @@ export default function RolesPage() {
                           : item.jurisdiction
                             ? item.jurisdiction.nameTh
                             : <span className="u-dim">ทั้งระบบ</span>}
+                        {/* An adviser's agency is asked for when the role is
+                            granted and then printed on กนศ.04 — the field that
+                            came out blank on submitted forms for as long as
+                            nothing collected it. Shown here because this table
+                            is the only place it can be checked afterwards. */}
+                        {item.role === 'AD' && (
+                          <div className="u-dim">
+                            {item.advisorAgency || <em>ยังไม่ระบุภาควิชา/กอง/หน่วยงาน</em>}
+                          </div>
+                        )}
                       </td>
                       <td>
                         {/* Only offered for roles this actor could have

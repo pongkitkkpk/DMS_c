@@ -1147,3 +1147,57 @@ account, and whether an Admin may erase that is a question for whoever runs the
 process. Refusing is the answer that destroys nothing while it waits; if the
 answer comes back "cascade", it is a one-line migration. Four assertions in
 `check-phase3.js`, including that a project no money has left still deletes.
+
+---
+
+## Browser pass 6 (2026-08-17)
+
+Every screen in both a student's and an Admin's session, after the day's
+backend work. Four findings, none of which any of the 409 checks could have
+seen, because all four are about what a person reads on the page.
+
+**1. Every timestamp was seven hours late.** The pool declared
+`timezone: 'Z'` — the database's DATETIMEs are UTC — and they are not: MariaDB
+here runs on the system timezone and `NOW()` writes Thai wall-clock. A row
+written at 00:03 arrived as the instant `2026-08-17T00:03:18.000Z` and the
+timeline rendered it as **07:03**. The one card whose entire job is to say when
+something happened was the one saying it wrongly.
+
+`dateStrings: true` stops the driver claiming a timezone the column does not
+have. Dates now leave as `'2024-06-01'` and `'2026-08-17 00:03:18'`, and the
+frontend reads the parts rather than asking `Date` to guess an offset — which it
+was also doing for date-only values, where the guess is UTC midnight and can
+land on the day before. `timezone` is `'local'` now and only governs writing a
+JS `Date`, which makes the seed agree with `NOW()` in the same tables.
+
+Five date sites in three shapes, one of them numeric (`17/8/2569` beside
+`1 มิ.ย. 2567`), now share `calendarDate` and `dateTime` in `ui.js`. Two
+assertions in `check-phase2` pin the wire shape.
+
+**2. The attendance card could not be read.** It printed
+`นักศึกษาผู้เข้าร่วม · STUDENT 100 คน` and, three lines later,
+`นักศึกษาผู้เข้าร่วม · STUDENT 92 คน` — the same students planned and counted,
+with nothing to say which was which, on the one screen where the comparison is
+the point. กนศ.06 prints them as two columns and computes the percentage
+between them; the screen should not be harder to read than the form it feeds.
+Split by variant, with the Thai word for the type instead of the enum.
+
+**3. The allocations screen said the same sentence 68 times.** In a year nobody
+has prepared, 68 of 69 clubs are unfunded and each row carried the full
+"ยังไม่ได้กำหนดวงเงินของปี 2567 — อนุมัติเงินโครงการของชมรมนี้ไม่ได้จนกว่าจะกำหนด".
+Said once above the block now, with an em dash per row, so the club names — what
+the reader is actually scanning for — are what stands out.
+
+**4. An adviser's agency was write-only.** It is required when the role is
+granted and printed on กนศ.04, and after that it appeared on no screen. The
+roles table shows it under the scope now, so the value on a government form can
+be checked without rendering the form.
+
+**What held.** The readiness banner offers the year-change button only when the
+target year already has an Admin, and says which piece is missing when it does
+not — the lockout guard, correct on the screen as well as in the service. The
+project form states each family's printable capacity next to the rows and warns
+when a list is over it. The phase stepper, the scope rules (a student sees 7
+projects, the Admin 8), the money meters and both document buttons all read
+correctly. The only console output in the whole pass is reactstrap's
+`defaultProps` deprecation warning.
