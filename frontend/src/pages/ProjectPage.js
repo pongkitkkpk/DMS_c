@@ -140,6 +140,12 @@ export default function ProjectPage() {
    * Deleting cascades to every child table and there is no soft delete in v1,
    * so the confirmation names the project and requires a second click — and the
    * server still checks that this caller may do it.
+   *
+   * One thing it will not do: a project money has been paid out of is refused
+   * with a 409 naming the payments, which arrives here as the server's own Thai
+   * sentence. That refusal is deliberately not predicted on this side — the
+   * disbursements are not loaded on this page, and a button that hides itself
+   * on a guess is worse than one that explains why it could not.
    */
   const remove = async () => {
     const confirmed = await Swal.fire({

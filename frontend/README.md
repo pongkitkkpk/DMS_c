@@ -1,8 +1,9 @@
 # DMS frontend
 
-A first slice, not Phase 5. Enough screens to drive the Phase 2 API end to end:
-log in, list the projects your membership can see, open one, and advance it
-through the phase machine.
+Every screen of v1. Nine pages: sign in, the dashboard, the project list, one
+project, the create/edit form, the year-by-year history, the allocations screen,
+the roles screen, and the profile. Setup instructions for the whole system are
+in `../README.md`; what follows is what a person editing *this half* needs.
 
 ## Running
 
@@ -55,9 +56,10 @@ Two rules the palette follows:
 Light only, per the "no dark mode" decision in the build plan. The tokens are
 structured so a dark set could be added without touching a component.
 
-## What is not here yet
+## What is deliberately not here
 
-Creating and editing projects, budget screens, document downloads, and the rest
-of the screen list in `docs/DECISIONS.md` → "Old frontend screens". Phase 5
-builds those, after Phase 3 (budget) and Phase 4 (documents) exist for them to
-build on.
+- **The adviser's review queue** (Q5) — the adviser has one read-only screen.
+- **Email notification** — decided against for v1, see the build plan's Phase 6.
+- **Award categories `D06`–`D12`** — seeded in the database, no screen, pending
+  confirmation that the feature is wanted at all.
+- **Dark mode**, and **i18n**: the copy is Thai, hardcoded (Q11).

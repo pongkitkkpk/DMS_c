@@ -18,6 +18,8 @@
 const { execFileSync, spawnSync } = require('child_process');
 const path = require('path');
 
+const { ACADEMIC_YEAR: FIXTURE_ACADEMIC_YEAR } = require('../src/db/seeds/fixtures');
+
 const BACKEND = path.resolve(__dirname, '..');
 const PHASES = [2, 3, 4, 5, 6];
 const API = 'http://localhost:3001/api/health';
@@ -37,6 +39,28 @@ function node(script, args = []) {
     const health = await res.json();
     if (health.database !== 'ok') {
       console.error(`API is up but its database is not: ${health.database}`);
+      process.exit(1);
+    }
+    // The API resolves every membership against its academic year, so a server
+    // sitting in a different year than the fixtures seed fails *every* suite,
+    // for one reason, with several hundred assertions each reporting it as
+    // their own. Both ways that happens are named here rather than diagnosed
+    // five hundred failures later.
+    if (health.academicYearResolved === false) {
+      console.error(
+        `The API's academic year is a guess (${health.academicYear}) — it could not read the\n` +
+        'stored one, most likely because it started before MariaDB. Restart it, or wait for\n' +
+        'its retry, and run this again.'
+      );
+      process.exit(1);
+    }
+    if (health.academicYear !== FIXTURE_ACADEMIC_YEAR) {
+      console.error(
+        `The API is in academic year ${health.academicYear} and the fixtures seed ${FIXTURE_ACADEMIC_YEAR}, so no\n` +
+        'membership would resolve and every suite would fail. If this is a year-rollover\n' +
+        'rehearsal, that is expected — rehearse against the screens, not against this run,\n' +
+        'which reseeds between suites and would erase the year you prepared.'
+      );
       process.exit(1);
     }
     console.log(`API ok · database ok · academic year ${health.academicYear}\n`);
