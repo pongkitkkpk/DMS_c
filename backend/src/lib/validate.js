@@ -15,6 +15,46 @@ const { HttpError } = require('./httpError');
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * `TEXT`'s capacity, in **bytes** — which is not the same thing as characters.
+ *
+ * Every explicit `max` below is a character count, because that is what
+ * `VARCHAR(n)` counts: 255 means 255 characters however many bytes they take.
+ * `TEXT` is the one that counts bytes, and Thai costs three of them per
+ * character in `utf8mb4`. So a 22,000-character rationale is 66,000 bytes:
+ * comfortably under a 65,535-*character* limit and over the column's real one.
+ * MySQL then answers `ER_DATA_TOO_LONG` and the request became a **500** — the
+ * exact shape of failure this file exists to turn into a named 400.
+ *
+ * Checked on every `text()`, not only the unbounded ones. For a `VARCHAR(255)`
+ * column 255 characters can never exceed 1,020 bytes, so the test is inert
+ * there; it costs one comparison and removes a class of 500 rather than one
+ * instance of it.
+ */
+const TEXT_MAX_BYTES = 65535;
+
+/**
+ * Refuse the kinds of value that `String()` and `Number()` have a confident
+ * answer for and no business receiving.
+ *
+ * `String({a:1})` is `'[object Object]'`, `String(['ก','ข'])` is `'ก,ข'` and
+ * `Number([])` is `0` — so before this guard, `{"content":{"a":1}}` answered 200
+ * and put the literal text `[object Object]` on a government form; a two-element
+ * array became one row with a comma in it, silently turning two numbered boxes on
+ * กนศ.04 into one; and `{"headcount":[]}` became a real attendance of zero. All
+ * three were accepted, stored and printable (verified 2026-08-17).
+ *
+ * Strings and numbers are both allowed through: a phone number arriving as a JSON
+ * number is a reasonable client, and every validator below narrows it further.
+ * Everything else is a client sending the wrong kind of thing, which is worth a
+ * message rather than a coercion.
+ */
+function scalar(value, label) {
+  const type = typeof value;
+  if (type === 'string' || type === 'number') return value;
+  throw HttpError.badRequest(`${label}: ต้องเป็นข้อความหรือตัวเลข ไม่ใช่ ${Array.isArray(value) ? 'รายการ' : type}`);
+}
+
 const check = {
   /** @returns {function(*, string): (string|null)} */
   text({ max = 65535, required = false } = {}) {
@@ -23,9 +63,19 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุ`);
         return null;
       }
-      const s = String(value).trim();
+      const s = String(scalar(value, label)).trim();
       if (required && !s) throw HttpError.badRequest(`${label}: ต้องระบุ`);
       if (s.length > max) throw HttpError.badRequest(`${label}: ยาวเกิน ${max} ตัวอักษร`);
+      // Bytes, separately, because the column's limit is in bytes and Thai is
+      // three of them per character. Named as bytes in the message: telling
+      // somebody they exceeded 65,535 characters when they typed 22,000 would
+      // send them looking for a bug that is not there.
+      const bytes = Buffer.byteLength(s, 'utf8');
+      if (bytes > TEXT_MAX_BYTES) {
+        throw HttpError.badRequest(
+          `${label}: ข้อความยาวเกินที่ระบบเก็บได้ (${bytes} ไบต์ จากที่เก็บได้ ${TEXT_MAX_BYTES} ไบต์ — อักษรไทยนับ 3 ไบต์ต่อตัว)`
+        );
+      }
       return s || null;
     };
   },
@@ -36,7 +86,7 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุ`);
         return null;
       }
-      const n = Number(value);
+      const n = Number(scalar(value, label));
       if (!Number.isInteger(n)) throw HttpError.badRequest(`${label}: ต้องเป็นจำนวนเต็ม`);
       if (n < min || n > max) throw HttpError.badRequest(`${label}: ต้องอยู่ระหว่าง ${min} ถึง ${max}`);
       return n;
@@ -62,7 +112,7 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุจำนวนเงิน`);
         return null;
       }
-      const s = String(value).trim().replace(/,/g, '');
+      const s = String(scalar(value, label)).trim().replace(/,/g, '');
       if (!/^-?\d+(\.\d{1,2})?$/.test(s)) {
         throw HttpError.badRequest(`${label}: ต้องเป็นตัวเลข ทศนิยมไม่เกิน 2 ตำแหน่ง`);
       }
@@ -85,7 +135,7 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุวันที่`);
         return null;
       }
-      const s = String(value).slice(0, 10);
+      const s = String(scalar(value, label)).slice(0, 10);
       if (!DATE_PATTERN.test(s) || Number.isNaN(Date.parse(s))) {
         throw HttpError.badRequest(`${label}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)`);
       }
@@ -108,7 +158,7 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุ`);
         return null;
       }
-      const s = String(value).toUpperCase();
+      const s = String(scalar(value, label)).toUpperCase();
       if (!values.includes(s)) {
         throw HttpError.badRequest(`${label}: ต้องเป็นค่าใดค่าหนึ่งใน ${values.join(', ')}`);
       }

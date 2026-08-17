@@ -19,6 +19,13 @@
  * hardening, and both are the kind of thing that is quietly removed by a later
  * edit unless something fails when it is.
  *
+ * Sections 13 and 14 were added later the same day, for the same reason. 13 is
+ * input validation of *kind* — the wrong sort of value, not merely a value on the
+ * wrong field. 14 asserts that no backend source file carries a raw NUL byte,
+ * which sounds like housekeeping and is not: a NUL makes grep and ripgrep treat
+ * the file as binary and skip it in silence, and that is how a validator audit
+ * came to miss the largest write path in the codebase.
+ *
  * Item 3 — real email notification — is deliberately **not** implemented; see
  * `docs/DECISIONS.md` → "Phase 6 close-out". This run asserts that it is absent
  * rather than half-present, because a notification path that silently does
@@ -532,8 +539,13 @@ function fileForm(name, bytes, type = 'application/pdf') {
     JSON.stringify({ provider: mode.body.provider, year: mode.body.academicYear }));
   ok('  …and says whether a shared password is required',
     mode.body.requiresSharedPassword === Boolean(config.mockPassword));
+  // The fallback matters: when no shared password is configured,
+  // `''.includes('')` is true and this assertion would fail on every laptop.
+  // It only has to be a string the reply cannot contain. (Written as the escape
+  // `'\0never'` — the byte itself was here until 2026-08-17, which made grep and
+  // ripgrep treat this whole script as binary and skip it.)
   ok('  …and never sends the password itself',
-    !JSON.stringify(mode.body).includes(config.mockPassword || ' never'));
+    !JSON.stringify(mode.body).includes(config.mockPassword || '\0never'));
 
   const admin_ = mode.body.accounts.find((a) => a.idStudent === 'fixture.admin');
   ok('the demonstration accounts carry the role the database gives them, not a hardcoded one',
@@ -560,11 +572,6 @@ function fileForm(name, bytes, type = 'application/pdf') {
   ok('no referrer, so project ids do not travel to the next page',
     headers.get('referrer-policy') === 'no-referrer');
 
-  // ------------------------------------------------------------------
-  // Every line here is a way a deployment that runs perfectly on day one is
-  // already compromised. They are checked by loading `config` in a child
-  // process, because the configuration this suite is running under is fixed the
-  // moment the module is first required.
   console.log('\n--- 12. what a production start refuses ---');
 
   /** @returns {string} the refusal, or '' when the configuration was accepted. */
@@ -623,6 +630,80 @@ function fileForm(name, bytes, type = 'application/pdf') {
       startWith({ ...demo, ADMIN_USERNAME: 'root', ADMIN_PASSWORD: 'root' })));
   ok('a short signing secret is refused',
     /JWT_SECRET is \d+ characters/.test(startWith({ ...demo, JWT_SECRET: 'short' })));
+
+  // ------------------------------------------------------------------
+  // Added 2026-08-17. `String()` and `Number()` have a confident answer for
+  // every input, including the wrong kind of thing, and `lib/validate.js` was
+  // relying on them: each case below was accepted with a 200 and stored, and
+  // three of the four were then printable on a government form.
+  console.log('\n--- 13. values of the wrong kind are refused, not coerced ---');
+
+  const section = (token, name, items) =>
+    call('PUT', `/api/projects/${draft.id}/sections/${name}`, { token, body: { items } });
+
+  const asObject = await section(sh, 'rationales', [{ content: { a: 1 } }]);
+  ok('an object where text belongs is refused, not stored as "[object Object]"',
+    asObject.status === 400, `${asObject.status} ${asObject.text.slice(0, 120)}`);
+  ok('  …and the refusal names the field',
+    /content/.test((asObject.body && asObject.body.error) || ''), asObject.text.slice(0, 160));
+
+  // Two list items fused by String() into one row with a comma in it is not a
+  // near miss: กนศ.04 prints five numbered boxes, and this silently fills one.
+  const asArray = await section(sh, 'rationales', [{ content: ['ก', 'ข'] }]);
+  ok('an array where text belongs is refused, not joined with a comma',
+    asArray.status === 400, `${asArray.status} ${asArray.text.slice(0, 120)}`);
+
+  const asEmptyArray = await section(sh, 'attendance',
+    [{ variant: 'PLANNED', attendeeType: 'STUDENT', label: 'x', headcount: [] }]);
+  ok('an empty array where a number belongs is refused, not read as zero attendance',
+    asEmptyArray.status === 400, `${asEmptyArray.status} ${asEmptyArray.text.slice(0, 120)}`);
+
+  // The column's limit is bytes and Thai costs three of them per character, so a
+  // 22,000-character rationale is 66,000 bytes: under a 65,535-*character* check
+  // and over the column. MySQL answered ER_DATA_TOO_LONG and the request was a 500.
+  const longThai = await section(sh, 'rationales', [{ content: 'ก'.repeat(22000) }]);
+  ok('Thai text past the column\'s byte limit is a named 400, not a 500',
+    longThai.status === 400, `${longThai.status} ${longThai.text.slice(0, 160)}`);
+  ok('  …and the message says bytes, not characters, since the count differs by three',
+    /ไบต์/.test((longThai.body && longThai.body.error) || ''), longThai.text.slice(0, 200));
+
+  // The guard must not have closed the door on ordinary input.
+  const plainThai = await section(sh, 'rationales', [{ content: 'เพื่อส่งเสริมกิจกรรมนักศึกษา' }]);
+  ok('a normal Thai rationale still saves', plainThai.status === 200,
+    `${plainThai.status} ${plainThai.text.slice(0, 120)}`);
+  const numericPhone = await call('PATCH', `/api/projects/${draft.id}`,
+    { token: sh, body: { contact1Phone: 812345678 } });
+  ok('  …and a phone number sent as a JSON number is still accepted as text',
+    numericPhone.status === 200, `${numericPhone.status} ${numericPhone.text.slice(0, 120)}`);
+
+  // ------------------------------------------------------------------
+  // A raw NUL byte in a source file makes grep and ripgrep classify it as
+  // binary and skip it silently. Two files carried one until 2026-08-17 —
+  // `services/projectService.js` and this script — and the first is the largest
+  // write path in the codebase, so an audit of every validator call site missed
+  // it entirely. Both now write the escape.
+  console.log('\n--- 14. no source file is invisible to grep ---');
+
+  const NUL = String.fromCharCode(0);
+  const sourceRoots = ['../src', '../scripts'];
+  const withNul = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(js|json|sql)$/.test(entry.name)) {
+        if (fs.readFileSync(full, 'latin1').includes(NUL)) withNul.push(full);
+      }
+    }
+  };
+  sourceRoots.forEach((r) => walk(path.resolve(__dirname, r)));
+  ok('no backend source file contains a raw NUL byte', withNul.length === 0, withNul.join(', '));
+
+  // ------------------------------------------------------------------
+  // Every line here is a way a deployment that runs perfectly on day one is
+  // already compromised. They are checked by loading `config` in a child
+  // process, because the configuration this suite is running under is fixed the
+  // moment the module is first required.
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();

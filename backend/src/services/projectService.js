@@ -454,7 +454,12 @@ async function replaceSection(actor, project, sectionName, body) {
       row.ordinal = index + 1;
       return;
     }
-    const key = spec.groupBy.map((column) => row[column]).join(' ');
+    // NUL as the separator because no validated value can contain one, so two
+    // different groups cannot collide into one key — which a comma would let
+    // them do the moment a grouped column held a comma. Written as the escape
+    // `'\0'`: the byte itself was in this file until 2026-08-17, and it made
+    // grep and ripgrep classify the whole module as binary and skip it.
+    const key = spec.groupBy.map((column) => row[column]).join('\0');
     const next = (counters.get(key) || 0) + 1;
     counters.set(key, next);
     row.ordinal = next;

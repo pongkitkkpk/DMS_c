@@ -412,6 +412,30 @@ deviations in the same sense as the rest: the old system did none of them.
     project form with an hour of work in it, and navigating away from it would destroy what
     is still on screen. See DMS_REBUILD_STRATEGY.md → "A session that ends while the tab is
     open" for the five reproductions, and "Still open" below for the part not built
+24. **A value of the wrong *kind* is refused, not coerced.** Deviation 2 stopped a write from
+    reaching a column it should not; this stops one reaching the right column with a value
+    the wrong shape. `String()` and `Number()` answer for every input, so `lib/validate.js`
+    was accepting three things with a 200 and storing them (verified 2026-08-17):
+    `{"content":{"a":1}}` became the literal text `[object Object]` in a numbered box on
+    กนศ.04, `{"content":["ก","ข"]}` became one row reading `ก,ข` where the client meant two,
+    and `{"headcount":[]}` became a real attendance of **zero** on กนศ.06 — the one nobody
+    would ever notice, because a zero is plausible in a column of numbers. A `scalar()` guard
+    now admits only strings and numbers, and every validator routes through it. Separately,
+    **`VARCHAR(n)` counts characters but `TEXT` counts bytes**: the 65,535 default was
+    compared against `String#length`, so 22,000 characters of Thai — 66,000 bytes in
+    `utf8mb4` — passed validation and MySQL answered `ER_DATA_TOO_LONG`, a **500**.
+    `Buffer.byteLength` is now checked too, and the message says bytes. Nine assertions in
+    `check-phase6.js` §13–14; see DMS_REBUILD_STRATEGY.md → "What `String()` will answer for,
+    and a file grep could not see"
+25. **No source file may contain a raw NUL byte.** Not a behaviour change — a tooling one,
+    listed because it hid the audit that found deviation 24. `services/projectService.js`
+    used a NUL as a grouping-key separator (correctly: no validated value can contain one)
+    but wrote the byte instead of the escape `'\0'`, which made grep, ripgrep and `git diff`
+    classify the module as **binary and skip it silently**. Thirty-eight validator call sites
+    — every field of every child list on both government forms — were invisible to a sweep
+    meant to check them. `check-phase6.js` carried a second one. Both write the escape now,
+    and §14 fails if another appears, because this is exactly the defect that hides from the
+    tool you would use to look for it
 
 ---
 

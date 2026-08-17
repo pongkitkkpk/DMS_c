@@ -1539,6 +1539,101 @@ and stock Bootstrap's yellow `alert-warning` would say it was. Neutral ground an
 a grey rule: red stays for errors and the accent stays for actions, per the rule
 at the top of that file.
 
-455 assertions still pass. None of them cover this — every check is an HTTP
-assertion against the API, and all five defects above are in the browser, which
-is why they survived six phases and eight browser passes.
+455 assertions still pass (464 after the validation pass below). None of them
+cover this — every check is an HTTP assertion against the API, and all five
+defects above are in the browser, which is why they survived six phases and eight
+browser passes.
+
+---
+
+## What `String()` will answer for, and a file grep could not see (2026-08-17)
+
+Started as an audit of one thing — that every `check.text({ max })` matches its
+column's width, since a mismatch turns a named 400 into a 500 — and the audit's
+first result was that the audit could not be run.
+
+### A grep that silently skipped the largest write path
+
+`grep -rn "check\."` over `backend/src` listed every call site except one:
+`Binary file backend/src/services/projectService.js matches`. The file is
+ordinary UTF-8 JavaScript apart from **one raw NUL byte**, on the line that
+builds a grouping key:
+
+```js
+const key = spec.groupBy.map((column) => row[column]).join('\0');
+```
+
+The escape had been typed as the byte itself. NUL is the right separator — no
+validated value can contain one, so two groups cannot collide into one key the
+way a comma would let them — but written raw it makes grep, ripgrep and `git
+diff` classify the module as binary and skip it without saying so. Thirty-eight
+validator call sites, including every field of every child list on both
+government forms, were invisible to the sweep that was meant to check them.
+
+A repo-wide scan found exactly one more, in `check-phase6.js` itself
+(`config.mockPassword || '<NUL>never'`, a sentinel so `''.includes('')` cannot
+make that assertion vacuously true). Both now write `'\0'`, both files are text
+again, and **section 14 of `check-phase6.js` fails if any backend source file
+ever carries a raw NUL again** — because this is precisely the defect that hides
+from the tool you would use to look for it.
+
+### Then the audit itself, which came out clean, and one that did not
+
+Every explicit `max` does match its column: `VARCHAR(10)` ↔ 10,
+`VARCHAR(32)` ↔ 32, `VARCHAR(255)` ↔ 255, and every unbounded `check.text()`
+sits on a `TEXT` column. But **`VARCHAR(n)` counts characters and `TEXT` counts
+bytes**, and the default `max` of 65535 was being compared against
+`String#length`. Thai costs three bytes per character in `utf8mb4`, so:
+
+```
+22,000 Thai characters = 66,000 bytes
+  → under a 65,535-character check
+  → over the column, ER_DATA_TOO_LONG, errno 1406
+  → HTTP 500 "เกิดข้อผิดพลาดภายในระบบ"
+```
+
+Reproduced against `PUT /api/projects/1/sections/rationales`. `check.text` now
+measures `Buffer.byteLength` as well, on every call rather than only the
+unbounded ones — for a `VARCHAR(255)` column 255 characters cannot exceed 1,020
+bytes, so the test is inert there and costs one comparison. The message names
+**bytes**, because telling somebody they exceeded 65,535 characters when they
+typed 22,000 sends them hunting a bug that is not there.
+
+### Three things the validators had a confident answer for
+
+`String()` and `Number()` are total functions: they return something for every
+input, including the wrong kind of thing. Each of these answered **200**, stored
+the value, and would have printed it:
+
+| Sent | Stored | Why it matters |
+| --- | --- | --- |
+| `{"content": {"a": 1}}` | `[object Object]` | printed verbatim in a numbered box on กนศ.04 |
+| `{"content": ["ก","ข"]}` | `ก,ข` | two list items fused into one row; the form has five boxes and this fills one |
+| `{"headcount": []}` | `0` | `Number([])` is `0`, so a headcount nobody gave becomes a real attendance of zero on กนศ.06 |
+
+The third is the one that would never be noticed: a zero is a plausible number
+in a column of numbers, and the report totals it without complaint.
+
+A `scalar()` guard now refuses anything that is not a string or a number before
+`String`/`Number` is allowed near it, and every validator routes through it —
+`text`, `integer`, `decimal`, `date`, `oneOf`. Strings *and* numbers both pass,
+because a phone number arriving as a JSON number is a reasonable client and each
+validator narrows it afterwards; the refusal names the field and what arrived
+(`content: ต้องเป็นข้อความหรือตัวเลข ไม่ใช่ รายการ`).
+
+This is the same rule as deviation 2, applied one level further down. That
+deviation stopped a write from *reaching a column it should not*; this stops a
+write from reaching the right column with a value the wrong shape.
+
+### Why none of it was caught before
+
+All four are write paths with valid tokens, correct scope, allowed fields and the
+right phase — everything the 455 existing assertions check. What none of them
+sent was a *wrong-typed* value, because the client never does: the frontend
+builds these bodies from typed inputs. Every one of these takes a client that is
+merely wrong, or a request made by hand.
+
+Nine assertions in `check-phase6.js` sections 13 and 14 hold all of it, including
+two that would catch the fix going too far — a normal Thai rationale still saves,
+and a phone number sent as a JSON number is still accepted. **464 passed, 0
+failed.**
