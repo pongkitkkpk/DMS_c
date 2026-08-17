@@ -61,6 +61,8 @@ export const api = {
   authMode: () => client.get('/auth/mode').then((r) => r.data),
   login: (username, password) => client.post('/auth/login', { username, password }).then((r) => r.data),
   me: () => client.get('/me').then((r) => r.data),
+  /** One year's money per club and per campus. Officers only; the server refuses. */
+  spending: (params) => client.get('/spending', { params }).then((r) => r.data),
   listProjects: (params) => client.get('/projects', { params }).then((r) => r.data),
   getProject: (id) => client.get(`/projects/${id}`).then((r) => r.data),
   transition: (id, toPhaseCode) =>

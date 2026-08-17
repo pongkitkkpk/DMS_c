@@ -1335,3 +1335,72 @@ placeholders in preference to associated labels, so it is not the
 accessible-name algorithm and cannot be used to claim a control is unnamed.
 Those were left alone. Only the repeated-label cases, which are visible in the
 DOM without any tool, were treated as findings.
+
+---
+
+## The spending summary (2026-08-17)
+
+Asked for by the owner: a page for the officers — STUACT and ADMIN — showing
+money used against money budgeted, per club and per campus, as charts rather
+than another table.
+
+**Nothing on it is a new number.** Allocated, committed and disbursed are the
+three sums `allocationService` and `budgetService` already compute, and the
+definitions are copied from them rather than re-derived, so a figure here cannot
+disagree with the club's own screen. What did not exist was the *comparison*: a
+column of `500,000.00` beside `96,000.00` makes the reader work out the ratio,
+then hold it while they read the next club. That is a job for a picture.
+
+`GET /api/spending` refuses anyone who is not ADMIN or STUACT rather than
+narrowing their scope — the same rule and the same wording as
+`nextYearReadiness`. A student and an adviser read their own ceiling on the
+allocations screen (Q30); a cross-club comparison is the view of somebody
+responsible for more than one club. STUACT still sees its jurisdiction only,
+which the scope clause applies in the query, so the page needs no role logic of
+its own beyond being reachable.
+
+Three narrow queries, not one wide one. `budget_plan_line` is one row per
+project but `disbursement` is many, and joining both at once multiplies the plan
+lines by the payments — `committed` inflates and nothing says so.
+
+### The chart
+
+The `dataviz` skill's procedure, in order. The form first: three figures that
+**nest** — disbursed inside committed inside allocated — so a stacked bar, not
+three grouped bars that would draw them as rivals and treble the height for no
+information. Every row is on one shared scale, which is the entire point:
+comparing rows is the question.
+
+Colour last, and computed rather than picked. The three states are *ordinal*,
+not categorical — the order is the meaning — so one hue in three steps, darker
+the further the money has travelled. The hue is the brand's; the steps
+(`#7c2412`, `#bd5138`, `#df9280`) pass the ordinal checks in the skill's
+validator: monotone lightness, adjacent ΔL ≥ 0.06, single hue at 1° spread, and
+a light end still at 2.45:1 on white, so the palest step is a mark and not a
+tint of the page. Over-commitment is not a fourth step: it is the reserved
+danger token, and because that red is a near neighbour of the ramp's darkest
+step it never travels alone — it carries a hatch, a rule marking where the
+allocation ended, and the words "เกินวงเงิน".
+
+### Three things the render caught that the API did not
+
+1. **The over-committed bar was too long.** The committed band was measured from
+   zero and the overrun added on top, so a club with 96,000 committed against
+   70,000 allocated drew a bar 122,000 long — the 26,000 counted once inside the
+   band and again outside it. Every band is now clipped to the ceiling and the
+   widths sum to exactly the allocation, or to exactly the committed total when
+   that is larger.
+2. **The tooltip quoted the drawing, not the figures.** It reported "อนุมัติแล้ว
+   ยังไม่จ่าย 10,000" for a club with 36,000 promised and unpaid, because 10,000
+   is where that *band* stops. Widths and figures are now separate fields on the
+   same object, and the label, the tooltip and the table all read the figures.
+3. **The axis vanished below 640px.** The axis rides the row grid so its ticks
+   line up with the bars without a second copy of the column widths — but the
+   narrow-viewport rule renamed the grid areas underneath it and its two spacer
+   cells were auto-placed, squeezing the axis itself to zero width. The whole
+   scale disappeared, silently, on a phone.
+
+Sixteen assertions in `check-phase3.js` hold the API half, including that the
+summary's totals equal the allocation rows added up, that clubs roll into their
+campus exactly, that a club is listed for an allocation **or** for projects, and
+that a student and an adviser get 403. 451 passed, 0 failed.

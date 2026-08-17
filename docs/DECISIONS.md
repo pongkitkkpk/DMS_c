@@ -376,6 +376,20 @@ deviations in the same sense as the rest: the old system did none of them.
     which stops being true the moment `MOCK_PASSWORD` is set. The roles beside the names
     come from `membership` rather than from a list written next to the usernames, which is
     the same rule as everywhere else: **no screen states a role the database does not**
+22. **`GET /api/spending` — one year's money per club and per campus, for officers.** The
+    figures are not new: allocated, committed and disbursed are the same three sums
+    `allocationService` and `budgetService` already compute, copied rather than re-derived
+    so a total here cannot disagree with the club's own screen. What is new is the
+    *comparison* — a column of `500,000.00` beside `96,000.00` makes the reader work out
+    the ratio and then hold it in their head for the next club. Restricted to ADMIN and
+    STUACT by a refusal, not a narrowing (the same rule and wording as
+    `nextYearReadiness`): a student and an adviser read their own club's ceiling on the
+    allocations screen (Q30), and a cross-club comparison is the view of somebody
+    responsible for more than one club. A club is listed for having **an allocation or
+    projects**, so a club spending against a ceiling nobody set still appears; clubs with
+    neither are counted rather than listed, because 68 rows of zero bury the one row that
+    says something. **Nothing is stored** — every figure is summed on read, the same
+    bargain as everywhere else in this system
 
 ---
 

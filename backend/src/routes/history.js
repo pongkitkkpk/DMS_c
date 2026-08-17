@@ -16,6 +16,7 @@ const { asyncRoute } = require('../lib/asyncRoute');
 const { requireAuth } = require('../middleware/requireAuth');
 const academicYear = require('../services/academicYearService');
 const history = require('../services/historyService');
+const spending = require('../services/spendingService');
 
 const router = express.Router();
 
@@ -23,6 +24,16 @@ router.use(requireAuth);
 
 router.get('/history', asyncRoute(async (req, res) => {
   res.json(await history.listYears(req.actor));
+}));
+
+/**
+ * One year's money rolled up per club and per campus, for the officers who hold
+ * more than one club. Same year-by-year family as `/history`, one level down:
+ * that one asks how each year went, this one asks where inside a year the money
+ * currently is.
+ */
+router.get('/spending', asyncRoute(async (req, res) => {
+  res.json(await spending.summary(req.actor, req.query));
 }));
 
 /**

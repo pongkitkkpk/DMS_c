@@ -52,6 +52,31 @@
   --c-archive: #4a4744;
   --c-archive-soft: #eceae8;
 
+  /*
+   * --- chart: the money ramp ---
+   *
+   * Money in this system is not four unrelated categories, it is one amount in
+   * one of three states — paid, promised, still free — and the order of those
+   * states is the meaning. So this is an *ordinal* ramp: one hue, three steps,
+   * darker the further the money has travelled. Colouring them as four
+   * identities would spend the identity channel re-encoding what the bar
+   * lengths already say.
+   *
+   * The hue is the brand's, so the page belongs to the rest of the app. The
+   * steps are not eyeballed: they pass the ordinal checks — monotone lightness,
+   * adjacent ΔL ≥ 0.06, single hue (spread 1°), and a light end that still
+   * clears 2:1 against white at 2.45:1, so the palest step is a mark and not a
+   * tint of the page.
+   *
+   * Over-commitment is NOT a fourth step of this ramp. It is a status, it uses
+   * the reserved danger token, and because that red sits close to the ramp's
+   * darkest step it never travels on colour alone — it carries a hatch and the
+   * words "เกินวงเงิน" wherever it appears.
+   */
+  --c-money-spent: #7c2412;      /* จ่ายจริง — money that has left the account */
+  --c-money-committed: #bd5138;  /* อนุมัติแล้ว ยังไม่จ่าย */
+  --c-money-free: #df9280;       /* คงเหลือในวงเงิน */
+
   /* --- shape --- */
   --r-sm: 8px;
   --r-md: 12px;
@@ -817,4 +842,173 @@ label {
   border: 1px solid var(--c-border-strong) !important;
   border-radius: var(--r-sm) !important;
   font-weight: 500 !important;
+}
+
+/* -------------------------------------------------------------------------
+   Money meter — the chart on the spending summary
+   ------------------------------------------------------------------------- */
+
+/*
+ * One row is one club or one campus: a track holding up to four segments, on a
+ * scale shared by every row in the chart so the rows can be compared to each
+ * other and not just to themselves.
+ *
+ * The bar is capped rather than stretched to the row: the leftover is air, not
+ * something to fill.
+ */
+.meter-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 15rem) 1fr minmax(6rem, auto);
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+}
+
+.meter-row__label { min-width: 0; }
+
+.meter-row__track {
+  position: relative;
+  height: 20px;                      /* ≤ 24px: a thin mark, not a slab */
+  border-radius: var(--r-sm);
+  background: var(--c-surface-2);
+  overflow: visible;
+}
+
+/*
+ * Segments are positioned rather than laid out in a row, so their widths are
+ * exactly their share of the scale. The 2px right border is the surface gap —
+ * white doing the separating — and `border-box` keeps it inside the segment so
+ * it cannot push the total past 100%.
+ */
+.meter-row__seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  border-right: 2px solid var(--c-surface);
+  transition: opacity 120ms ease;
+}
+
+.meter-row__seg:last-of-type { border-right: 0; }
+
+/* The data-end is rounded; the baseline end stays square. */
+.meter-row__seg--first { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.meter-row__seg--last  { border-radius: 0 4px 4px 0; border-right: 0; }
+.meter-row__seg--only  { border-radius: var(--r-sm) 4px 4px var(--r-sm); border-right: 0; }
+
+.meter-row__seg--spent     { background: var(--c-money-spent); }
+.meter-row__seg--committed { background: var(--c-money-committed); }
+.meter-row__seg--free      { background: var(--c-money-free); }
+
+/*
+ * Over-commitment: the reserved danger colour, plus a hatch, because that red
+ * and the ramp's darkest step are close enough to be one colour to a reader who
+ * is not comparing them side by side. The words go on the row as well.
+ */
+.meter-row__seg--over {
+  background-color: var(--c-danger);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.45) 0 3px,
+    rgba(255, 255, 255, 0) 3px 7px
+  );
+}
+
+/* Where the allocation ends, on a row that has spent past it. */
+.meter-row__limit {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--c-text);
+  border-radius: 1px;
+}
+
+.meter-row__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.meter-row:hover .meter-row__track { filter: saturate(1.08); }
+
+/* The legend: a swatch beside its words, never the words in the data colour. */
+.meter-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  align-items: center;
+}
+
+.meter-legend__item { display: inline-flex; align-items: center; gap: var(--s-2); }
+
+.meter-legend__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* The hover panel. Positioned by the chart, pointer-transparent so it cannot
+   sit between the pointer and the mark it describes. */
+.meter-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 12rem;
+  padding: var(--s-3);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.meter-tip__row { display: flex; align-items: center; gap: var(--s-2); }
+.meter-tip__row + .meter-tip__row { margin-top: 2px; }
+.meter-tip__amount { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+/* The axis under a chart: hairline, solid, recessive — it is not the data.
+   It sits in the track column of the same grid the rows use, so the ticks line
+   up with the bars without a second copy of the column widths. */
+.meter-row--axis { padding-top: 0; }
+
+.meter-axis {
+  position: relative;
+  height: 1.25rem;
+  border-top: 1px solid var(--c-border);
+}
+
+.meter-axis__tick {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* First and last ticks sit on the ends of the track; pulled inside so neither
+   hangs over the label or the value column. */
+.meter-axis__tick:first-child { transform: none; }
+.meter-axis__tick:last-child  { transform: translateX(-100%); }
+
+@media (max-width: 640px) {
+  .meter-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'label value' 'track track';
+    row-gap: var(--s-1);
+  }
+  .meter-row__label { grid-area: label; }
+  .meter-row__value { grid-area: value; }
+  .meter-row__track { grid-area: track; }
+
+  /* The axis row has no label and no value, only two empty cells holding its
+     place in the wide grid. Left to the rule above they are auto-placed into
+     the named areas and the axis itself is squeezed to zero width — the whole
+     scale silently disappears below 640px. Here it takes the row on its own. */
+  .meter-row--axis {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'track';
+  }
+  .meter-row--axis > :first-child,
+  .meter-row--axis > :last-child { display: none; }
+  .meter-row--axis .meter-axis { grid-area: track; }
 }

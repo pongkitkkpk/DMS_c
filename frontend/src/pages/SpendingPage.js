@@ -1,0 +1,234 @@
+/**
+ * Where a year's money stands — per campus, then per club.
+ *
+ * The figures on this page are not new. `วงเงินจัดสรร` already lists every
+ * allocation and every project already carries its approved amount and its
+ * payments. What did not exist was a way to *compare* them: a column of
+ * `500,000.00` beside `96,000.00` makes the reader work out the ratio, and do
+ * it again for the next club, and hold both in their head to say which club is
+ * behind. That is a job for a picture, so this page draws one.
+ *
+ * Officers only, and the server says so too — `GET /api/spending` refuses
+ * anybody who is not ADMIN or STUACT rather than quietly narrowing. A student
+ * or an adviser sees their own club's ceiling on the allocations screen (Q30);
+ * a cross-club comparison is the view of somebody responsible for more than one
+ * club. STUACT still sees only its own jurisdiction, ADMIN sees all of it, and
+ * neither has to be told which — the scope is applied in the query.
+ *
+ * Every chart is followed by the same figures as a table. That is not a
+ * fallback for a browser that cannot draw: a chart answers "which club is
+ * behind" and a table answers "how much exactly", and the two questions arrive
+ * together on a page about money.
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useHistory } from 'react-router-dom';
+import { Alert, Input } from 'reactstrap';
+
+import { api, messageOf } from '../api';
+import { useAuth } from '../AuthContext';
+import { Card, Empty, Skeleton, money } from '../components/ui';
+import { MoneyMeter } from '../components/MoneyMeter';
+
+/**
+ * One headline figure. The dashboard's `.kpi` tile, reused rather than
+ * reinvented — it already is a stat tile, down to the proportional figures.
+ */
+function StatTile({ label, value, note, tone }) {
+  return (
+    <div className="kpi">
+      <div className="kpi__label">{label}</div>
+      <div className="kpi__value" style={tone ? { color: tone } : undefined}>{money(value)}</div>
+      {note && <div className="kpi__note">{note}</div>}
+    </div>
+  );
+}
+
+/** The table that carries the exact figures the chart above it draws. */
+function MoneyTable({ rows, firstColumn }) {
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table className="table-x">
+        <thead>
+          <tr>
+            <th>{firstColumn}</th>
+            <th style={{ textAlign: 'right' }}>จัดสรร</th>
+            <th style={{ textAlign: 'right' }}>อนุมัติแล้ว</th>
+            <th style={{ textAlign: 'right' }}>จ่ายจริง</th>
+            <th style={{ textAlign: 'right' }}>คงเหลือ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <td>
+                <div className="table-x__title">{row.label}</div>
+                {row.sublabel && <div className="u-small u-dim">{row.sublabel}</div>}
+              </td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.allocated)}</td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.committed)}</td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.disbursed)}</td>
+              <td
+                className="u-mono"
+                style={{
+                  textAlign: 'right',
+                  fontWeight: 600,
+                  color: row.overCommitted ? 'var(--c-danger)' : undefined,
+                }}
+              >
+                {money(row.remaining)}
+                {row.overCommitted && <div className="u-small">เกินวงเงิน</div>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function SpendingPage() {
+  const { session } = useAuth();
+  const location = useLocation();
+  const history = useHistory();
+
+  // Seeded from the URL, like the allocations screen, so a particular year can
+  // be sent to somebody rather than described to them.
+  const [year, setYear] = useState(() => {
+    const asked = Number(new URLSearchParams(location.search).get('year'));
+    return Number.isInteger(asked) && asked > 2400 && asked < 2700 ? asked : session.academicYear;
+  });
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(() => {
+    setError(null);
+    api.spending({ year }).then(setData).catch((err) => setError(messageOf(err)));
+  }, [year]);
+
+  useEffect(load, [load]);
+
+  const chooseYear = (next) => {
+    setYear(next);
+    setData(null);
+    history.replace(`/spending?year=${next}`);
+  };
+
+  const years = (data && data.years.length ? data.years : [year]);
+
+  const campusRows = data ? data.byCampus.map((row) => ({
+    key: `campus-${row.campus.id}`,
+    label: row.campus.nameTh,
+    sublabel: `${row.activeClubs} จาก ${row.clubs} ชมรม`,
+    ...row,
+  })) : [];
+
+  const clubRows = data ? data.byClub.map((row) => ({
+    key: `club-${row.club.id}`,
+    label: row.club.nameTh,
+    sublabel: `${row.club.code} · ${row.campus.nameTh} · ${row.projects} โครงการ`,
+    ...row,
+  })) : [];
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>สรุปการใช้เงิน</h1>
+          <div className="u-small u-dim">
+            เงินที่จัดสรร อนุมัติ และจ่ายจริง ในปีการศึกษาที่เลือก
+          </div>
+        </div>
+
+        <div className="u-spacer u-row">
+          <Link className="u-small u-muted" to="/allocations">กำหนดวงเงิน →</Link>
+          <Input
+            type="select"
+            style={{ width: 'auto' }}
+            aria-label="ปีการศึกษา"
+            value={year}
+            onChange={(e) => chooseYear(Number(e.target.value))}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                ปีการศึกษา {y}{y === session.academicYear ? ' (ปีปัจจุบัน)' : ''}
+              </option>
+            ))}
+          </Input>
+        </div>
+      </div>
+
+      {error && <Alert color="danger">{error}</Alert>}
+
+      {!data && !error && <Card title="กำลังโหลด"><Skeleton rows={6} /></Card>}
+
+      {data && (
+        <div className="u-stack">
+          {/*
+            The headline row. Four numbers, not a chart: a single current value
+            is a stat tile, and a one-bar bar chart of the same number would be
+            decoration. "คงเหลือ" is the one that changes colour, because it is
+            the only one that can be wrong.
+          */}
+          <div className="kpi-row">
+            <StatTile label="จัดสรรทั้งหมด" value={data.totals.allocated}
+              note={`${data.totals.activeClubs} ชมรมที่มีความเคลื่อนไหว`} />
+            <StatTile label="อนุมัติแล้ว" value={data.totals.committed}
+              note={`${data.totals.projects} โครงการ`} />
+            <StatTile label="จ่ายจริง" value={data.totals.disbursed}
+              note="เงินที่ออกจากบัญชีแล้ว" />
+            <StatTile
+              label="คงเหลือ"
+              value={data.totals.remaining}
+              tone={data.totals.overCommitted ? 'var(--c-danger)' : undefined}
+              note={data.totals.overCommitted ? 'อนุมัติเกินวงเงินรวม' : 'ยังไม่ผูกกับโครงการใด'}
+            />
+          </div>
+
+          <Card
+            title="ตามวิทยาเขต"
+            aside={`ปีการศึกษา ${data.academicYear}`}
+          >
+            {campusRows.length === 0
+              ? <Empty mark="฿" title="ยังไม่มีวิทยาเขตในขอบเขตของบัญชีนี้" />
+              : (
+                <>
+                  <MoneyMeter rows={campusRows} />
+                  <div style={{ marginTop: 'var(--s-5)' }}>
+                    <MoneyTable rows={campusRows} firstColumn="วิทยาเขต" />
+                  </div>
+                </>
+              )}
+          </Card>
+
+          <Card
+            title="ตามชมรม"
+            aside={
+              data.totals.idleClubs > 0
+                ? `${data.totals.activeClubs} ชมรมที่มีความเคลื่อนไหว · อีก ${data.totals.idleClubs} ชมรมยังไม่มี`
+                : `${data.totals.activeClubs} ชมรม`
+            }
+          >
+            {clubRows.length === 0
+              ? (
+                <Empty
+                  mark="฿"
+                  title={`ยังไม่มีชมรมใดเคลื่อนไหวในปี ${data.academicYear}`}
+                  hint="เมื่อกำหนดวงเงินหรือมีโครงการเกิดขึ้น ชมรมนั้นจะปรากฏที่นี่"
+                />
+              )
+              : (
+                <>
+                  {/* Sorted by allocation on the server. A chart of a comparison
+                      sorted by club code makes the reader do the sorting. */}
+                  <MoneyMeter rows={clubRows} />
+                  <div style={{ marginTop: 'var(--s-5)' }}>
+                    <MoneyTable rows={clubRows} firstColumn="ชมรม" />
+                  </div>
+                </>
+              )}
+          </Card>
+        </div>
+      )}
+    </>
+  );
+}

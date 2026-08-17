@@ -472,6 +472,80 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   ok('a year outside the Buddhist-era range is refused',
     (await call('GET', '/api/allocations?year=1999', { token: admin })).status === 400);
 
+  // ------------------------------------------------------------------
+  // `GET /api/spending` — the same three figures every screen above computes,
+  // rolled up per club and per campus for the officers who hold more than one
+  // club. The point of these assertions is that it is a *view*: nothing here
+  // may disagree with the allocation rows it summarises.
+  console.log('\n--- 6. the spending summary agrees with what it summarises ---');
+
+  const spending = await call('GET', '/api/spending', { token: admin });
+  ok('an officer may read the summary', spending.status === 200, spending.text.slice(0, 120));
+
+  const allocationRows = (await call('GET', `/api/allocations?year=${year}`, { token: admin })).body;
+  const sum = (rows, field) =>
+    rows.reduce((total, row) => total + Math.round(Number(row[field]) * 100), 0);
+
+  ok('  …its allocated total is the allocation rows added up',
+    Math.round(Number(spending.body.totals.allocated) * 100)
+      === sum(allocationRows.items, 'amount'),
+    `${spending.body.totals.allocated} vs ${allocationRows.items.length} rows`);
+  ok('  …and its committed total is theirs too',
+    Math.round(Number(spending.body.totals.committed) * 100)
+      === sum(allocationRows.items, 'committed'));
+
+  ok('every club it lists rolls up into its campus',
+    spending.body.byCampus.every((campus) =>
+      Math.round(Number(campus.allocated) * 100) === sum(
+        spending.body.byClub.filter((club) => club.campus.id === campus.campus.id), 'allocated')));
+
+  // A club is listed for an allocation *or* for projects — a club spending
+  // against a ceiling nobody set is the state worth not dropping. Asserted as
+  // the union rather than by looking for a zero-allocation club, because
+  // whether one exists depends on what the assertions above happened to fund.
+  const fromProjects = (await call('GET', `/api/projects?year=${year}&pageSize=200`, { token: admin }))
+    .body.items.map((project) => project.club.id);
+  const expected = [...new Set([
+    ...allocationRows.items.map((row) => row.club.id),
+    ...fromProjects,
+  ])].sort((a, b) => a - b);
+
+  ok('a club is listed for an allocation or for projects — the union, not either alone',
+    JSON.stringify(spending.body.byClub.map((club) => club.club.id).sort((a, b) => a - b))
+      === JSON.stringify(expected),
+    JSON.stringify(spending.body.byClub.map((c) => [c.club.code, c.allocated, c.projects])));
+  ok('  …and the clubs with nothing at all are counted rather than listed',
+    spending.body.totals.idleClubs + spending.body.totals.activeClubs
+      === spending.body.totals.clubs);
+
+  // Q33: an allocation may be lowered below what is already committed, and the
+  // summary is one of the places that has to say so rather than clamp it.
+  const overClub = allocationRows.items[0];
+  const restore = overClub.amount;
+  await call('PUT', '/api/allocations', {
+    token: admin,
+    body: { clubId: overClub.club.id, academicYear: year, amount: '1.00' },
+  });
+  const over = (await call('GET', '/api/spending', { token: admin })).body
+    .byClub.find((club) => club.club.id === overClub.club.id);
+  ok('an over-committed club is reported as over, with a negative remainder',
+    over.overCommitted === true && Number(over.remaining) < 0,
+    JSON.stringify(over));
+  await call('PUT', '/api/allocations', {
+    token: admin,
+    body: { clubId: overClub.club.id, academicYear: year, amount: restore },
+  });
+
+  ok('a STUACT sees its own jurisdiction and no more',
+    (await call('GET', '/api/spending', { token: stuact })).body.totals.clubs
+      < spending.body.totals.clubs);
+  ok('a student may not read it at all',
+    (await call('GET', '/api/spending', { token: sh })).status === 403);
+  ok('  …nor may an adviser',
+    (await call('GET', '/api/spending', { token: ad })).status === 403);
+  ok('it is behind authentication like everything else',
+    (await call('GET', '/api/spending')).status === 401);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch((err) => {

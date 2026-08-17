@@ -18,6 +18,7 @@ import ProjectFormPage from './pages/ProjectFormPage';
 import DashboardPage from './pages/DashboardPage';
 import AllocationsPage from './pages/AllocationsPage';
 import HistoryPage from './pages/HistoryPage';
+import SpendingPage from './pages/SpendingPage';
 import RolesPage from './pages/RolesPage';
 import ProfilePage from './pages/ProfilePage';
 
@@ -41,6 +42,11 @@ const NAV = [
   { to: '/dashboard',   label: 'ภาพรวม' },
   { to: '/projects',    label: 'โครงการ' },
   { to: '/allocations', label: 'วงเงินจัดสรร' },
+  // Filtered by the same two roles the server enforces on `GET /api/spending`.
+  // A cross-club comparison is the view of somebody responsible for more than
+  // one club; a student and an adviser read their own ceiling on the
+  // allocations screen instead (Q30).
+  { to: '/spending',    label: 'สรุปการใช้เงิน', roles: ['ADMIN', 'STUACT'] },
   { to: '/history',     label: 'สรุปรายปี' },
   { to: '/roles',       label: 'สิทธิ์', roles: ['ADMIN', 'STUACT'] },
 ];
@@ -160,6 +166,7 @@ export default function App() {
                 when the officer's menu is built — that item is deliberately
                 last, so the menu is designed around screens that exist. */}
             <Route exact path="/allocations" render={() => <RequireAuth><AllocationsPage /></RequireAuth>} />
+            <Route exact path="/spending" render={() => <RequireAuth><SpendingPage /></RequireAuth>} />
             <Route exact path="/history" render={() => <RequireAuth><HistoryPage /></RequireAuth>} />
             <Route exact path="/roles" render={() => <RequireAuth><RolesPage /></RequireAuth>} />
             <Route exact path="/profile" render={() => <RequireAuth><ProfilePage /></RequireAuth>} />
