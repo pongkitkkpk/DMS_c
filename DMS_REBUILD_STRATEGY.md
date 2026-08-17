@@ -1425,3 +1425,120 @@ Twenty assertions in `check-phase3.js` hold the API half, including that the
 summary's totals equal the allocation rows added up, that clubs roll into their
 campus exactly, that a club is listed for an allocation **or** for projects, and
 that a student and an adviser get 403. 451 passed, 0 failed.
+
+---
+
+## A session that ends while the tab is open (2026-08-17)
+
+Found by opening `/spending` in a browser with no session, which is how anybody
+receiving a link to it arrives. Two defects, one underneath the other, both in
+the client's session layer.
+
+### The token expires and the app says two contradictory things
+
+`JWT_EXPIRES_IN` is two hours; a tab left open outlives it. `AuthContext`
+re-verified the token **on mount only**, so nothing noticed. The next click sent
+a request with a dead token, the server answered its 401 —
+`กรุณาเข้าสู่ระบบใหม่`, "please sign in again" — and `messageOf` handed that
+sentence to the page, which drew it as its own red alert. Reproduced by replacing
+the last six characters of `sessionStorage['dms.token']` and clicking a nav
+entry:
+
+- the app bar went on naming the signed-in user, their club and their role, so
+  the app simultaneously insisted you were signed in and told you to sign in
+  again — with no control on the page that did it;
+- `/dashboard` was an empty page with one alert on it; **`/projects` was worse,
+  keeping its `กำลังโหลด…` skeleton**, so an ended session was indistinguishable
+  from a slow one, indefinitely;
+- every nav entry produced the same thing, so nothing the reader could try was
+  the thing that worked. The only ways out were the sign-out button — which the
+  message gives nobody a reason to press — and a reload.
+
+Now a 401 is handled where it is known rather than where it surfaces: a response
+interceptor in `api.js` drops the token and raises `dms:session-lost`, and
+`AuthContext` — the one owner of session state — clears the session, which sends
+`RequireAuth` to the login screen. The screen says which of the two things
+happened, because "you are back at the login page" explains nothing:
+`เซสชันหมดอายุแล้ว` after an expiry, and nothing at all after a deliberate
+sign-out.
+
+### The link you were sent is discarded
+
+`RequireAuth` redirected to a bare `/login`, and `LoginPage` pushed a hardcoded
+`/projects` on success. So `/spending?year=2566` — a page whose year lives in the
+URL *precisely so it can be sent to somebody* — delivered the project list to
+anybody not already signed in. A link that silently substitutes a different page
+looks like a link that worked.
+
+The redirect now carries `pathname + search` in the router's `state`, and the
+login screen returns there. Three details:
+
+- **`state`, not `?next=`.** Only this app can write router state; a query
+  parameter is writable by whoever sends the URL. It is still validated on the
+  way out — one leading slash and no more — so neither `//elsewhere.example` (a
+  protocol-relative URL that leaves the site) nor an absolute one can be pushed
+  onto our history.
+- **`replace`, not `push`.** Nobody wants the back button to return them to a
+  login screen they were sent to by an expiry they did not ask for.
+- **Not carried after a deliberate sign-out.** Signing out is a handover, and the
+  next person to use the browser did not ask for the page the last one was
+  reading. Verified: after the sign-out button, `window.history.state` holds no
+  `from` and the next sign-in lands on `/projects`.
+
+### Two things the interceptor must not do, and why
+
+**`/auth/*` is exempt.** `POST /auth/login` answers **401 for a wrong password**
+(`routes/auth.js`), which is a message for the form from somebody who has no
+session to lose. Treated as session loss it would wipe the state of whoever was
+signed in when a second person mistyped a password on the same browser, and would
+swallow the sentence the form exists to show. Verified by restarting the API with
+`MOCK_PASSWORD` set — the one configuration in which the mock provider can refuse
+a password at all — and submitting a wrong one: the reply was 401, the screen
+showed `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง` and nothing else.
+
+**Only reads bounce.** A GET that comes back 401 holds nothing the user typed, so
+leaving the page costs them nothing. A failed **write** may be a project form
+with an hour of work in it, and navigating away would destroy what is still on
+screen — the fix's own regression, and the reason `error.config.method` is
+checked. Writes keep exactly the behaviour they had: the action's own dialog, the
+page untouched. Verified on `/projects/1/edit` — typed a name, killed the token,
+pressed `บันทึกการแก้ไข`: the dialog said `บันทึกไม่สำเร็จ ·
+กรุณาเข้าสู่ระบบใหม่`, the typed name and every other field were still there
+afterwards, and the button returned to `บันทึกการแก้ไข` rather than sticking on
+`กำลังบันทึก…`. The session is still over; the *next read* — any nav click, any
+reload — makes the trip to the login screen, which is the user's choice to make
+rather than ours.
+
+**Still open, for the owner.** What would actually save that work is
+re-authenticating *without* leaving the page: a sign-in dialog over the form,
+keeping its state, and a check that the person who signs in is the same person —
+otherwise a colleague finishes someone else's draft under their own name. That
+changes what a user of the system experiences rather than how the code reads, so
+it is recorded rather than decided here.
+
+### One adjacent thing fixed, one adjacent thing left alone
+
+`AuthContext` cleared the stored token whenever the mount-time `GET /me` failed
+**for any reason**, including a request that never arrived. Restarting the API
+therefore signed everybody out. Only an answer from the server says a token is
+bad, so only `err.response` clears it now; a network failure leaves it in place
+to work on the next reload, and the login screen's own connection message —
+which names both the API and the page's origin — is what the reader sees
+meanwhile.
+
+Left alone: the `Switch`'s closing `<Redirect to="/projects" />`, which answers
+every unknown URL with the project list. It is the same shape of problem — a
+broken link that looks like it worked — but a 404 screen is a new screen, and
+nobody asked for one.
+
+### A note on the alert colour
+
+The expiry notice is a `secondary` alert, themed in `theme.css` alongside
+`alert-danger`. A session that timed out is not something the reader did wrong,
+and stock Bootstrap's yellow `alert-warning` would say it was. Neutral ground and
+a grey rule: red stays for errors and the accent stays for actions, per the rule
+at the top of that file.
+
+455 assertions still pass. None of them cover this — every check is an HTTP
+assertion against the API, and all five defects above are in the browser, which
+is why they survived six phases and eight browser passes.

@@ -15,16 +15,35 @@
  * facts; a build flag on the client cannot know either.
  */
 import React, { useEffect, useState } from 'react';
-import { Redirect, useHistory } from 'react-router-dom';
+import { Redirect, useHistory, useLocation } from 'react-router-dom';
 import { Form, FormGroup, Label, Input, Button, Alert, Spinner } from 'reactstrap';
 
 import { useAuth } from '../AuthContext';
 import { api, messageOf } from '../api';
 import { ROLE_LABELS } from '../components/ui';
 
+/**
+ * Where to go after signing in: back to whatever sent the user here, or the
+ * project list for somebody who arrived at the login page on their own.
+ *
+ * `RequireAuth` puts the page in the router's `state`, which only this app can
+ * write — deliberately not a `?next=` parameter, which anybody could aim
+ * anywhere. It is still checked here rather than trusted: a single leading slash
+ * and nothing else, so neither `//elsewhere.example` (a protocol-relative URL
+ * that leaves the site) nor an absolute one can ever be pushed onto our history.
+ */
+function destinationFrom(location) {
+  const asked = location.state && location.state.from;
+  if (typeof asked !== 'string') return '/projects';
+  if (!asked.startsWith('/') || asked.startsWith('//')) return '/projects';
+  return asked;
+}
+
 export default function LoginPage() {
-  const { session, login } = useAuth();
+  const { session, login, ended } = useAuth();
   const history = useHistory();
+  const location = useLocation();
+  const destination = destinationFrom(location);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -41,7 +60,7 @@ export default function LoginPage() {
     return () => { live = false; };
   }, []);
 
-  if (session) return <Redirect to="/projects" />;
+  if (session) return <Redirect to={destination} />;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -49,7 +68,10 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(username, password);
-      history.push('/projects');
+      // `replace`, not `push`: the login screen is not a step anybody wants the
+      // back button to return them to, least of all one they were sent to by an
+      // expiry they did not ask for.
+      history.replace(destination);
     } catch (err) {
       setError(messageOf(err));
     } finally {
@@ -70,6 +92,27 @@ export default function LoginPage() {
       </div>
 
       <div className="card-x card-x__body">
+        {/*
+          Why the reader is looking at this screen, when there is something to
+          say. Without it an expiry is indistinguishable from having been signed
+          out by somebody else, or from the app losing its place — and a person
+          who was halfway through a form deserves to know which.
+
+          The second line is for a link that was *sent*: a colleague's
+          `/spending?year=2566` opened in a browser with no session used to
+          deliver the project list, which looks like a link that worked. Saying
+          the destination is kept is the difference between signing in and
+          giving up.
+        */}
+        {ended === 'expired' && (
+          <Alert color="secondary">
+            เซสชันหมดอายุแล้ว กรุณาเข้าสู่ระบบอีกครั้ง
+            {destination !== '/projects' && ' — ระบบจะพากลับไปหน้าที่ค้างไว้'}
+          </Alert>
+        )}
+        {ended !== 'expired' && destination !== '/projects' && (
+          <Alert color="secondary">เข้าสู่ระบบเพื่อเปิดหน้าที่ลิงก์นี้ชี้ไป</Alert>
+        )}
         {error && <Alert color="danger">{error}</Alert>}
         <Form onSubmit={submit}>
           <FormGroup>

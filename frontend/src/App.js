@@ -6,7 +6,7 @@
  * re-derived).
  */
 import React from 'react';
-import { BrowserRouter, Switch, Route, Redirect, Link, NavLink, useHistory } from 'react-router-dom';
+import { BrowserRouter, Switch, Route, Redirect, Link, NavLink, useHistory, useLocation } from 'react-router-dom';
 import { Button } from 'reactstrap';
 
 import { AuthProvider, useAuth } from './AuthContext';
@@ -51,13 +51,40 @@ const NAV = [
   { to: '/roles',       label: 'สิทธิ์', roles: ['ADMIN', 'STUACT'] },
 ];
 
-/** Renders nothing until the session is known, so a reload cannot flash the login screen. */
+/**
+ * Renders nothing until the session is known, so a reload cannot flash the login
+ * screen.
+ *
+ * The redirect carries where the user was, because otherwise the login screen
+ * cannot put them back and everybody lands on `/projects`. That is not a
+ * nicety: `/spending?year=2566` and `/projects/12` are pages meant to be *sent*
+ * to somebody — the spending screen keeps its year in the URL for exactly that
+ * reason — and a link that quietly delivers the project list instead looks like
+ * a link that worked.
+ *
+ * Not carried after a deliberate sign-out. Signing out is a handover: the next
+ * person to sign in on this browser did not ask for the page the last one was
+ * reading, and sending them there can only produce a 403 the system then has to
+ * explain.
+ */
 function RequireAuth({ children }) {
-  const { session, loading } = useAuth();
+  const { session, loading, ended } = useAuth();
+  const location = useLocation();
   if (loading) {
     return <div className="card-x card-x__body" style={{ padding: 'var(--s-6)' }}><Skeleton rows={5} /></div>;
   }
-  if (!session) return <Redirect to="/login" />;
+  if (!session) {
+    return (
+      <Redirect
+        to={{
+          pathname: '/login',
+          state: ended === 'signed-out'
+            ? undefined
+            : { from: `${location.pathname}${location.search}` },
+        }}
+      />
+    );
+  }
   return children;
 }
 

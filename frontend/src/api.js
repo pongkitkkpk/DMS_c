@@ -28,6 +28,66 @@ client.interceptors.request.use((config) => {
 });
 
 /**
+ * What the app listens for when the token it is holding stops being good.
+ *
+ * A `window` event rather than a callback registered by `AuthContext`, because
+ * this module is imported by every page and loaded before React mounts: an event
+ * has no initialisation order to get wrong, and no page needs to know that
+ * session loss is something it could have caused.
+ */
+export const SESSION_LOST_EVENT = 'dms:session-lost';
+
+/**
+ * A 401 is the server saying the token is no longer good — expired, or issued to
+ * a person who has since been removed. It is not a page-level error, and the
+ * screens were treating it as one: every page rendered
+ * "กรุณาเข้าสู่ระบบใหม่" in its own red alert while the app bar above it went on
+ * naming the signed-in user, so the app both insisted you were signed in and
+ * told you to sign in again — with no control that did it. `/projects` was worse
+ * than that: it kept its "กำลังโหลด…" skeleton, so an ended session looked like
+ * a slow one, indefinitely.
+ *
+ * The token is dropped here rather than left for a page to notice, because it is
+ * already known to be worthless and every later request would spend a round trip
+ * proving it again.
+ *
+ * **`/auth/*` is exempt, and that is the whole subtlety.** `POST /auth/login`
+ * answers 401 for a wrong password (`routes/auth.js` —
+ * "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"). That 401 is a message for the form, from
+ * somebody who has no session to lose; treating it as session loss would wipe
+ * the state of whoever was signed in when a second person mistyped a password on
+ * the same browser, and would swallow the message the form exists to show.
+ *
+ * **Reads only, and that is not arbitrary.** A GET that comes back 401 has
+ * nothing in it the user typed, so leaving the page costs them nothing. A failed
+ * *write* may be a project form with an hour of work in it, and navigating away
+ * from it would destroy what is still on screen. Those keep the behaviour they
+ * had — the action's own error dialog, the page left exactly as it was — so the
+ * text can at least be copied out before the user leaves. The session is still
+ * over, and the first read after it (any nav click, any reload) makes the trip
+ * to the login screen; that is their choice to make rather than ours.
+ *
+ * What would actually save that work is re-authenticating *without* leaving the
+ * page — a sign-in dialog over the form, keeping its state. It is a real feature
+ * and it changes what a user of the system experiences, so it is written down
+ * for the owner rather than decided here: DMS_REBUILD_STRATEGY.md → "A session
+ * that ends while the tab is open".
+ */
+client.interceptors.response.use(undefined, (error) => {
+  const status = error.response && error.response.status;
+  const url = (error.config && error.config.url) || '';
+  const method = ((error.config && error.config.method) || 'get').toLowerCase();
+  const isRead = method === 'get' || method === 'head';
+  if (status === 401 && isRead && !url.startsWith('/auth/')) {
+    clearToken();
+    window.dispatchEvent(new Event(SESSION_LOST_EVENT));
+  }
+  // Still a rejection: the caller's own `catch` has to run, or a page that was
+  // loading waits forever for a promise nobody settles.
+  return Promise.reject(error);
+});
+
+/**
  * Server messages are already Thai and already specific — show them, don't
  * invent one.
  *

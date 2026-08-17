@@ -822,6 +822,16 @@ label {
   color: var(--c-danger);
   border-left: 3px solid var(--c-danger);
 }
+/* A notice, not a failure. A session that timed out is not something the reader
+   did wrong, and stock Bootstrap's yellow `alert-warning` would say it was — so
+   this is neutral ground with a grey rule. Red stays for errors and the accent
+   stays for actions, per the note at the top of this file. */
+.alert-secondary {
+  background: var(--c-surface-2);
+  border-color: var(--c-border);
+  color: var(--c-text-2);
+  border-left: 3px solid var(--c-border-strong);
+}
 
 /* SweetAlert2 — it renders outside the React tree, so it is themed here. */
 .swal2-popup {

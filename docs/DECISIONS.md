@@ -394,6 +394,24 @@ deviations in the same sense as the rest: the old system did none of them.
     the sixteen clubs in no group get a bucket that says so rather than being dropped or
     filed somewhere they are not. **Nothing is stored** — every figure is summed on read,
     the same bargain as everywhere else in this system
+23. **A session that ends is handled, and the page you asked for survives it.** Two client
+    defects, found 2026-08-17 by opening `/spending` in a browser with no session — which is
+    how everybody who is *sent* that link arrives. (a) The token was re-verified on mount
+    only, so an expiry mid-tab left every screen drawing the server's
+    `กรุณาเข้าสู่ระบบใหม่` as its own red alert while the app bar went on naming the
+    signed-in user — the app both insisting you were signed in and telling you to sign in
+    again, with no control that did it, and `/projects` holding its loading skeleton so an
+    ended session looked like a slow one. A 401 on a **read** now clears the token and takes
+    the user to the login screen, which says whether the session expired or was signed out
+    of. (b) That redirect discarded the requested URL and the login screen pushed a
+    hardcoded `/projects`, so a link to `/spending?year=2566` — a page whose year is in the
+    URL *so that it can be sent* — quietly delivered a different page. The destination now
+    travels in the router's `state` (not a `?next=` anybody could aim elsewhere) and is
+    validated to a single leading slash on the way out. **Writes are deliberately exempt
+    from the bounce**: a GET holds nothing the user typed, but a failed save may be a
+    project form with an hour of work in it, and navigating away from it would destroy what
+    is still on screen. See DMS_REBUILD_STRATEGY.md → "A session that ends while the tab is
+    open" for the five reproductions, and "Still open" below for the part not built
 
 ---
 
@@ -1176,3 +1194,24 @@ The two items in "Open items" above that this work did not close remain open:
 the **academic year boundary** (June is still a guess, and now also a lockout
 risk) and, newly, whether a STUACT may appoint another STUACT. Everything else
 on the post-v1 list is built.
+
+### Re-authenticating without leaving the page — open (2026-08-17)
+
+Deviation 23 stops a 401 on a *read* from leaving the user on a dead screen, and
+deliberately leaves writes alone, because bouncing away from a half-filled
+project form would destroy what is on it. That means a session which expires
+while somebody is filling in กนศ.04 still costs them the form: they get the
+save dialog and the page intact, they can copy the text out, and the first thing
+they click afterwards takes them to the login screen.
+
+What would actually save the work is signing in **over** the page — a dialog
+that takes a username and password, replaces the token, and lets the pending
+save be retried with the form still mounted. Two things it would have to get
+right: the page stays visible behind a blocking dialog, and **the person who
+signs in must be the same person**, or a colleague finishes someone else's draft
+under their own name.
+
+Not built. It changes what a user of the system experiences rather than how the
+code reads, which is the line the owner drew on 2026-08-14 (see "How far Q2
+reaches"), so it is theirs to call. Nothing about the current behaviour is wrong
+— it is the pre-existing behaviour of the write path, kept on purpose.
