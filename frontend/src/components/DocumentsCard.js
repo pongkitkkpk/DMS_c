@@ -80,6 +80,10 @@ export default function DocumentsCard({ projectId }) {
                 color={doc.available ? 'primary' : 'secondary'}
                 outline={!doc.available}
                 disabled={!doc.available || busy === doc.form}
+                // "ดาวน์โหลด" twice in a row says which button but not which
+                // form, and the two are กนศ.04 and กนศ.06 — different documents
+                // for different stages of the same project.
+                aria-label={`ดาวน์โหลด ${doc.code} ${doc.title}`}
                 onClick={() => download(doc)}
               >
                 {busy === doc.form ? 'กำลังสร้าง…' : 'ดาวน์โหลด'}

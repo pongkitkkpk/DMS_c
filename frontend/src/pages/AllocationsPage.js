@@ -255,7 +255,11 @@ export default function AllocationsPage() {
                       </td>
                       {mayAllocate && (
                         <td>
+                          {/* One button per club, all reading "แก้ไข". The club
+                              is in the first cell, which a screen reader does
+                              not carry across to the last one. */}
                           <Button size="sm" outline color="secondary"
+                            aria-label={`แก้ไขวงเงินจัดสรรของ ${a.club.nameTh} ปี ${year}`}
                             onClick={() => editAllocation(a.club.id, a.club.nameTh, a.amount)}>
                             แก้ไข
                           </Button>
@@ -290,6 +294,7 @@ export default function AllocationsPage() {
                       {mayAllocate && (
                         <td>
                           <Button size="sm" outline color="secondary"
+                            aria-label={`กำหนดวงเงินจัดสรรของ ${club.nameTh} ปี ${year}`}
                             onClick={() => editAllocation(club.id, club.nameTh, null)}>
                             กำหนด
                           </Button>

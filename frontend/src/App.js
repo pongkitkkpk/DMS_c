@@ -75,7 +75,12 @@ function AppBar() {
             screen never helps. Giving the nav its own row keeps every label
             whole instead of hiding the app's own name to buy 200px. */}
         <div className="app-bar__top">
-        <Link to="/projects" className="app-brand">
+        {/* Named explicitly rather than left to be assembled from the subtree.
+            The contents are a mark, a title and the year in separate elements,
+            which concatenate into
+            "มจพระบบจัดการโครงการกิจกรรมนักศึกษาปีการศึกษา 2567" — one
+            unpunctuated run where the reader wanted "where does this go". */}
+        <Link to="/projects" className="app-brand" aria-label="หน้าแรก · ระบบจัดการโครงการกิจกรรมนักศึกษา">
           <span className="app-brand__mark">มจพ</span>
           <span className="app-brand__text">
             {/* The full name gives way before the nav does. Below the layout's
@@ -91,7 +96,12 @@ function AppBar() {
 
         <div className="u-spacer" />
 
-        <Link to="/profile" className="user-chip" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link
+          to="/profile"
+          className="user-chip"
+          style={{ textDecoration: 'none', color: 'inherit' }}
+          aria-label={`บัญชีของฉัน · ${session.person.fullNameTh} · ${session.role || 'ไม่มีสิทธิ์'}${scope ? ` · ${scope}` : ''}`}
+        >
           <Avatar name={session.person.fullNameTh} />
           <span className="u-small d-none d-md-block">
             {session.person.fullNameTh}

@@ -470,7 +470,17 @@ export default function RolesPage() {
                             the officer is acting under is never one of them. */}
                         {data.grantableRoles.includes(item.role) &&
                          item.id !== (session.membership && session.membership.id) && (
-                          <Button size="sm" outline color="danger" onClick={() => revoke(item)}>
+                          <Button
+                            size="sm"
+                            outline
+                            color="danger"
+                            // One "ถอน" per row and nothing else to tell them
+                            // apart. The confirmation dialog names the person,
+                            // but a control that removes somebody's access
+                            // should say whose before it is pressed.
+                            aria-label={`ถอนสิทธิ์ ${ROLE_LABELS[item.role] || item.role} ของ ${item.person.fullNameTh}`}
+                            onClick={() => revoke(item)}
+                          >
                             ถอน
                           </Button>
                         )}

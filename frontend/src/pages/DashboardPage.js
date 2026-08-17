@@ -235,6 +235,11 @@ export default function DashboardPage() {
                   to={`/projects?year=${session.academicYear}&phase=${phase.code}`}
                   className="kpi"
                   style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                  // The tile is a number over a pill, and a name assembled from
+                  // those two elements is "21. ร่างคำขออนุมัติ" — the count and
+                  // the ordinal colliding into one number nobody can read
+                  // apart. Said here in the order the eye takes them.
+                  aria-label={`${phase.name_th} — ${counts.get(phase.code) || 0} โครงการ`}
                 >
                   <div className="kpi__value">{counts.get(phase.code) || 0}</div>
                   <div className="kpi__note" style={{ marginTop: 'var(--s-2)' }}>
@@ -288,7 +293,11 @@ export default function DashboardPage() {
                       </td>
                       {mayAllocate && (
                         <td>
+                          {/* One per club, all reading "แก้ไข" — the club is in
+                              the first cell of the row, which a screen reader
+                              does not carry across to the last. */}
                           <Button size="sm" outline color="secondary"
+                            aria-label={`แก้ไขวงเงินจัดสรรของ ${a.club.nameTh} ปี ${session.academicYear}`}
                             onClick={() => editAllocation(a.club.id, a.club.nameTh, a.amount)}>
                             แก้ไข
                           </Button>

@@ -96,9 +96,13 @@ export default function HistoryPage() {
                   {years.map((year) => (
                     <tr key={year.academicYear}>
                       <td>
+                        {/* Two tables on this page each link a bare year, and
+                            the two go to different screens. "2567" twice tells
+                            a reader which year and not which page. */}
                         <Link
                           to={`/allocations?year=${year.academicYear}`}
                           className="table-x__title"
+                          aria-label={`วงเงินจัดสรร ปีการศึกษา ${year.academicYear}`}
                         >
                           {year.academicYear}
                         </Link>
@@ -169,6 +173,7 @@ export default function HistoryPage() {
                           <Link
                             to={`/projects?year=${year.academicYear}`}
                             className="table-x__title"
+                            aria-label={`โครงการ ปีการศึกษา ${year.academicYear}`}
                           >
                             {year.academicYear}
                           </Link>

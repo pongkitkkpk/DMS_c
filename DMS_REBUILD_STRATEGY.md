@@ -1275,15 +1275,63 @@ Three findings once it was on screen, none of which a check could have seen:
    between them, and where the second exists precisely to demonstrate that it
    cannot see the first one's club. The scope is printed under the name now:
    ชมรมพุทธศาสน์ against ชมรมฟุตบอล.
-3. **None of the five buttons had an accessible name.** A `<div>` nested inside
-   a `<span>` inside the `<button>` — invalid nesting that React renders anyway
-   — left Chrome computing no name at all, so the whole directory was invisible
-   to a screen reader and to the accessibility tree. Two block `<span>`s and an
-   explicit `aria-label` that reads "สมชาย นักศึกษา · หัวหน้านักศึกษา ·
-   ชมรมพุทธศาสน์".
+3. **A `<div>` nested inside a `<span>` inside the `<button>`** — invalid
+   nesting that React renders anyway, because it builds the DOM through its own
+   API rather than the HTML parser. Replaced with two block `<span>`s, and the
+   row given an explicit `aria-label` reading "สมชาย นักศึกษา ·
+   หัวหน้านักศึกษา · ชมรมพุทธศาสน์" rather than the run-on that assembling a
+   name from three separate elements produces.
+
+   **A correction to how this was first written up.** The finding was recorded
+   as "Chrome computed no accessible name at all", on the strength of the
+   browser tool's accessibility read. That tool does not implement the
+   accessible-name algorithm: on the same login screen it reported the password
+   field's name as its placeholder `••••••••`, when the field carries a proper
+   `<Label for="password">` — and an explicit label sits above `placeholder` in
+   every version of that algorithm. So the tool reports a heuristic label, and
+   what it says about a control with element children is not evidence about what
+   Chrome computes. The invalid nesting was real and is fixed; the claim that
+   the directory was silent to screen readers was not established and should not
+   be read as fact.
 
 Verified end to end in both modes: with `MOCK_PASSWORD` set the click fills the
 username and leaves the password alone, a wrong password is refused with
 "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", and the right one reaches `/projects` as
 ADMIN with all eight projects. Console output is reactstrap's `defaultProps`
 warning and nothing else.
+
+### Browser pass 8 — every control that repeats itself
+
+The login card's naming problem prompted a sweep of the same kind across every
+screen, as ADMIN. What it turned up is not the one the login page was first
+credited with. Six places print **the same control label several times over**,
+with the thing being acted on in a different cell or a different element:
+
+| Screen | Repeated | Distinguished by |
+| --- | --- | --- |
+| วงเงินจัดสรร | 9 × `กำหนด`, 1 × `แก้ไข` | the club, in the row's first cell |
+| สิทธิ์ | 4 × `ถอน` | whose role is being taken away |
+| ภาพรวม | one `แก้ไข` per club | the club, in the row's first cell |
+| โครงการ (รายโครงการ) | 2 × `ดาวน์โหลด` | กนศ.04 against กนศ.06 |
+| สรุปรายปี | 2 × `2567` | one goes to allocations, one to projects |
+| ภาพรวม | 7 phase tiles | a bare count over a pill |
+
+`ถอน` is the sharp one: four identical buttons, each removing a different
+person's access, told apart only by a cell the reader has already passed. Each
+now carries an `aria-label` naming its object — "ถอนสิทธิ์ อาจารย์ที่ปรึกษา ของ
+สมหญิง ที่ปรึกษา" — as does every other row above. The visible text is
+unchanged; these are labels for the reader who cannot see the row.
+
+The app bar's two composite links are named the same way, for the same reason a
+phase tile is: their contents are three separate elements, and any name
+assembled from them is a run-on. "หน้าแรก · ระบบจัดการโครงการกิจกรรมนักศึกษา"
+and "บัญชีของฉัน · ผู้ดูแล ระบบ · ADMIN".
+
+**What this pass did not establish.** Several controls the browser tool reported
+as nameless are correctly labelled in the markup — the two checkboxes on the
+project form are wrapped in `<label>`, and all six coordinator fields carry
+`<Label for>` with distinct text ("ผู้ประสานงานคนที่ 1"). The tool reports
+placeholders in preference to associated labels, so it is not the
+accessible-name algorithm and cannot be used to claim a control is unnamed.
+Those were left alone. Only the repeated-label cases, which are visible in the
+DOM without any tool, were treated as findings.
