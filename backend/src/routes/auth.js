@@ -19,6 +19,7 @@ const { normalizeIcitPayload } = require('../auth/identity');
 const { signToken } = require('../auth/tokens');
 const { HttpError } = require('../lib/httpError');
 const { requireAuth } = require('../middleware/requireAuth');
+const { addressOf, assertWithinBudget } = require('../services/loginThrottle');
 const {
   upsertPerson,
   findPersonByIdStudent,
@@ -78,13 +79,27 @@ function localAdminIdentity(username, password) {
 
 router.post('/auth/login', async (req, res, next) => {
   const { username, password } = req.body || {};
+  const remoteIp = addressOf(req);
 
   try {
     if (!username || !password) {
       throw HttpError.badRequest('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
     }
 
+    // Before anything is checked, and before the identity provider is called at
+    // all: a spent budget must not cost ICIT a request either. A missing field
+    // above is not charged — it is a broken client, not a guess.
+    await assertWithinBudget(username, remoteIp);
+
     let identity = localAdminIdentity(username, password);
+
+    // The fallback rejecting a wrong password is a failed guess like any other,
+    // and it names an account that exists. Left unrecorded it would be the one
+    // credential in the system that could be tried without limit.
+    if (!identity && config.localAdmin.enabled && username === config.localAdmin.username) {
+      await recordLoginAttempt(username, false, remoteIp);
+      throw HttpError.unauthorized('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    }
 
     if (!identity) {
       const provider = getAuthProvider();
@@ -99,7 +114,7 @@ router.post('/auth/login', async (req, res, next) => {
       }
 
       if (!payload) {
-        await recordLoginAttempt(username, false);
+        await recordLoginAttempt(username, false, remoteIp);
         throw HttpError.unauthorized('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       }
 
@@ -112,7 +127,7 @@ router.post('/auth/login', async (req, res, next) => {
     if (!person) throw new Error(`person row missing after upsert: ${identity.idStudent}`);
 
     const memberships = await loadMemberships(person.id, academicYear.current());
-    await recordLoginAttempt(person.id_student, true);
+    await recordLoginAttempt(person.id_student, true, remoteIp);
 
     res.json({ token: signToken(person), ...sessionBody(person, memberships) });
   } catch (err) {

@@ -13,6 +13,12 @@
  *   4. indexes that the queries this system actually runs can use
  *   5. every deliberate deviation is both done and listed
  *
+ * Sections 10 and 11 were added by the pre-deployment security pass on
+ * 2026-08-17 and are not on the build plan's list: the login endpoint's
+ * guessing budgets, and the headers every response carries. Both belong to
+ * hardening, and both are the kind of thing that is quietly removed by a later
+ * edit unless something fails when it is.
+ *
  * Item 3 — real email notification — is deliberately **not** implemented; see
  * `docs/DECISIONS.md` → "Phase 6 close-out". This run asserts that it is absent
  * rather than half-present, because a notification path that silently does
@@ -429,6 +435,167 @@ function fileForm(name, bytes, type = 'application/pdf') {
       yearService.isResolved() === true && yearService.current() === yr,
       `${yearService.current()}`);
   }
+
+  // ------------------------------------------------------------------
+  // `POST /api/auth/login` is the only endpoint reachable without a token, and
+  // until the security pass on 2026-08-17 it had no cost: `login_attempt` had
+  // recorded every failure since migration 001 and nothing read the table.
+  console.log('\n--- 10. guessing costs something ---');
+
+  const { maxPerUsername, maxPerAddress } = config.loginThrottle;
+  const tryLogin = (username, password = 'dev') =>
+    call('POST', '/api/auth/login', { body: { username, password } });
+
+  // Whatever address this suite reaches the API from — `localhost` resolves to
+  // ::1 on some Node versions and 127.0.0.1 on others, and the address budget
+  // is charged against whichever one it actually was.
+  const [[{ remote_ip: here }]] = await pool.query(
+    'SELECT remote_ip FROM login_attempt ORDER BY id DESC LIMIT 1'
+  );
+  ok('a login attempt records where it came from', here !== null, JSON.stringify(here));
+
+  // An unknown username, so nothing a later section logs in as is affected.
+  const ghost = 'fixture.nobody';
+  const refusals = [];
+  for (let i = 0; i < maxPerUsername; i++) refusals.push((await tryLogin(ghost)).status);
+  ok(`the first ${maxPerUsername} wrong guesses are refused as wrong, not as too many`,
+    refusals.every((s) => s === 401), refusals.join(','));
+
+  const spent = await tryLogin(ghost);
+  ok('  …and the next one is a 429', spent.status === 429, spent.text.slice(0, 120));
+  ok('  …which says how long to wait, in the header and the body',
+    Number(spent.headers.get('retry-after')) > 0 && spent.body.retryAfter > 0,
+    `${spent.headers.get('retry-after')} / ${spent.body && spent.body.retryAfter}`);
+
+  // The budget is per username. Spraying is what the address budget is for, and
+  // one spent username must not refuse everyone else in the building.
+  ok('a different username from the same address is still merely wrong',
+    (await tryLogin('fixture.alsonobody')).status === 401);
+
+  // The remaining assertions drive the window by writing `login_attempt`
+  // directly: with the mock provider any non-empty password is accepted for a
+  // known username (that is the point of the mock), so a real fixture cannot be
+  // made to fail through the endpoint at all.
+  const attempt = (idStudent, success, secondsAgo, ip = here) => pool.query(
+    `INSERT INTO login_attempt (id_student, is_success, remote_ip, attempted_at)
+     VALUES (?, ?, ?, NOW() - INTERVAL ? SECOND)`,
+    [idStudent, success ? 1 : 0, ip, secondsAgo]
+  );
+  const forget = (idStudent) => pool.query('DELETE FROM login_attempt WHERE id_student = ?',
+    [idStudent]);
+
+  await forget('fixture.student');
+  for (let i = 0; i < maxPerUsername; i++) await attempt('fixture.student', false, 60);
+  ok('an account being guessed at is refused before its password is checked',
+    (await tryLogin('fixture.student')).status === 429);
+
+  await attempt('fixture.student', true, 30);
+  ok('  …and one success since then clears the budget',
+    (await tryLogin('fixture.student')).status === 200);
+
+  await forget('fixture.student');
+  for (let i = 0; i < maxPerUsername; i++) await attempt('fixture.student', false, 4000);
+  ok('  …as does the window simply passing — nothing is locked out permanently',
+    (await tryLogin('fixture.student')).status === 200);
+
+  // Spraying: one attempt each against many usernames trips no per-username
+  // counter. Written directly rather than driven, because sixty round trips to
+  // prove an arithmetic threshold is sixty seconds nobody gets back.
+  await forget('fixture.student');
+  const sprayed = [];
+  for (let i = 0; i < maxPerAddress; i++) sprayed.push(attempt(`sprayed.${i}`, false, 60));
+  await Promise.all(sprayed);
+  const blocked = await tryLogin('fixture.student');
+  ok('an address spraying many usernames is refused even for an untouched account',
+    blocked.status === 429, blocked.text.slice(0, 120));
+
+  await pool.query("DELETE FROM login_attempt WHERE id_student LIKE 'sprayed.%'");
+  await forget('fixture.student');
+  await forget(ghost);
+  await forget('fixture.alsonobody');
+  ok('  …and the refusal lifts with the attempts that caused it',
+    (await tryLogin('fixture.student')).status === 200);
+
+  // ------------------------------------------------------------------
+  console.log('\n--- 11. what every response says about itself ---');
+
+  const headers = (await call('GET', '/api/health')).headers;
+  ok('no X-Powered-By — the server does not name itself',
+    headers.get('x-powered-by') === null, headers.get('x-powered-by'));
+  ok('nosniff, so a JSON error body cannot be read as HTML',
+    headers.get('x-content-type-options') === 'nosniff');
+  ok('framing is denied, in both spellings',
+    headers.get('x-frame-options') === 'DENY' &&
+    /frame-ancestors 'none'/.test(headers.get('content-security-policy') || ''),
+    headers.get('content-security-policy'));
+  ok('a JSON API loads nothing, and the CSP says so',
+    /default-src 'none'/.test(headers.get('content-security-policy') || ''));
+  ok('no referrer, so project ids do not travel to the next page',
+    headers.get('referrer-policy') === 'no-referrer');
+
+  // ------------------------------------------------------------------
+  // Every line here is a way a deployment that runs perfectly on day one is
+  // already compromised. They are checked by loading `config` in a child
+  // process, because the configuration this suite is running under is fixed the
+  // moment the module is first required.
+  console.log('\n--- 12. what a production start refuses ---');
+
+  /** @returns {string} the refusal, or '' when the configuration was accepted. */
+  function startWith(env) {
+    try {
+      execFileSync(process.execPath,
+        ['-e', "require('./src/config').assertValid()"],
+        {
+          cwd: path.resolve(__dirname, '..'),
+          encoding: 'utf8',
+          stdio: 'pipe',
+          // A clean environment: `.env` is still read by config, so the
+          // overrides below have to win, and anything left over from this
+          // process would make the result depend on the developer's shell.
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            CORS_ORIGIN: 'https://dms.example',
+            DB_USER: 'dms_api',
+            DB_PASS: 'not-empty',
+            JWT_SECRET: 'x'.repeat(48),
+            ADMIN_USERNAME: '',
+            ADMIN_PASSWORD: '',
+            ALLOW_MOCK_AUTH: '',
+            MOCK_PASSWORD: '',
+            ALLOW_INSECURE_ORIGINS: '',
+            ...env,
+          },
+        });
+      return '';
+    } catch (err) {
+      return String(err.stderr || err.message);
+    }
+  }
+
+  const demo = { ALLOW_MOCK_AUTH: '1', MOCK_PASSWORD: 'a-shared-demo-password' };
+
+  ok('the mock in production is refused unless the deployment says it means it',
+    /ALLOW_MOCK_AUTH=1/.test(startWith({})));
+  ok('  …and saying it without a shared password is still refused',
+    /MOCK_PASSWORD/.test(startWith({ ALLOW_MOCK_AUTH: '1' })));
+  ok('  …while the demonstration deployment, gated, is allowed to start',
+    startWith(demo) === '');
+  ok('an empty database password is refused',
+    /DB_PASS is empty/.test(startWith({ ...demo, DB_PASS: '' })));
+  ok('the database superuser is refused',
+    /DB_USER=root/.test(startWith({ ...demo, DB_USER: 'root' })));
+  ok('a plain-http origin is refused, since the token would travel in the clear',
+    /travel in the clear/.test(startWith({ ...demo, CORS_ORIGIN: 'http://dms.example' })));
+  ok('  …unless the deployment explicitly accepts that',
+    startWith({ ...demo, CORS_ORIGIN: 'http://dms.example', ALLOW_INSECURE_ORIGINS: '1' }) === '');
+  ok('a wildcard origin is refused in any environment',
+    /CORS_ORIGIN=\*/.test(startWith({ ...demo, CORS_ORIGIN: '*' })));
+  ok('the local admin fallback is refused in production',
+    /ADMIN_USERNAME is set in production/.test(
+      startWith({ ...demo, ADMIN_USERNAME: 'root', ADMIN_PASSWORD: 'root' })));
+  ok('a short signing secret is refused',
+    /JWT_SECRET is \d+ characters/.test(startWith({ ...demo, JWT_SECRET: 'short' })));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();

@@ -110,12 +110,20 @@ async function loadMemberships(personId, academicYear) {
   );
 }
 
-/** Q15 keeps login logging. Never blocks or fails a login. */
-async function recordLoginAttempt(idStudent, isSuccess) {
+/**
+ * Q15 keeps login logging. Never blocks or fails a login.
+ *
+ * These rows are no longer only a log: `services/loginThrottle.js` counts the
+ * failures among them to decide whether the next attempt is allowed at all. So
+ * **every** rejected credential must reach here, including the local admin
+ * fallback — a path that records nothing is a path with no guessing limit.
+ * `remoteIp` may be `null` when there is no trustworthy client address.
+ */
+async function recordLoginAttempt(idStudent, isSuccess, remoteIp = null) {
   try {
     await pool.query(
-      'INSERT INTO login_attempt (id_student, is_success) VALUES (?, ?)',
-      [String(idStudent || '').slice(0, 100), isSuccess ? 1 : 0]
+      'INSERT INTO login_attempt (id_student, is_success, remote_ip) VALUES (?, ?, ?)',
+      [String(idStudent || '').slice(0, 100), isSuccess ? 1 : 0, remoteIp]
     );
   } catch (err) {
     console.error('login_attempt not recorded:', err.message);

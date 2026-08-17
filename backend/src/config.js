@@ -29,6 +29,21 @@ const config = {
   isProduction,
   port: Number(process.env.PORT || 3001),
   /**
+   * How many reverse proxies sit in front of this API, or `false` for none.
+   *
+   * This decides what `req.ip` means, which decides whose budget a failed login
+   * spends (`services/loginThrottle.js`). It defaults to **off**: with no proxy
+   * in front, honouring `X-Forwarded-For` lets any caller name their own
+   * address and mint a fresh budget per request. Behind nginx, set
+   * `TRUST_PROXY=1` — the number of hops you actually control, not `true`,
+   * which trusts the whole chain including the part the client wrote.
+   */
+  trustProxy: (() => {
+    const raw = (process.env.TRUST_PROXY || '').trim();
+    if (!raw || raw === 'false' || raw === '0') return false;
+    return /^\d+$/.test(raw) ? Number(raw) : raw;
+  })(),
+  /**
    * Allowed browser origins, comma-separated.
    *
    * `localhost:3000` and `127.0.0.1:3000` are the same server to a person and
@@ -61,6 +76,37 @@ const config = {
   },
 
   authProvider: (process.env.AUTH_PROVIDER || 'mock').toLowerCase(),
+
+  /**
+   * A single shared password for the mock provider — a demo's front door.
+   *
+   * The mock accepts any non-empty password by design (there is nothing to
+   * check against), which is correct on a laptop and indefensible on a host
+   * with a public address: `fixture.admin` is a published username, so the
+   * whole system is one guess away from an Admin session. Set this and the mock
+   * requires it exactly, which turns the fixture directory from "anyone" into
+   * "anyone who was given the password".
+   *
+   * Blank keeps the old behaviour, which is what development wants. It is
+   * **required** when a production start is allowed to run on the mock at all
+   * (`ALLOW_MOCK_AUTH=1`) — see `assertValid`.
+   */
+  mockPassword: process.env.MOCK_PASSWORD || '',
+
+  /**
+   * Guessing budgets for `POST /api/auth/login` — see `services/loginThrottle.js`.
+   *
+   * The per-address budget is much larger than the per-username one on purpose:
+   * a campus NAT can put a whole building behind one address, and a budget
+   * tight enough to stop spraying quickly would lock out people who typed
+   * nothing wrong. Tune it for the deployment rather than leaving it to be
+   * discovered during an exam week.
+   */
+  loginThrottle: {
+    windowSeconds: Number(process.env.LOGIN_WINDOW_SECONDS || 900),
+    maxPerUsername: Number(process.env.LOGIN_MAX_PER_USERNAME || 8),
+    maxPerAddress: Number(process.env.LOGIN_MAX_PER_ADDRESS || 60),
+  },
 
   /**
    * Where uploaded files live (Q21).
@@ -125,8 +171,34 @@ function assertValid() {
     problems.push(`AUTH_PROVIDER must be "mock" or "icit", got ${JSON.stringify(config.authProvider)}.`);
   }
 
+  /**
+   * The mock in production, and the one way it is allowed.
+   *
+   * This system is a demonstration and the mock is where it is meant to stop —
+   * ICIT is not being integrated. The refusal below therefore had a perverse
+   * effect: the only way to deploy the demo was to leave `NODE_ENV` unset,
+   * which switches off *every* production check at once — the empty database
+   * password, the plain-http origin, the local admin fallback, all of it — to
+   * avoid the one that was in the way.
+   *
+   * So it becomes a deliberate, single-purpose opt-in instead, and it comes
+   * with the condition that makes it survivable: a shared password. A published
+   * fixture directory reachable by anyone who can type `fixture.admin` is not a
+   * demo, it is an open Admin session.
+   */
   if (config.authProvider === 'mock' && config.isProduction) {
-    problems.push('AUTH_PROVIDER=mock in production — mock accepts any password.');
+    if (process.env.ALLOW_MOCK_AUTH !== '1') {
+      problems.push(
+        'AUTH_PROVIDER=mock in production — mock accepts any password for a published list of ' +
+        'fixture usernames. If this is the demonstration deployment and that is intended, set ' +
+        'ALLOW_MOCK_AUTH=1 together with MOCK_PASSWORD.'
+      );
+    } else if (config.mockPassword.length < 8) {
+      problems.push(
+        'ALLOW_MOCK_AUTH=1 requires MOCK_PASSWORD of at least 8 characters — without it every ' +
+        'fixture account, `fixture.admin` included, is open to anyone who finds the URL.'
+      );
+    }
   }
 
   if (config.authProvider === 'icit') {
@@ -149,6 +221,43 @@ function assertValid() {
 
   if (process.env.ADMIN_USERNAME && config.isProduction) {
     problems.push('ADMIN_USERNAME is set in production — the local admin fallback is non-production only (Q17).');
+  }
+
+  for (const [key, value] of Object.entries(config.loginThrottle)) {
+    if (!Number.isInteger(value) || value < 1) {
+      problems.push(`loginThrottle.${key} must be a positive integer, got ${JSON.stringify(value)}.`);
+    }
+  }
+
+  /**
+   * The rest applies to production only, and each item is a way a deployment
+   * that works perfectly on the first day is already compromised.
+   *
+   * Development is left alone deliberately: XAMPP ships `root` with no password
+   * and http on localhost, and refusing to start on those would make the checks
+   * something people switch off rather than something they satisfy.
+   */
+  if (config.isProduction) {
+    // The database holds every project, every budget line and the membership
+    // table that decides who may do what. An empty password on it means the
+    // access control above is a formality to anyone who reaches port 3306.
+    if (!process.env.DB_PASS) {
+      problems.push('DB_PASS is empty in production — the database would accept anyone who can reach it.');
+    }
+    if ((process.env.DB_USER || 'root') === 'root') {
+      problems.push('DB_USER=root in production — give the API an account with rights on its own schema only.');
+    }
+
+    // A bearer token on a plain-http origin is readable by anything on the
+    // path, and this token is the whole session.
+    const insecure = config.corsOrigins.filter((origin) => origin.startsWith('http://'));
+    if (insecure.length && process.env.ALLOW_INSECURE_ORIGINS !== '1') {
+      problems.push(
+        `CORS_ORIGIN names plain-http origin(s) in production: ${insecure.join(', ')} — ` +
+        'tokens would travel in the clear. Use https, or set ALLOW_INSECURE_ORIGINS=1 if this ' +
+        'is an isolated network and you mean it.'
+      );
+    }
   }
 
   if (problems.length) {

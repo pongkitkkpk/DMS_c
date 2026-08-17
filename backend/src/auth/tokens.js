@@ -11,11 +11,21 @@
 const jwt = require('jsonwebtoken');
 const { config } = require('../config');
 
+/**
+ * The signing algorithm, named on both halves.
+ *
+ * `jsonwebtoken` picks HS256 by default and, on verify, accepts whatever the
+ * token's own header asks for. That header is written by whoever sends the
+ * token, which is the shape of every algorithm-confusion attack: the defence is
+ * that the verifier decides, not the token. Naming it is free, so it is named.
+ */
+const ALGORITHM = 'HS256';
+
 function signToken(person) {
   return jwt.sign(
     { uid: person.id_student },
     config.jwt.secret,
-    { subject: String(person.id), expiresIn: config.jwt.expiresIn }
+    { algorithm: ALGORITHM, subject: String(person.id), expiresIn: config.jwt.expiresIn }
   );
 }
 
@@ -27,7 +37,7 @@ function signToken(person) {
 function verifyToken(token) {
   if (!token) return null;
   try {
-    const decoded = jwt.verify(token, config.jwt.secret);
+    const decoded = jwt.verify(token, config.jwt.secret, { algorithms: [ALGORITHM] });
     const personId = Number(decoded.sub);
     if (!Number.isInteger(personId) || personId <= 0) return null;
     return { personId, uid: decoded.uid };

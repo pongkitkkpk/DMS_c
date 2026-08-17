@@ -62,7 +62,10 @@ academicYear.retryUntilResolved();
 
 const server = createApp().listen(config.port, () => {
   console.log(`DMS API listening on http://localhost:${config.port}`);
-  console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? '  (any password is accepted)' : ''}`);
+  const mockNote = config.mockPassword
+    ? '  (fixture accounts, one shared MOCK_PASSWORD)'
+    : '  (any password is accepted)';
+  console.log(`  auth provider   ${config.authProvider}${config.authProvider === 'mock' ? mockNote : ''}`);
   if (yearSource.source === 'unresolved') {
     console.log(`  academic year   ${yearSource.academicYear}  ⚠ เดาจากวันที่ — ยังอ่านจากฐานข้อมูลไม่ได้`);
     console.log('                  ทุกบัญชีจะยังไม่มีสิทธิ์จนกว่าจะอ่านค่าจริงได้ (ระบบจะลองใหม่เอง)');

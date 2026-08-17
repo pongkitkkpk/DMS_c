@@ -337,6 +337,37 @@ Required by Q22 — each is an intentional departure, not a porting bug:
     naming the payments rather than widened to a cascade — **keeps the record that money
     left the university's account** until someone who runs the process says otherwise
 
+The three below were added by the pre-deployment security pass on 2026-08-17. They are
+deviations in the same sense as the rest: the old system did none of them.
+
+18. **Guessing a password costs something.** `login_attempt` has recorded every failure
+    since migration 001 and nothing ever read the table, so `POST /api/auth/login` — the
+    only endpoint reachable without a token — could be called as fast as the network
+    allowed. Two sliding budgets now count those rows: a small one per username, and a
+    larger one per source address, which is what catches *spraying* (one try each against
+    many usernames, tripping no per-username counter). Both refusals expire on their own
+    and nothing is ever locked: a lockout that outlives its window would let anyone who
+    knows an ICIT username keep its owner out indefinitely, trading one attack for a
+    cheaper one. Migration 004 adds the address column. **User-visible**: a person who
+    types their password wrong eight times in fifteen minutes is asked to wait, with the
+    number of minutes in the message — new behaviour, and the one part of this pass
+    somebody may want tuned (`LOGIN_MAX_PER_USERNAME`, `LOGIN_MAX_PER_ADDRESS`)
+19. **The mock provider can require a shared password.** The mock accepts any non-empty
+    password by design, which is right on a laptop and indefensible on a host with a
+    public address, because `fixture.admin` is a username published in the source. A
+    production start on the mock is now refused unless the deployment sets both
+    `ALLOW_MOCK_AUTH=1` and an 8-character `MOCK_PASSWORD`. This replaces a flat refusal
+    that had a perverse effect: since this system is *meant* to end at the mock (Q3, Q17),
+    the only way to deploy it was to leave `NODE_ENV` unset, which switched off every
+    production check at once to avoid the single one that was in the way. `MOCK_PASSWORD`
+    is a door on a demonstration, not authentication — everyone who has it shares it —
+    and it is described that way where it is defined
+20. **A production start refuses configurations that would leak.** An empty `DB_PASS`, a
+    `DB_USER` of `root`, and a plain-http `CORS_ORIGIN` each now stop the process rather
+    than being discovered later. Development is untouched: XAMPP ships `root` with no
+    password on http, and checks that refuse to start there become checks people switch
+    off rather than satisfy
+
 ---
 
 ## Open items
