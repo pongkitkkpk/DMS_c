@@ -226,9 +226,22 @@ async function summary(actor, query = {}) {
   ]);
 
   const byCampus = new Map();
+  const byClubGroup = new Map();
   const byClub = [];
   let idleClubs = 0;
   const overall = empty();
+
+  /**
+   * The five club groups, plus a bucket for the clubs that belong to none.
+   *
+   * `club.club_group_id` is nullable on purpose — only D04's ชมรม sit in a
+   * group; D02's fifteen สโมสร and D03's สมาคม do not (see migration 001). That
+   * is sixteen clubs, more than any single group holds but one, so folding them
+   * into a group they are not in, or dropping them, would both be lies about
+   * where the money went. They get a bucket that says what they are.
+   */
+  const groupKeyOf = (club) => (club.club_group_id === null ? 'none' : Number(club.club_group_id));
+  const groupNameOf = (club) => club.club_group_name || 'ไม่สังกัดกลุ่มชมรม';
 
   for (const club of clubs) {
     const entry = sums.get(Number(club.id)) || empty();
@@ -250,13 +263,30 @@ async function summary(actor, query = {}) {
     const campus = byCampus.get(campusKey);
     campus.clubs += 1;
 
+    const groupKey = groupKeyOf(club);
+    if (!byClubGroup.has(groupKey)) {
+      byClubGroup.set(groupKey, {
+        clubGroup: {
+          id: club.club_group_id === null ? null : Number(club.club_group_id),
+          nameTh: groupNameOf(club),
+        },
+        sums: empty(),
+        clubs: 0,
+        activeClubs: 0,
+      });
+    }
+    const group = byClubGroup.get(groupKey);
+    group.clubs += 1;
+
     if (!active) {
       idleClubs += 1;
       continue;
     }
 
     campus.activeClubs += 1;
+    group.activeClubs += 1;
     add(campus.sums, entry);
+    add(group.sums, entry);
     add(overall, entry);
 
     byClub.push({
@@ -297,6 +327,23 @@ async function summary(actor, query = {}) {
       }))
       .sort((x, y) => satang(y.allocated) - satang(x.allocated) ||
         x.campus.abbreviation.localeCompare(y.campus.abbreviation)),
+    /*
+     * The level between a campus and a club, and the one a STUACT is actually
+     * responsible for: `membership.jurisdiction_club_group_id` is a club group.
+     * For a STUACT this list has exactly one entry, which is why the screen
+     * checks its length before drawing a chart of it — a comparison of one is
+     * not a comparison.
+     */
+    byClubGroup: [...byClubGroup.values()]
+      .map((row) => ({
+        clubGroup: row.clubGroup,
+        clubs: row.clubs,
+        activeClubs: row.activeClubs,
+        ...present(row.sums),
+      }))
+      .sort((x, y) => satang(y.allocated) - satang(x.allocated) ||
+        y.activeClubs - x.activeClubs ||
+        x.clubGroup.nameTh.localeCompare(y.clubGroup.nameTh, 'th')),
     byClub,
   };
 }

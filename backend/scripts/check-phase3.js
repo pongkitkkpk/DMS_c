@@ -499,6 +499,29 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
       Math.round(Number(campus.allocated) * 100) === sum(
         spending.body.byClub.filter((club) => club.campus.id === campus.campus.id), 'allocated')));
 
+  // The level between a campus and a club. `club.club_group_id` is nullable —
+  // only D04's ชมรม sit in a group — so the rollup needs a bucket for the rest
+  // rather than dropping sixteen clubs or filing them somewhere they are not.
+  ok('  …and into its club group, including the clubs that belong to none',
+    spending.body.byClubGroup.every((group) =>
+      Math.round(Number(group.allocated) * 100) === sum(
+        spending.body.byClub.filter((club) =>
+          (club.club.clubGroupId === null ? null : Number(club.club.clubGroupId))
+            === group.clubGroup.id), 'allocated')),
+    JSON.stringify(spending.body.byClubGroup.map((g) => [g.clubGroup.nameTh, g.allocated])));
+  ok('  …with every club counted in exactly one group',
+    spending.body.byClubGroup.reduce((total, group) => total + group.clubs, 0)
+      === spending.body.totals.clubs);
+  ok('the unaffiliated clubs are named as such rather than filed under a group',
+    spending.body.byClubGroup.some((group) =>
+      group.clubGroup.id === null && group.clubGroup.nameTh === 'ไม่สังกัดกลุ่มชมรม'));
+
+  // A STUACT's jurisdiction *is* one club group, so its own summary has exactly
+  // one — which is why the screen checks the length before drawing a chart of
+  // it. A comparison of one is not a comparison.
+  ok('a STUACT sees exactly the one club group it holds',
+    (await call('GET', '/api/spending', { token: stuact })).body.byClubGroup.length === 1);
+
   // A club is listed for an allocation *or* for projects — a club spending
   // against a ceiling nobody set is the state worth not dropping. Asserted as
   // the union rather than by looking for a zero-allocation club, because

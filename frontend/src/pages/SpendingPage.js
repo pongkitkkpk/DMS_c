@@ -1,5 +1,12 @@
 /**
- * Where a year's money stands — per campus, then per club.
+ * Where a year's money stands — per campus, per club group, then per club.
+ *
+ * Three levels, widest first, because that is how the university is organised
+ * and how an officer narrows down: which campus, then which group inside it,
+ * then which club. The middle level is the one a STUACT is actually responsible
+ * for — `membership.jurisdiction_club_group_id` is a club group — which is also
+ * why a STUACT sees no chart of it: they hold exactly one, and a comparison of
+ * one is not a comparison.
  *
  * The figures on this page are not new. `วงเงินจัดสรร` already lists every
  * allocation and every project already carries its approved amount and its
@@ -40,6 +47,27 @@ function StatTile({ label, value, note, tone }) {
       <div className="kpi__value" style={tone ? { color: tone } : undefined}>{money(value)}</div>
       {note && <div className="kpi__note">{note}</div>}
     </div>
+  );
+}
+
+/**
+ * One level of the rollup: the chart, then the same figures as a table.
+ *
+ * The chart is what `MoneyMeter` decides to draw — it declines a single row,
+ * because the shared scale exists for comparing rows and one row has nothing to
+ * compare against. The spacing follows that decision rather than being hung on
+ * the table unconditionally, so a section with no chart does not open with an
+ * unexplained gap.
+ */
+function MoneySection({ rows, firstColumn }) {
+  const charted = rows.length > 1;
+  return (
+    <>
+      <MoneyMeter rows={rows} />
+      <div style={charted ? { marginTop: 'var(--s-5)' } : undefined}>
+        <MoneyTable rows={rows} firstColumn={firstColumn} />
+      </div>
+    </>
   );
 }
 
@@ -122,6 +150,13 @@ export default function SpendingPage() {
     ...row,
   })) : [];
 
+  const groupRows = data ? data.byClubGroup.map((row) => ({
+    key: `group-${row.clubGroup.id === null ? 'none' : row.clubGroup.id}`,
+    label: row.clubGroup.nameTh,
+    sublabel: `${row.activeClubs} จาก ${row.clubs} ชมรม`,
+    ...row,
+  })) : [];
+
   const clubRows = data ? data.byClub.map((row) => ({
     key: `club-${row.club.id}`,
     label: row.club.nameTh,
@@ -184,21 +219,30 @@ export default function SpendingPage() {
             />
           </div>
 
-          <Card
-            title="ตามวิทยาเขต"
-            aside={`ปีการศึกษา ${data.academicYear}`}
-          >
-            {campusRows.length === 0
-              ? <Empty mark="฿" title="ยังไม่มีวิทยาเขตในขอบเขตของบัญชีนี้" />
-              : (
-                <>
-                  <MoneyMeter rows={campusRows} />
-                  <div style={{ marginTop: 'var(--s-5)' }}>
-                    <MoneyTable rows={campusRows} firstColumn="วิทยาเขต" />
-                  </div>
-                </>
-              )}
-          </Card>
+          {/*
+            Campus, then club group, then club — the three levels the university
+            organises itself by, widest first.
+
+            Each level is drawn only when there is more than one of it to
+            compare. A STUACT is responsible for exactly one club group, so its
+            group chart would be a single bar restating the headline figure
+            above it, and a bar chart of one value is not a chart. The same rule
+            covers an officer whose whole scope sits on one campus.
+          */}
+          {campusRows.length > 1 && (
+            <Card title="ตามวิทยาเขต" aside={`ปีการศึกษา ${data.academicYear}`}>
+              <MoneySection rows={campusRows} firstColumn="วิทยาเขต" />
+            </Card>
+          )}
+
+          {groupRows.length > 1 && (
+            <Card
+              title="ตามกลุ่มชมรม"
+              aside={`${groupRows.length} กลุ่ม`}
+            >
+              <MoneySection rows={groupRows} firstColumn="กลุ่มชมรม" />
+            </Card>
+          )}
 
           <Card
             title="ตามชมรม"
@@ -217,14 +261,9 @@ export default function SpendingPage() {
                 />
               )
               : (
-                <>
-                  {/* Sorted by allocation on the server. A chart of a comparison
-                      sorted by club code makes the reader do the sorting. */}
-                  <MoneyMeter rows={clubRows} />
-                  <div style={{ marginTop: 'var(--s-5)' }}>
-                    <MoneyTable rows={clubRows} firstColumn="ชมรม" />
-                  </div>
-                </>
+                /* Sorted by allocation on the server. A chart of a comparison
+                   sorted by club code makes the reader do the sorting. */
+                <MoneySection rows={clubRows} firstColumn="ชมรม" />
               )}
           </Card>
         </div>

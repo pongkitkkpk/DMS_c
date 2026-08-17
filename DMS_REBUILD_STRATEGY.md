@@ -1400,7 +1400,28 @@ allocation ended, and the words "เกินวงเงิน".
    cells were auto-placed, squeezing the axis itself to zero width. The whole
    scale disappeared, silently, on a phone.
 
-Sixteen assertions in `check-phase3.js` hold the API half, including that the
+### The middle level, added after the first pass
+
+Campus and club were what was asked for; the level between them was missing, and
+it is the one a STUACT is actually responsible for —
+`membership.jurisdiction_club_group_id` is a club group. For an ADMIN looking at
+69 clubs across five groups, "which group is behind" is the question that comes
+between "which campus" and "which club".
+
+`club.club_group_id` is nullable and sixteen clubs use it: only D04's ชมรม sit
+in a group, while D02's fifteen สโมสร and D03's สมาคม do not. That is more clubs
+than any group but one holds, so they get a bucket named
+"ไม่สังกัดกลุ่มชมรม" — dropping them or filing them under a group they are not
+in would both be lies about where the money went.
+
+A STUACT holds exactly one group, so its group chart would be a single bar
+restating the headline figure above it. `MoneyMeter` now declines any chart of
+fewer than two rows and the page omits the card entirely, which is the same rule
+the skill states for a stat tile: one value is not a bar chart. The table still
+carries the figures, so nothing is hidden — only the drawing that would have
+said nothing.
+
+Twenty assertions in `check-phase3.js` hold the API half, including that the
 summary's totals equal the allocation rows added up, that clubs roll into their
 campus exactly, that a club is listed for an allocation **or** for projects, and
 that a student and an adviser get 403. 451 passed, 0 failed.

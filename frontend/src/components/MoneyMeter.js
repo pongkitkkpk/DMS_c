@@ -180,6 +180,17 @@ export function MoneyMeter({ rows, emptyText = 'ไม่มีข้อมู�
     return <div className="u-small u-dim" style={{ padding: 'var(--s-4) 0' }}>{emptyText}</div>;
   }
 
+  /*
+   * One row is not a chart.
+   *
+   * The whole reason for the shared scale is comparing rows to each other; with
+   * a single row there is nothing to compare it to, and the bar restates a
+   * figure the headline tiles and the table beside it already carry. This
+   * happens for real — an officer whose scope holds one active club — so it is
+   * a case, not an edge case. The caller's table carries the figures.
+   */
+  if (measured.length < 2) return null;
+
   // Everything is drawn to this scale, including a row of all zeroes — which
   // draws as an empty track rather than being dropped, because "this club was
   // given nothing" is an answer the reader came for.

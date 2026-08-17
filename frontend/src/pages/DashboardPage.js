@@ -257,6 +257,15 @@ export default function DashboardPage() {
             <>
               {mayAllocate ? 'แก้ไขได้' : 'อ่านอย่างเดียว'}
               {' · '}
+              {/* This card says what each club was given; the summary says what
+                  each has done with it. Offered to the same two roles the
+                  server lets read it, so the link cannot lead to a 403. */}
+              {mayAllocate && (
+                <>
+                  <Link className="u-muted" to="/spending">สรุปการใช้เงิน →</Link>
+                  {' · '}
+                </>
+              )}
               <Link className="u-muted" to="/allocations">ดูรายปี →</Link>
             </>
           }

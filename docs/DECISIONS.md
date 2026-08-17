@@ -388,8 +388,12 @@ deviations in the same sense as the rest: the old system did none of them.
     responsible for more than one club. A club is listed for having **an allocation or
     projects**, so a club spending against a ceiling nobody set still appears; clubs with
     neither are counted rather than listed, because 68 rows of zero bury the one row that
-    says something. **Nothing is stored** — every figure is summed on read, the same
-    bargain as everywhere else in this system
+    says something. Rolled up three ways — campus, **club group**, club — the levels the
+    university is organised by; the middle one is what a STUACT actually holds
+    (`membership.jurisdiction_club_group_id`), and `club.club_group_id` is nullable, so
+    the sixteen clubs in no group get a bucket that says so rather than being dropped or
+    filed somewhere they are not. **Nothing is stored** — every figure is summed on read,
+    the same bargain as everywhere else in this system
 
 ---
 
