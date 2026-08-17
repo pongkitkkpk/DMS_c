@@ -1201,3 +1201,89 @@ when a list is over it. The phase stepper, the scope rules (a student sees 7
 projects, the Admin 8), the money meters and both document buttons all read
 correctly. The only console output in the whole pass is reactstrap's
 `defaultProps` deprecation warning.
+
+---
+
+## Security pass before deployment (2026-08-17)
+
+A read of the whole system against the question "what does putting this on a
+host with a public address expose". Most of it held: no SQL is assembled from
+request strings, every router sits behind `requireAuth`, attachments leave only
+through a handler that has already narrowed the project by membership, the token
+carries no role, and `.env` has never been committed. Five things did not.
+
+**The login endpoint had no cost.** `login_attempt` has recorded every failure
+since migration 001 and nothing has ever read the table — a log nobody consults
+does not slow an attacker down, and `POST /api/auth/login` is the only endpoint
+reachable without a token. Two sliding budgets now count those rows: a small one
+per username, and a larger one per source address, which is the one that catches
+spraying — one attempt each against many usernames trips no per-username
+counter, and the accounts are ICIT usernames, which are guessable by
+construction. Migration 004 adds the address column.
+
+Neither budget locks anything. A lockout that outlives its window is a denial of
+service against a named person: anyone who knows an ICIT username could keep its
+owner out indefinitely, which trades one attack for a cheaper one. Every refusal
+expires on its own, the username budget clears on a success, and a database that
+cannot answer fails **open** — a blip that locked every account out at once
+would be worse than the attack, and login needs the database anyway.
+
+**The mock accepts any password**, which is right on a laptop and indefensible
+on a public host: `fixture.admin` is a username written in the source. The flat
+production refusal made this worse rather than better — since the system is
+*meant* to end at the mock, the only way to deploy was to leave `NODE_ENV`
+unset, which switches off every production check at once to dodge the single one
+in the way. It is now an opt-in that costs `ALLOW_MOCK_AUTH=1` and an
+8-character `MOCK_PASSWORD`. That is a door on a demonstration, not
+authentication, and it is described that way where it is defined.
+
+**Three configurations that would leak now stop the process**: an empty
+`DB_PASS`, a `DB_USER` of `root`, and a plain-http `CORS_ORIGIN` in production.
+Development is untouched, because a check that refuses to start on XAMPP's
+defaults is a check people delete rather than satisfy.
+
+**Every response carries `nosniff`, `DENY`, `default-src 'none'` and no
+referrer**, and no longer names the server. The JWT algorithm is named on both
+signing and verifying instead of being read from the token's own header.
+
+**`nodemailer` — eight advisories, imported by nothing** — and two unused
+swagger packages are gone. The backend audits clean. The frontend's 28 findings
+are all inside `react-scripts`, which is build-time only and reaches no browser.
+
+Sections 10, 10b, 11 and 12 of `check-phase6.js` hold all of it, including the
+production refusals, which are asserted by loading `config` in child processes
+because this suite's own configuration is fixed at first require.
+
+### Browser pass 7 — the login screen
+
+The fixture directory was hardcoded and rendered behind
+`process.env.NODE_ENV !== 'production'`. That flag describes how the *bundle*
+was built, and `npm run build` always sets it — so the accounts vanished from
+the deployed demo, the one place somebody arrives not knowing what to type,
+while on a laptop the card always claimed "รหัสผ่านอะไรก็ได้", which
+`MOCK_PASSWORD` makes false. `GET /api/auth/mode` knows both facts and now
+supplies them, with the roles read out of `membership` rather than written down
+beside the usernames.
+
+Three findings once it was on screen, none of which a check could have seen:
+
+1. **The card header wrapped into two ragged columns.** `card-x__head` is a flex
+   row, so the hint added under the title became a second column rather than a
+   second line. Both lines now sit in one flex child.
+2. **Two accounts read identically.** `สมชาย` and `สมปอง` are both `SH` and the
+   pill said `หัวหน้านักศึกษา` twice — on a card whose whole purpose is choosing
+   between them, and where the second exists precisely to demonstrate that it
+   cannot see the first one's club. The scope is printed under the name now:
+   ชมรมพุทธศาสน์ against ชมรมฟุตบอล.
+3. **None of the five buttons had an accessible name.** A `<div>` nested inside
+   a `<span>` inside the `<button>` — invalid nesting that React renders anyway
+   — left Chrome computing no name at all, so the whole directory was invisible
+   to a screen reader and to the accessibility tree. Two block `<span>`s and an
+   explicit `aria-label` that reads "สมชาย นักศึกษา · หัวหน้านักศึกษา ·
+   ชมรมพุทธศาสน์".
+
+Verified end to end in both modes: with `MOCK_PASSWORD` set the click fills the
+username and leaves the password alone, a wrong password is refused with
+"ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง", and the right one reaches `/projects` as
+ADMIN with all eight projects. Console output is reactstrap's `defaultProps`
+warning and nothing else.

@@ -111,6 +111,77 @@ async function loadMemberships(personId, academicYear) {
 }
 
 /**
+ * Name and role for a handful of known usernames, for the demonstration
+ * directory on the login screen.
+ *
+ * The roles are read out of `membership`, not written down beside the usernames
+ * — the same rule as everywhere else in this file. A hardcoded list on the
+ * login page would be a second statement of who is what, and the seed is free
+ * to disagree with it; this one cannot.
+ *
+ * A username with no `person` row yet — nobody has logged in as it since the
+ * last reset — is returned with `role: null` rather than dropped. It is still a
+ * valid account to demonstrate with; it simply has no membership until it
+ * exists, which is the honest thing to show.
+ *
+ * The scope comes back with the role, because the role alone does not identify
+ * the account: two of the fixtures are both `SH`, and a directory that prints
+ * "หัวหน้านักศึกษา" twice with nothing to separate them is unreadable on the one
+ * screen where telling them apart is the entire point — the second exists to
+ * demonstrate that a different club cannot be seen.
+ *
+ * @param {string[]} usernames
+ * @returns {Promise<Array<{idStudent: string, fullNameTh: ?string, role: ?string,
+ *                          scope: ?string}>>} in the order asked for.
+ */
+async function describeAccounts(usernames, academicYear) {
+  if (!usernames.length) return [];
+
+  const [rows] = await pool.query(
+    `SELECT p.id_student, p.full_name_th, m.role,
+            c.name_th  AS club_name,
+            cg.name_th AS club_group_name
+       FROM person p
+       LEFT JOIN membership m
+         ON m.person_id = p.id AND m.academic_year = ?
+       LEFT JOIN club       c  ON c.id  = m.club_id
+       LEFT JOIN club_group cg ON cg.id = COALESCE(m.jurisdiction_club_group_id, c.club_group_id)
+      WHERE p.id_student IN (${usernames.map(() => '?').join(', ')})`,
+    [academicYear, ...usernames]
+  );
+
+  // SH and AD are scoped to a club, STUACT to a jurisdiction, ADMIN to nothing
+  // — the same three shapes `ck_membership_scope` enforces.
+  const scopeOf = (row) => {
+    if (row.role === 'SH' || row.role === 'AD') return row.club_name || null;
+    if (row.role === 'STUACT') return row.club_group_name || null;
+    return null;
+  };
+
+  const best = new Map();
+  for (const row of rows) {
+    const seen = best.get(row.id_student);
+    // One person may hold several memberships in a year (A4). Show the one that
+    // decides what they see, which is the one `requireAuth` would pick.
+    const better = !seen || ROLE_PRECEDENCE.indexOf(row.role) < ROLE_PRECEDENCE.indexOf(seen.role);
+    if (better) {
+      best.set(row.id_student,
+        { fullNameTh: row.full_name_th, role: row.role, scope: scopeOf(row) });
+    }
+  }
+
+  return usernames.map((idStudent) => {
+    const found = best.get(idStudent) || {};
+    return {
+      idStudent,
+      fullNameTh: found.fullNameTh || null,
+      role: found.role || null,
+      scope: found.scope || null,
+    };
+  });
+}
+
+/**
  * Q15 keeps login logging. Never blocks or fails a login.
  *
  * These rows are no longer only a log: `services/loginThrottle.js` counts the
@@ -131,6 +202,7 @@ async function recordLoginAttempt(idStudent, isSuccess, remoteIp = null) {
 }
 
 module.exports = {
+  describeAccounts,
   upsertPerson,
   findPersonById,
   findPersonByIdStudent,

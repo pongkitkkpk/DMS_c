@@ -367,6 +367,15 @@ deviations in the same sense as the rest: the old system did none of them.
     than being discovered later. Development is untouched: XAMPP ships `root` with no
     password on http, and checks that refuse to start there become checks people switch
     off rather than satisfy
+21. **The login screen is told what it is talking to** — `GET /api/auth/mode`, public
+    because it is read before anybody can have a token. It replaces a hardcoded fixture
+    list rendered behind the client's own `process.env.NODE_ENV`, which was wrong in both
+    directions: `npm run build` sets that flag unconditionally, so the demonstration
+    accounts disappeared from the deployed demo — the one place somebody arrives without
+    knowing what to type — while on a laptop the card always read "รหัสผ่านอะไรก็ได้",
+    which stops being true the moment `MOCK_PASSWORD` is set. The roles beside the names
+    come from `membership` rather than from a list written next to the usernames, which is
+    the same rule as everywhere else: **no screen states a role the database does not**
 
 ---
 

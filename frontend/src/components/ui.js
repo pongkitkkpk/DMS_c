@@ -24,6 +24,19 @@ const PHASE_TONE = {
   CLOSED: 'done',
 };
 
+/**
+ * The four roles, in Thai. Here rather than beside one screen because the login
+ * page names them before a session exists and the roles page names them after,
+ * and two spellings of `STUACT` on two screens is how a system starts calling
+ * the same job two things.
+ */
+export const ROLE_LABELS = {
+  SH: 'หัวหน้านักศึกษา',
+  AD: 'อาจารย์ที่ปรึกษา',
+  STUACT: 'กองกิจการนักศึกษา',
+  ADMIN: 'ผู้ดูแลระบบ',
+};
+
 export function PhasePill({ code, children }) {
   return <span className={`pill pill--${PHASE_TONE[code] || 'neutral'}`}>{children}</span>;
 }

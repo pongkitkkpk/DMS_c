@@ -517,6 +517,33 @@ function fileForm(name, bytes, type = 'application/pdf') {
     (await tryLogin('fixture.student')).status === 200);
 
   // ------------------------------------------------------------------
+  // The login screen used to decide what to show from its own build flag, and
+  // `npm run build` sets that flag unconditionally — so the demonstration
+  // accounts vanished from the deployed demo and the "any password" note stayed
+  // put even when a shared password was required. Both facts belong to the
+  // server; this is where it says them.
+  console.log('\n--- 10b. the login screen is told what it is talking to ---');
+
+  const mode = await call('GET', '/api/auth/mode');
+  ok('the mode endpoint answers without a token, since it is read before login',
+    mode.status === 200, mode.text.slice(0, 120));
+  ok('  …and names the provider and the year',
+    mode.body.provider === config.authProvider && mode.body.academicYear === yr,
+    JSON.stringify({ provider: mode.body.provider, year: mode.body.academicYear }));
+  ok('  …and says whether a shared password is required',
+    mode.body.requiresSharedPassword === Boolean(config.mockPassword));
+  ok('  …and never sends the password itself',
+    !JSON.stringify(mode.body).includes(config.mockPassword || ' never'));
+
+  const admin_ = mode.body.accounts.find((a) => a.idStudent === 'fixture.admin');
+  ok('the demonstration accounts carry the role the database gives them, not a hardcoded one',
+    admin_ && admin_.role === 'ADMIN' && admin_.fullNameTh,
+    JSON.stringify(admin_));
+  ok('  …for every account the mock knows',
+    mode.body.accounts.length === require('../src/auth/providers/mock').knownUsernames.length,
+    String(mode.body.accounts.length));
+
+  // ------------------------------------------------------------------
   console.log('\n--- 11. what every response says about itself ---');
 
   const headers = (await call('GET', '/api/health')).headers;

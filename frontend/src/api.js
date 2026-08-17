@@ -49,6 +49,16 @@ export function messageOf(error) {
 }
 
 export const api = {
+  /**
+   * What the login screen is talking to — which provider, whether it wants a
+   * shared password, and the demonstration accounts if there are any.
+   *
+   * Asked of the server rather than derived from `process.env.NODE_ENV` here:
+   * that flag describes how this bundle was *built*, and `npm run build` always
+   * sets it to production, which says nothing about whether the API on the
+   * other end is running the mock.
+   */
+  authMode: () => client.get('/auth/mode').then((r) => r.data),
   login: (username, password) => client.post('/auth/login', { username, password }).then((r) => r.data),
   me: () => client.get('/me').then((r) => r.data),
   listProjects: (params) => client.get('/projects', { params }).then((r) => r.data),

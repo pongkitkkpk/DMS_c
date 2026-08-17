@@ -30,16 +30,9 @@ import Swal from 'sweetalert2';
 
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
-import { Card, Empty, Pill, Skeleton, dateTime } from '../components/ui';
+import { Card, Empty, Pill, ROLE_LABELS, Skeleton, dateTime } from '../components/ui';
 
 const MAY_GRANT = ['ADMIN', 'STUACT'];
-
-const ROLE_LABELS = {
-  SH: 'หัวหน้านักศึกษา',
-  AD: 'อาจารย์ที่ปรึกษา',
-  STUACT: 'กองกิจการนักศึกษา',
-  ADMIN: 'ผู้ดูแลระบบ',
-};
 
 /** SH and AD attach to a club; STUACT to a jurisdiction; ADMIN to neither. */
 const scopeKindOf = (role) => {

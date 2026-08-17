@@ -21,6 +21,7 @@ const { HttpError } = require('../lib/httpError');
 const { requireAuth } = require('../middleware/requireAuth');
 const { addressOf, assertWithinBudget } = require('../services/loginThrottle');
 const {
+  describeAccounts,
   upsertPerson,
   findPersonByIdStudent,
   loadMemberships,
@@ -76,6 +77,58 @@ function localAdminIdentity(username, password) {
     stuStatusDesc: null,
   };
 }
+
+/**
+ * What the login screen is talking to. Public, because it is read before
+ * anybody can have a token.
+ *
+ * The screen used to decide this for itself, from its own `NODE_ENV` — and got
+ * it backwards in the one case that matters. `npm run build` sets
+ * `NODE_ENV=production` unconditionally, so the demonstration directory
+ * disappeared from exactly the deployment that exists to demonstrate, leaving a
+ * form with no indication of what to type; while on a laptop it always claimed
+ * "any password", which stopped being true the moment `MOCK_PASSWORD` was set.
+ * A build flag on the client cannot know either fact. The server knows both.
+ *
+ * When the provider is ICIT there are no accounts to list and the reply says
+ * so with an empty array — the directory is a property of the mock, not of this
+ * endpoint.
+ *
+ * Listing the mock's usernames is not a leak: they are written in
+ * `auth/providers/mock.js`, which is public, and a deployment that hands them
+ * out is required to hold `MOCK_PASSWORD` (see `config.assertValid`). What the
+ * reply never contains is that password.
+ */
+router.get('/auth/mode', async (req, res, next) => {
+  try {
+    const provider = getAuthProvider();
+    const usernames = provider.knownUsernames || [];
+
+    let accounts = [];
+    if (usernames.length) {
+      try {
+        accounts = await describeAccounts(usernames, academicYear.current());
+      } catch (err) {
+        // The screen is still usable without the roles beside the names, and a
+        // database that is down will announce itself at the first login anyway.
+        console.error('login directory could not be described:', err.message);
+        accounts = usernames.map((idStudent) =>
+          ({ idStudent, fullNameTh: null, role: null, scope: null }));
+      }
+    }
+
+    res.json({
+      provider: provider.name,
+      // Whether *this* deployment gates the mock behind a shared password —
+      // which changes what the screen should tell people to type.
+      requiresSharedPassword: provider.name === 'mock' && Boolean(config.mockPassword),
+      academicYear: academicYear.current(),
+      accounts,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.post('/auth/login', async (req, res, next) => {
   const { username, password } = req.body || {};
