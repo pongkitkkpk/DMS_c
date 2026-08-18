@@ -1749,3 +1749,98 @@ resets database-level grants to the shipped defaults; nothing here uses them, an
 the `dms` schema itself is untouched. Worth knowing about, because the same disk
 event that wrote a log into a table file was already reporting InnoDB damage a
 year ago.
+
+---
+
+## Two wrong words on a government form, and a day that does not exist (2026-08-18)
+
+An audit of what the forms *derive* rather than store — the Thai spelled-out
+amount, the dates, the percentages — followed by one of `validate.js`, since the
+last pass through that file had checked text widths and value *shapes* but not
+what `Number()` and the calendar will agree to.
+
+### `เอ็ด` where the number says `หนึ่ง`
+
+`bahtText` spells the amount printed in words on กนศ.04, in the covering letter
+and again at §19. `เอ็ด` replaces `หนึ่ง` in the units place only when something
+non-zero comes before it — สิบเอ็ด, หนึ่งร้อยเอ็ด, หนึ่งล้านเอ็ด — and the test
+for "something before it" was `length > 1` **on the digit string**. Every group
+is zero-padded: satang to two digits, each `ล้าน` group to six. So `'01'` was a
+two-character string whose value is one:
+
+```
+0.01        → เอ็ดสตางค์            should be หนึ่งสตางค์
+1.01        → หนึ่งบาทเอ็ดสตางค์      should be หนึ่งบาทหนึ่งสตางค์
+1,000,000.01 → หนึ่งล้านบาทเอ็ดสตางค์  should be …หนึ่งสตางค์
+```
+
+The flag is now carried as a fact about the number rather than the string, and
+across the group boundary as well — so `1,000,001` is still `หนึ่งล้านเอ็ดบาท`,
+which is the case the string test got right by accident.
+
+Second, `0.00` printed **ศูนย์บาท** with no `ถ้วน`. Every other whole-baht amount
+has it, and on a form `ถ้วน` is the word that says no satang were dropped; a
+receipt for nothing still reads ศูนย์บาทถ้วน. Both are one-line fixes in
+`thai.js` and neither is reachable from the old system's code, which refused
+anything above 9,999,999 outright.
+
+Why the four existing assertions missed it: they check 19,200 · 21 · 12.34 ·
+12,000,000 — an amount with satang, but never satang **ending in one**, and never
+zero. Five new ones in `check-phase4.js` cover both, plus the two cases that
+would catch the fix going too far (สิบเอ็ดสตางค์ and ยี่สิบเอ็ดสตางค์ keep
+their เอ็ด).
+
+### The 31st of February was a 500
+
+`check.date` tested `/^\d{4}-\d{2}-\d{2}$/` and `Date.parse`. Both accept
+`2024-02-31`: JavaScript rolls it forward to the 2nd of March. MySQL rolls
+nothing forward — strict mode answers `ER_TRUNCATED_WRONG_VALUE` — so
+
+```
+PATCH /api/projects/1  {"prepareStartOn":"2024-02-31"}   → 500 เกิดข้อผิดพลาดภายในระบบ
+                       {"prepareStartOn":"2023-02-29"}   → 500
+                       {"prepareStartOn":"2024-02-29"}   → 200
+```
+
+which is precisely the failure this file exists to turn into a named 400, and
+the same shape as the `TEXT`-bytes defect found on 2026-08-17. The date now
+round-trips through `Date.UTC` and is compared back, so the calendar answers
+rather than the parser: the leap day saves, the 29th in a non-leap year does
+not, and the message names the day it refused.
+
+Reachable from the browser only through a client without a native date picker,
+and from the API by anybody — which is the same standing as every other
+validator here.
+
+### A headcount written in hexadecimal
+
+`check.integer` was `Number(value)` guarded by `Number.isInteger`. Both of these
+pass that guard:
+
+```
+"0x10" → 16      "1e3" → 1000
+```
+
+A headcount of `"0x10"` would have been stored as 16 and printed as 16 on
+กนศ.06 — deviation 24's shape exactly, a confident answer to input nobody meant.
+Digits (with an optional decimal part) are required now, so `"12.0"` is still
+twelve — a number input can hand that back, and refusing it would have been the
+fix overshooting.
+
+Six assertions in `check-phase6.js` §13. **481 passed, 0 failed.**
+
+### And a defect in the record itself
+
+`docs/DECISIONS.md` had **two numbering systems**. The master list under
+"Deliberate deviations from old behavior" is the one every code comment cites
+(`deviation 1`, `2`, `8`, `11`, `16`, `23`, `24` — all of which still resolve
+correctly). But each phase close-out also carried a "New deviations from old
+behavior" sub-list saying "added to the numbered list above", and they never
+were: they continued the count as it stood when that phase ended, so items
+17–27 exist twice with different meanings. By this session **deviation 17**
+named the budget-line rule in one place and the delete-refusal in another.
+
+The close-out text is the fuller statement of each, so it stays where it is and
+is renumbered 30–40, with one-line entries added to the master list pointing at
+it. Q22 requires the deviations to be listed; a list with two meanings for the
+same number is the failure mode that requirement exists to prevent.

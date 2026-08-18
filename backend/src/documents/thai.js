@@ -75,19 +75,31 @@ function monthIndex(value) {
 const DIGITS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
 const PLACES = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน'];
 
-/** One group of up to six digits, spelled out. */
-function spellGroup(text) {
+/**
+ * One group of up to six digits, spelled out.
+ *
+ * `เอ็ด` replaces `หนึ่ง` in the units place only when something non-zero comes
+ * before it — สิบเอ็ด, หนึ่งร้อยเอ็ด, หนึ่งล้านเอ็ด, but plain หนึ่ง on its own.
+ * That is a fact about the *number*, not about the string, and this once tested
+ * `length > 1`: a group is zero-padded (satang to two digits, every group after
+ * the first to six), so `'01'` was a two-character string whose value is one and
+ * `0.01` printed **เอ็ดสตางค์** on กนศ.04. `hasHigherPart` carries the same
+ * question across a group boundary, which is what keeps หนึ่งล้านเอ็ด correct.
+ */
+function spellGroup(text, hasHigherPart = false) {
   let out = '';
   const length = text.length;
+  let anythingBefore = hasHigherPart;
   for (let i = 0; i < length; i++) {
     const digit = Number(text[i]);
     if (digit === 0) continue;
     const place = length - i - 1;
-    if (place === 0 && digit === 1 && length > 1) out += 'เอ็ด';
+    if (place === 0 && digit === 1 && anythingBefore) out += 'เอ็ด';
     else if (place === 1 && digit === 2) out += 'ยี่';
     else if (place === 1 && digit === 1) out += '';
     else out += DIGITS[digit];
     out += PLACES[place];
+    anythingBefore = true;
   }
   return out;
 }
@@ -126,16 +138,20 @@ function bahtText(value) {
     for (let end = wholeText.length; end > 0; end -= 6) {
       groups.unshift(wholeText.slice(Math.max(0, end - 6), end));
     }
+    let higherGroupSpelled = false;
     baht = groups
       .map((group, index) => {
-        const spelled = spellGroup(group);
+        const spelled = spellGroup(group, higherGroupSpelled);
         if (!spelled) return '';
+        higherGroupSpelled = true;
         return spelled + 'ล้าน'.repeat(groups.length - index - 1);
       })
       .join('') + 'บาท';
   }
 
-  if (satang === 0) return `${baht}${wholeText === '0' ? '' : 'ถ้วน'}`;
+  // `ถ้วน` on every whole-baht amount, zero included: a receipt for nothing
+  // still reads ศูนย์บาทถ้วน, and the word is what says no satang were dropped.
+  if (satang === 0) return `${baht}ถ้วน`;
   return `${baht}${spellGroup(String(satang).padStart(2, '0'))}สตางค์`;
 }
 

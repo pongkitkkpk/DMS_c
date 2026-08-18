@@ -121,6 +121,22 @@ const DELIBERATELY_ABSENT = {
   ok('  …above the old 9,999,999 ceiling, instead of an error string',
     bahtText('12000000').startsWith('สิบสองล้าน'), bahtText('12000000'));
 
+  // เอ็ด is for a one that follows something, and every one of these is a one
+  // that does not. The satang group is padded to two digits, so a length test
+  // read `'01'` as a two-digit number and printed เอ็ดสตางค์ on a form.
+  ok('  …and a lone satang is หนึ่ง, not เอ็ด',
+    bahtText('0.01') === 'หนึ่งสตางค์', bahtText('0.01'));
+  ok('    …after any amount of baht',
+    bahtText('1.01') === 'หนึ่งบาทหนึ่งสตางค์' &&
+    bahtText('1000000.01') === 'หนึ่งล้านบาทหนึ่งสตางค์', bahtText('1000000.01'));
+  ok('    …while eleven and twenty-one satang keep theirs',
+    bahtText('0.11') === 'สิบเอ็ดสตางค์' && bahtText('0.21') === 'ยี่สิบเอ็ดสตางค์',
+    `${bahtText('0.11')} / ${bahtText('0.21')}`);
+  ok('    …and so does a one that follows a ล้าน across the group boundary',
+    bahtText('1000001') === 'หนึ่งล้านเอ็ดบาทถ้วน', bahtText('1000001'));
+  ok('  …and zero is ศูนย์บาทถ้วน — ถ้วน is what says no satang were dropped',
+    bahtText('0.00') === 'ศูนย์บาทถ้วน', bahtText('0.00'));
+
   // ------------------------------------------------------------------
   console.log('\n--- the contract: every tag is filled or deliberately blank ---');
 

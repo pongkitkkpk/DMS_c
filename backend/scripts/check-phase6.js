@@ -696,6 +696,30 @@ function fileForm(name, bytes, type = 'application/pdf') {
   ok('  …and the message says bytes, not characters, since the count differs by three',
     /ไบต์/.test((longThai.body && longThai.body.error) || ''), longThai.text.slice(0, 200));
 
+  // A day that does not exist. `2024-02-31` is well-formed and `Date.parse`
+  // rolls it forward to the 2nd of March; MySQL rolls nothing forward and
+  // answered ER_TRUNCATED_WRONG_VALUE, so the request was a 500.
+  const patchDate = (date) =>
+    call('PATCH', `/api/projects/${draft.id}`, { token: sh, body: { prepareStartOn: date } });
+
+  const impossible = await patchDate('2024-02-31');
+  ok('the 31st of February is a named 400, not a 500',
+    impossible.status === 400, `${impossible.status} ${impossible.text.slice(0, 160)}`);
+  ok('  …and so is a 29th of February outside a leap year',
+    (await patchDate('2023-02-29')).status === 400);
+  ok('  …while the leap day itself saves',
+    (await patchDate('2024-02-29')).status === 200);
+
+  // `Number('0x10')` is 16 and `Number('1e3')` is 1000, both integers by
+  // `Number.isInteger` — a headcount nobody typed, printable on กนศ.06.
+  const headcount = (value) => section(sh, 'attendance',
+    [{ variant: 'PLANNED', attendeeType: 'STUDENT', label: 'x', headcount: value }]);
+
+  ok('a hexadecimal literal is not a headcount', (await headcount('0x10')).status === 400);
+  ok('  …nor is exponent notation', (await headcount('1e3')).status === 400);
+  ok('  …while "12.0" is still twelve, because a number input can send it',
+    (await headcount('12.0')).status === 200);
+
   // The guard must not have closed the door on ordinary input.
   const plainThai = await section(sh, 'rationales', [{ content: 'เพื่อส่งเสริมกิจกรรมนักศึกษา' }]);
   ok('a normal Thai rationale still saves', plainThai.status === 200,

@@ -455,6 +455,37 @@ deviations in the same sense as the rest: the old system did none of them.
     fixed this shape for whole pages; this is the same rule for a card whose own request
     failed while the page around it succeeded. See DMS_REBUILD_STRATEGY.md → "The record
     kept everything except a deletion"
+28. **A date the calendar does not have is refused.** `2024-02-31` and `2023-02-29` are
+    well-formed and `Date.parse` accepts both, rolling them forward; MySQL's strict mode
+    does not, so the write was a **500** rather than the named 400 this validator exists
+    to produce. The date is round-tripped through `Date.UTC` and compared back, so the
+    leap day saves and the 29th in a non-leap year does not. The old system stored dates
+    in text columns and accepted anything — `'0000-00-00'` fills every row of
+    `historyeditproject` — so this is a deliberate narrowing of that, in the same family
+    as deviations 2 and 24
+29. **A number has to be written as a number.** `check.integer` accepted whatever
+    `Number()` would read, so `"0x10"` was stored as 16 and `"1e3"` as 1000 — printable
+    on กนศ.06 as a headcount nobody typed. Digits with an optional decimal part are
+    required now; `"12.0"` is still twelve, because a browser number input can send
+    exactly that. Same rule as deviation 24, one notation further down
+
+Eleven more were written out in the phase close-outs below rather than here, and their
+numbers had drifted: each close-out continued a count from the master list as it stood
+when that phase ended, so by 2026-08-18 "deviation 17" named the budget-line rule in one
+place and the delete-refusal in another. Renumbered 30–40, where they are the only
+copy — the close-out text is the full statement of each and is not repeated:
+
+30. A budget line's total is computed by the database, never accepted from the client
+31. Disbursements are append-only; "remaining" is a subtraction over them
+32. Approving money and recording a disbursement are Admin/STUACT only, and phase-gated
+33. A club with no allocation cannot have money approved against it
+34. A document download is authorized and phase-checked
+35. A project that exceeds a form's printable capacity is refused, not silently truncated
+36. The Gantt's year header is filled, having always printed blank
+37. กนศ.06 states the approved total, which no such form has ever carried
+38. Unknown percentages, dates and amounts print as blanks or dashes, never `NaN%`
+39. Uploads are not statically served — **closes a second cross-club leak**
+40. An uploaded file's name is a label, never a path; downloads never render inline
 
 ---
 
@@ -726,15 +757,15 @@ instead of meeting it head-on.
 
 ### New deviations from old behavior
 
-Added to the numbered list above, all required by Q22:
+Numbered as in "Deliberate deviations from old behavior" above, all required by Q22:
 
-17. **A budget line's total is computed by the database and refused from the client.** The old
+30. **A budget line's total is computed by the database and refused from the client.** The old
     frontend called `.toLocaleString("en-US")` on its own arithmetic and posted the result.
-18. **Disbursements are append-only, and "remaining" is a subtraction over them.** The old
+31. **Disbursements are append-only, and "remaining" is a subtraction over them.** The old
     `logstudentgetmoney` stored `remainingBudget` per row and let the client compute it.
-19. **Approving money and recording a disbursement are Admin/STUACT only, and only from the
+32. **Approving money and recording a disbursement are Admin/STUACT only, and only from the
     phase at which each becomes meaningful.** The old routes were unauthenticated.
-20. **A club with no allocation cannot have money approved against it.** New: there was no
+33. **A club with no allocation cannot have money approved against it.** New: there was no
     allocation, so there was nothing to refuse against.
 
 ## Phase 4 close-out (2026-08-14)
@@ -795,21 +826,22 @@ move, and would be wrong in the silent way the guard exists to prevent.
 
 ### New deviations from old behavior
 
-21. **A document download is authorized and phase-checked.** The old `gennerateDoc` route sat
+Numbered as in the same list, continuing from the Phase 3 close-out:
+34. **A document download is authorized and phase-checked.** The old `gennerateDoc` route sat
     in the unauthenticated inline group and rendered any project id it was given.
-22. **A project that exceeds a form's capacity is refused.** The old system printed 12 of 20
+35. **A project that exceeds a form's capacity is refused.** The old system printed 12 of 20
     ค่าใช้สอย rows and said nothing — a live data-loss path on a signed document.
-23. **The Gantt's year header is filled.** `is_inyear`/`start_inyear`/`end_inyear` were
+36. **The Gantt's year header is filled.** `is_inyear`/`start_inyear`/`end_inyear` were
     initialised and posted unchanged by the old frontend, so they have always printed blank;
     they are now derived from the activity dates.
-24. **กนศ.06 states the approved total.** It has printed blank on every such form ever
+37. **กนศ.06 states the approved total.** It has printed blank on every such form ever
     produced, because the payload lacked the key the template reads it from.
-25. **Percentages, dates and amounts print as blanks or dashes when they are unknown**, rather
+38. **Percentages, dates and amounts print as blanks or dashes when they are unknown**, rather
     than as `undefined`, `null`, `NaN%`, `Infinity%` or `1 มกราคม 2513`.
-26. **Uploads are not statically served.** The old upload directory was an `express.static`
+39. **Uploads are not statically served.** The old upload directory was an `express.static`
     mount, so a guessable filename returned any project's file to anyone —
     **closes a second cross-club leak** with the same shape as deviation 1.
-27. **An uploaded file's name is a label, never a path**, and what may be uploaded is an
+40. **An uploaded file's name is a label, never a path**, and what may be uploaded is an
     allow-list. Downloads are always `octet-stream` + `attachment` + `nosniff`, so an uploaded
     `.html` or `.svg` cannot execute in the application's origin.
 

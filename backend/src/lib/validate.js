@@ -86,7 +86,15 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุ`);
         return null;
       }
-      const n = Number(scalar(value, label));
+      // Digits, not "whatever `Number()` will read". `Number('0x10')` is 16 and
+      // `Number('1e3')` is 1000, both of them integers by `Number.isInteger`,
+      // so a headcount sent as `"0x10"` printed **16** on กนศ.06 — the same
+      // shape as deviation 24, a confident answer to input nobody meant.
+      // Decimal notation is still allowed and `12.0` still means twelve — a
+      // number input can hand back exactly that. What is gone is the exotic
+      // literal, which is where the wrong answers were.
+      const s = String(scalar(value, label)).trim();
+      const n = /^[+-]?\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
       if (!Number.isInteger(n)) throw HttpError.badRequest(`${label}: ต้องเป็นจำนวนเต็ม`);
       if (n < min || n > max) throw HttpError.badRequest(`${label}: ต้องอยู่ระหว่าง ${min} ถึง ${max}`);
       return n;
@@ -125,9 +133,19 @@ const check = {
   },
 
   /**
-   * `YYYY-MM-DD` only. The old data is full of `'0000-00-00'` (every row of
-   * `historyeditproject`), which the pool's strict mode would now reject anyway
-   * — this rejects it earlier, with a message that names the field.
+   * `YYYY-MM-DD`, and a day that exists.
+   *
+   * The old data is full of `'0000-00-00'` (every row of `historyeditproject`),
+   * which the pool's strict mode would now reject anyway — this rejects it
+   * earlier, with a message that names the field.
+   *
+   * The shape test is not enough on its own: `2024-02-31` and `2024-06-31` are
+   * well-formed and `Date.parse` accepts both, rolling them forward to the 2nd
+   * of March and the 1st of July. MySQL does not roll anything forward — strict
+   * mode answers `ER_TRUNCATED_WRONG_VALUE` and the request became a **500**
+   * (verified 2026-08-18 on `PATCH /api/projects/1`). Round-tripping through
+   * `Date.UTC` asks the calendar instead of the parser, so `2023-02-29` is
+   * refused and `2024-02-29` is not.
    */
   date({ required = false } = {}) {
     return (value, label) => {
@@ -136,8 +154,15 @@ const check = {
         return null;
       }
       const s = String(scalar(value, label)).slice(0, 10);
-      if (!DATE_PATTERN.test(s) || Number.isNaN(Date.parse(s))) {
+      if (!DATE_PATTERN.test(s)) {
         throw HttpError.badRequest(`${label}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)`);
+      }
+      const [year, month, day] = s.split('-').map(Number);
+      const asDate = new Date(Date.UTC(year, month - 1, day));
+      if (asDate.getUTCFullYear() !== year ||
+          asDate.getUTCMonth() + 1 !== month ||
+          asDate.getUTCDate() !== day) {
+        throw HttpError.badRequest(`${label}: ไม่มีวันที่นี้ในปฏิทิน (${s})`);
       }
       return s;
     };
