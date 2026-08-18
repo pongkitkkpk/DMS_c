@@ -2031,3 +2031,12 @@ worth remembering next time a code change to a running route doesn't seem to
 take.
 
 **32 frontend tests, 483 API assertions, 0 failures.**
+
+**Confirmed live in the browser, 2026-08-19**, once typing/navigation were
+working again: opened `/projects/1/edit` as SH (draft phase, so it is the one
+project that is still editable), cleared คนที่ 1 and filled in คนที่ 2 through
+the real form, saved, and reloaded the edit page fresh from the server —
+คนที่ 1 came back empty and คนที่ 2 held what had actually been typed, not
+swapped. Restored the original coordinator afterward. The mocked test proved
+the logic against a stated double; this proved the same fix against the
+actual API response shape end to end.
