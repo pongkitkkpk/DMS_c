@@ -1976,3 +1976,38 @@ clicking once the browser session's typing actions started failing on a
 transient tool-side outage (unrelated to the app): **31 frontend tests, 481 API
 assertions, 0 failures**, both suites re-run clean against a freshly reseeded
 database.
+
+## The second coordinator's name, filed under the first (2026-08-19)
+
+Found reading `ProjectFormPage.js`'s edit-load next to `presentProject` in
+`projectService.js`, not in the browser — the browser session was still
+without working `type`/`navigate` when this was found, so this one was
+confirmed with the API acceptance script and a frontend component test
+instead of a click-through.
+
+`presentProject` answers a project's three coordinator boxes as `contacts:
+[1,2,3].map(...).filter(c => c.name || c.phone)` — a blank box is dropped
+rather than sent as an empty entry, so a project with box 1 blank and box 2
+filled in answers with a **one-element** array. `ProjectFormPage.js` read it
+back by position, `contacts[0]`/`[1]`/`[2]`, so that one element — box 2's
+coordinator — loaded into the "ผู้ประสานงานคนที่ 1" field on the edit screen,
+and saving again would have written it there for good, silently promoting
+coordinator 2 into coordinator 1's box.
+
+Fixed by carrying `slot` (1/2/3) on each entry instead of relying on array
+position, and having the edit-load look up `contactAt(1|2|3)` by that field.
+`ProjectPage.js`'s read-only display was already position-blind — it maps
+`name`/`phone` and joins, never indexes — so it needed no change.
+
+Confirmed the bug reproduces and the fix holds two ways: `check:phase2.js` now
+PATCHes a fixture project to clear contact 1 and fill contact 2, then asserts
+the GET answers a one-element array whose entry carries `slot: 2`; a new
+`ProjectFormPage.edit.test.js` renders the edit form against that same shape
+and asserts "ผู้ประสานงานคนที่ 2" holds the name, not "คนที่ 1" — checked by
+temporarily reverting the frontend fix and watching the new test fail before
+restoring it. The backend dev server does not autoreload (`node server.js`,
+no nodemon), which hid the fix from `check:all` for one run until restarted —
+worth remembering next time a code change to a running route doesn't seem to
+take.
+
+**32 frontend tests, 483 API assertions, 0 failures.**

@@ -303,8 +303,13 @@ function presentProject(row) {
     eventStartOn: row.event_start_on,
     eventEndOn: row.event_end_on,
     reportDueOn: row.report_due_on,
+    // `slot` carries which of the three positional columns each entry came
+    // from. Without it, a blank contact 1 with a filled contact 2 compacts to
+    // a one-element array that the edit form's positional [0]/[1]/[2] lookup
+    // would read back into the wrong box, silently swapping who prints as
+    // "ผู้ประสานงานคนที่ 1" on save.
     contacts: [1, 2, 3]
-      .map((n) => ({ name: row[`contact${n}_name`], phone: row[`contact${n}_phone`] }))
+      .map((n) => ({ slot: n, name: row[`contact${n}_name`], phone: row[`contact${n}_phone`] }))
       .filter((contact) => contact.name || contact.phone),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

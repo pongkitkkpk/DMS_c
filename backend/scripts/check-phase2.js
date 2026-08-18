@@ -93,6 +93,20 @@ async function login(username) {
   const badDate = await call('PATCH', `/api/projects/${id}`, { token: sh, body: { eventStartOn: '0000-00-00' } });
   ok("'0000-00-00' rejected", badDate.status === 400, badDate.text);
 
+  console.log('\n--- contacts keep their box across a gap ---');
+  // Coordinator 1 (set on create, above) is cleared here and coordinator 2 is
+  // filled in instead, so the read answers with a one-element `contacts` array
+  // — the compacted shape the edit form has to place back correctly.
+  await call('PATCH', `/api/projects/${id}`, {
+    token: sh, body: { contact1Name: '', contact2Name: 'คนที่สอง', contact2Phone: '0899999999' },
+  });
+  const withGap = await call('GET', `/api/projects/${id}`, { token: sh });
+  ok('a blank first contact is dropped rather than sent as an empty entry',
+    withGap.body.contacts.length === 1, JSON.stringify(withGap.body.contacts));
+  ok('the surviving entry names which box it came from, not the first one',
+    withGap.body.contacts[0] && withGap.body.contacts[0].slot === 2,
+    JSON.stringify(withGap.body.contacts));
+
   console.log('\n--- edit rights ---');
   ok('SH edits own draft', (await call('PATCH', `/api/projects/${id}`, { token: sh, body: { name: 'โครงการทดสอบ (แก้ไข)' } })).status === 200);
   ok('AD cannot edit', (await call('PATCH', `/api/projects/${id}`, { token: ad, body: { name: 'x' } })).status === 403);

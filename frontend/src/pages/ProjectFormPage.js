@@ -179,6 +179,12 @@ export default function ProjectFormPage() {
     setLoading(true);
     api.getProject(id)
       .then((project) => {
+        // Contacts arrive compacted (a blank slot is dropped rather than sent
+        // as an empty entry), so position in the array is not the same as
+        // which of the three boxes a contact belongs in — `slot` is. Reading
+        // by array index here reproduced the bug it now avoids: a filled-in
+        // "ผู้ประสานงานคนที่ 2" with คนที่ 1 left blank loaded back into box 1.
+        const contactAt = (slot) => project.contacts.find((c) => c.slot === slot);
         setCore({
           name: project.name || '',
           academicTerm: project.academicTerm || '',
@@ -190,12 +196,12 @@ export default function ProjectFormPage() {
           eventStartOn: dateValue(project.eventStartOn),
           eventEndOn: dateValue(project.eventEndOn),
           reportDueOn: dateValue(project.reportDueOn),
-          contact1Name: (project.contacts[0] && project.contacts[0].name) || '',
-          contact1Phone: (project.contacts[0] && project.contacts[0].phone) || '',
-          contact2Name: (project.contacts[1] && project.contacts[1].name) || '',
-          contact2Phone: (project.contacts[1] && project.contacts[1].phone) || '',
-          contact3Name: (project.contacts[2] && project.contacts[2].name) || '',
-          contact3Phone: (project.contacts[2] && project.contacts[2].phone) || '',
+          contact1Name: (contactAt(1) && contactAt(1).name) || '',
+          contact1Phone: (contactAt(1) && contactAt(1).phone) || '',
+          contact2Name: (contactAt(2) && contactAt(2).name) || '',
+          contact2Phone: (contactAt(2) && contactAt(2).phone) || '',
+          contact3Name: (contactAt(3) && contactAt(3).name) || '',
+          contact3Phone: (contactAt(3) && contactAt(3).phone) || '',
         });
         setLists({
           ...Object.fromEntries(SECTIONS.map((s) => [

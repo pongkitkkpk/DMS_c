@@ -478,6 +478,16 @@ deviations in the same sense as the rest: the old system did none of them.
     field of every list in unawaited fire-and-forget writes and announced success before
     any of them answered (`docs/business-rules.md`, "Transitions"), so there is nothing
     to port here — this is the new system's own defect, found by browser pass 10
+42. **A coordinator's box on the edit form is chosen by which box it came from, not by
+    position in the list.** `presentProject` answered a project's three coordinator slots
+    as an array with blank ones dropped, so a project with box 1 empty and box 2 filled
+    answered with one element — and the edit form read that element back by array index,
+    loading box 2's name into box 1. Saving again would have written it there for good.
+    Each entry now carries which box (`slot: 1|2|3`) it came from and the form looks up by
+    that instead of position. The old system stored the three boxes as three named columns
+    and every screen that touched them addressed the columns directly — there was never an
+    array to compact, so there is nothing to port here either; the new system's own defect,
+    found reading code rather than in the browser (2026-08-19)
 
 Eleven more were written out in the phase close-outs below rather than here, and their
 numbers had drifted: each close-out continued a count from the master list as it stood
