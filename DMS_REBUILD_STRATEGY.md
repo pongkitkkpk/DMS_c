@@ -1984,6 +1984,19 @@ turned red with "เกินวงเงิน", and restoring the ceiling to �
 both. **31 frontend tests, 481 API assertions, 0 failures**, both suites
 re-run clean against a freshly reseeded database.
 
+ADMIN checked out clean too: `/allocations` lists all 69 clubs system-wide
+(none of the three club-scoped roles get that), `/history`'s totals still
+matched, and `/profile` correctly shows an em dash for club/agency (ADMIN
+belongs to neither) with the right `ROLE_SUMMARY` line. Extended the pass to
+`/roles`, ADMIN's other screen: granted SH to a second person on
+ชมรมพุทธศาสน์ (confirming a club is not capped at one head — nothing in
+`membershipService.js` claims it is), watched the confirmation dialog, the
+new row, and the history table's "ให้" entry all agree, then revoked it and
+watched the "ถอน" entry land beside it. The one pre-existing `ถอน`-less row —
+สมปอง ต่างชมรม already holding SH on a different club (ชมรมฟุตบอล) — is
+leftover fixture data from an earlier session's scope-refusal testing, not
+something this pass created, and was left alone.
+
 ## The second coordinator's name, filed under the first (2026-08-19)
 
 Found reading `ProjectFormPage.js`'s edit-load next to `presentProject` in
