@@ -1946,3 +1946,33 @@ Five tests in `ProjectFormPage.save.test.js`, four of which fail against the
 page as it was — the fifth is the pre-existing "no name, no request" guard,
 which passed both before and after and is there to show the others are not
 passing by accident. **31 frontend tests, 481 API assertions, 0 failures.**
+
+## Browser pass 11: allocations, history, profile (2026-08-18)
+
+The three screens no earlier numbered pass had opened directly: `/allocations`,
+`/history`, `/profile`. Read `AllocationsPage.js`/`HistoryPage.js`/`ProfilePage.js`
+first — each already carries the reasoning for its own edge cases in comments
+(Q30's read/write split, Q33's warn-not-block on a lowered ceiling, the
+past-year/future-year distinction) — then opened each as STUACT and SH to check
+the reasoning against what actually renders.
+
+Both roles came back clean:
+
+- STUACT sees all ten clubs in its jurisdiction (one funded, nine not, each
+  reachable), the ปีการศึกษา picker and the แก้ไข/กำหนด dialog both open
+  correctly with the current amount pre-filled, and cancelling leaves the
+  figure untouched.
+- SH sees exactly its own club's row, read-only, no `กำหนด`/`แก้ไข` controls and
+  no fetch of the full club list — matching `mayAllocate` gating client-side
+  API calls, not just the buttons.
+- `/history`'s two tables link out correctly (`ปีการศึกษา` → `/allocations?year=`,
+  the phase matrix → `/projects?year=`) and its totals match the row on
+  `/allocations` for the same year.
+- `/profile` renders the right `ROLE_SUMMARY` sentence for STUACT and leaves
+  the identity fields correctly uneditable.
+
+No defect found. Confirmed with a full regression run rather than more manual
+clicking once the browser session's typing actions started failing on a
+transient tool-side outage (unrelated to the app): **31 frontend tests, 481 API
+assertions, 0 failures**, both suites re-run clean against a freshly reseeded
+database.
