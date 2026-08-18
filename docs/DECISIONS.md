@@ -437,6 +437,25 @@ deviations in the same sense as the rest: the old system did none of them.
     and §14 fails if another appears, because this is exactly the defect that hides from the
     tool you would use to look for it
 
+26. **Deleting an attachment is recorded.** `project_event` had no
+    `ATTACHMENT_REMOVED`, so the one action that destroys something was the one action
+    the project's record did not keep: the file went, its row went, and the timeline
+    still showed the upload. The old system has nothing to port here — its uploads were a
+    static directory with no record of any kind (deviation 8) — so this is the new
+    system's own gap, closed rather than carried. Migration 005 adds the event;
+    `attachmentService.remove` writes it in the same transaction as the delete, carrying
+    the filename and size in `detail` because after the commit that is the only place the
+    name still exists. Six assertions in `check-phase6.js` §2
+27. **A card that could not load says so.** Three read paths answered a failed request by
+    rendering a *successful-looking* empty state: the attachments card kept its loading
+    skeleton indefinitely, `DocumentsCard` drew a project with no documents (there is no
+    such project — every project has both forms), and the roles screen's person search
+    printed "ไม่พบผู้ใช้ — ผู้รับสิทธิ์ต้องเคยเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง", a claim
+    about a person made on the strength of a request that never arrived. Deviation 23
+    fixed this shape for whole pages; this is the same rule for a card whose own request
+    failed while the page around it succeeded. See DMS_REBUILD_STRATEGY.md → "The record
+    kept everything except a deletion"
+
 ---
 
 ## Open items

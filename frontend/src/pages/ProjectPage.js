@@ -38,7 +38,22 @@ const EVENT_LABELS = {
   BUDGET_APPROVED: 'อนุมัติงบประมาณ',
   DISBURSED: 'เบิกจ่าย',
   ATTACHMENT_ADDED: 'แนบไฟล์',
+  ATTACHMENT_REMOVED: 'ลบไฟล์แนบ',
 };
+
+/**
+ * Which file an attachment event is about.
+ *
+ * `detail` has been on the wire since the first version of this endpoint and
+ * was never read, so the timeline printed "แนบไฟล์" three times over with no
+ * way to tell the three files apart. It matters more now that deletions are
+ * recorded too: "ลบไฟล์แนบ" without a name says only that *something* went.
+ */
+function eventSubject(event) {
+  const detail = event.detail || null;
+  if (!detail || typeof detail !== 'object') return null;
+  return typeof detail.originalName === 'string' ? detail.originalName : null;
+}
 
 /**
  * A date as a Thai reader expects it — "1 มิ.ย. 2567", Buddhist year.
@@ -141,6 +156,19 @@ export default function ProjectPage() {
   }, [id]);
 
   useEffect(load, [load]);
+
+  /**
+   * The timeline after something that writes to it.
+   *
+   * Attaching and deleting a file are recorded, and the card that does them
+   * reloads only itself — so without this the record of a deletion appeared
+   * only on the next reload, which is exactly when nobody is looking for it.
+   * A failure here leaves the timeline as it was: stale, but never claiming
+   * something is absent that is not.
+   */
+  const reloadEvents = useCallback(() => {
+    api.events(id).then((e) => setEvents(e.events)).catch(() => {});
+  }, [id]);
 
   const advance = async (transition) => {
     const confirmed = await Swal.fire({
@@ -336,7 +364,7 @@ export default function ProjectPage() {
           <div className="u-stack">
             <DocumentsCard projectId={id} key={project.phase.code} />
 
-            <AttachmentsCard projectId={id} />
+            <AttachmentsCard projectId={id} onChanged={reloadEvents} />
 
             <Card title="ประวัติ" aside={`${events.length} รายการ`}>
               <div className="timeline">
@@ -346,6 +374,9 @@ export default function ProjectPage() {
                       {EVENT_LABELS[e.event_type] || e.event_type}
                       {e.to_phase_name_th && ` → ${e.to_phase_name_th}`}
                       {e.edited_section && ` (${SECTION_LABELS[e.edited_section] || e.edited_section})`}
+                      {eventSubject(e) && (
+                        <span className="u-dim"> · {eventSubject(e)}</span>
+                      )}
                     </div>
                     <div className="tl-item__meta">
                       {e.actor_name} · {dateTime(e.occurred_at)}

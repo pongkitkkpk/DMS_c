@@ -74,6 +74,38 @@ export function Empty({ mark = '—', title, hint }) {
   );
 }
 
+/**
+ * A card whose own request failed, saying so and offering the way out.
+ *
+ * The alternative each card had before was to keep its `Skeleton` up, or to
+ * render as though the server had answered with nothing — a card that says a
+ * project has no attachments when what happened is that nobody could tell. Both
+ * are indistinguishable from a slow answer and neither ends, which is the same
+ * defect the session-expiry work fixed for whole pages (deviation 23); this is
+ * it one level down, for a card whose request failed while the page around it
+ * succeeded.
+ *
+ * `secondary`, not `danger`: the reader did nothing wrong, and red is for
+ * errors they caused. A retry rather than a reload, because the rest of the
+ * page is fine and reloading would throw it away.
+ */
+export function LoadFailed({ what, onRetry }) {
+  return (
+    <div className="alert alert-secondary u-small mb-0 u-row" role="status">
+      <span>โหลด{what}ไม่สำเร็จ</span>
+      {onRetry && (
+        // An outline button, not a `btn-link`: this theme draws link buttons in
+        // the muted text colour, so the one control on the card would have been
+        // the one thing that did not look pressable.
+        <button type="button" className="btn btn-sm btn-outline-secondary u-spacer"
+          onClick={onRetry}>
+          ลองใหม่
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Placeholder rows shaped like the content that is loading. */
 export function Skeleton({ rows = 4 }) {
   return (

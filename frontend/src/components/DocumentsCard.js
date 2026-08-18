@@ -12,7 +12,7 @@ import { Button } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, filenameOf, messageOf } from '../api';
-import { Card, Skeleton } from './ui';
+import { Card, LoadFailed, Skeleton } from './ui';
 
 /**
  * A refused download arrives as a blob, because that is what was asked for —
@@ -32,10 +32,17 @@ async function messageOfBlobError(error) {
 
 export default function DocumentsCard({ projectId }) {
   const [documents, setDocuments] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(null);
 
+  // A failed read used to set `[]`, which draws a card saying this project has
+  // no documents — and every project has both forms. Not knowing and knowing
+  // there is nothing are different answers, so they look different now.
   const load = useCallback(() => {
-    api.documents(projectId).then((d) => setDocuments(d.documents)).catch(() => setDocuments([]));
+    setFailed(false);
+    api.documents(projectId)
+      .then((d) => { setDocuments(d.documents); })
+      .catch(() => { setDocuments(null); setFailed(true); });
   }, [projectId]);
 
   useEffect(load, [load]);
@@ -62,6 +69,9 @@ export default function DocumentsCard({ projectId }) {
     }
   };
 
+  if (failed) {
+    return <Card title="เอกสาร"><LoadFailed what="รายการเอกสาร" onRetry={load} /></Card>;
+  }
   if (!documents) return <Card title="เอกสาร"><Skeleton rows={2} /></Card>;
 
   return (

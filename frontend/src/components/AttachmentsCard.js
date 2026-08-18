@@ -13,7 +13,7 @@ import { Button } from 'reactstrap';
 import Swal from 'sweetalert2';
 
 import { api, filenameOf, messageOf } from '../api';
-import { calendarDate, Card, Empty, Skeleton } from './ui';
+import { calendarDate, Card, Empty, LoadFailed, Skeleton } from './ui';
 
 /** Bytes as something a person reads. */
 function size(bytes) {
@@ -35,13 +35,20 @@ async function messageOfBlobError(error) {
   return messageOf(error);
 }
 
-export default function AttachmentsCard({ projectId }) {
+export default function AttachmentsCard({ projectId, onChanged }) {
   const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(null);
   const input = useRef(null);
 
+  // Three states, not two: loading, loaded, and could-not-load. Collapsing the
+  // third into the first left the skeleton up for as long as the tab stayed
+  // open — see `LoadFailed`.
   const load = useCallback(() => {
-    api.attachments(projectId).then(setData).catch(() => setData(null));
+    setFailed(false);
+    api.attachments(projectId)
+      .then((loaded) => { setData(loaded); })
+      .catch(() => { setData(null); setFailed(true); });
   }, [projectId]);
 
   useEffect(load, [load]);
@@ -57,6 +64,9 @@ export default function AttachmentsCard({ projectId }) {
     try {
       await api.uploadAttachment(projectId, file);
       load();
+      // Both of these are recorded on the project's timeline, which is a
+      // sibling card and would otherwise show them only after a reload.
+      if (onChanged) onChanged();
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'อัปโหลดไม่สำเร็จ', text: messageOf(err) });
     } finally {
@@ -99,11 +109,15 @@ export default function AttachmentsCard({ projectId }) {
     try {
       await api.deleteAttachment(projectId, attachment.id);
       load();
+      if (onChanged) onChanged();
     } catch (err) {
       await Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: messageOf(err) });
     }
   };
 
+  if (failed) {
+    return <Card title="ไฟล์แนบ"><LoadFailed what="ไฟล์แนบ" onRetry={load} /></Card>;
+  }
   if (!data) return <Card title="ไฟล์แนบ"><Skeleton rows={2} /></Card>;
 
   const maxMb = Math.round(data.maxBytes / (1024 * 1024));
@@ -125,12 +139,19 @@ export default function AttachmentsCard({ projectId }) {
                   {calendarDate(attachment.uploadedAt)}
                 </div>
               </div>
+              {/* One "ดาวน์โหลด" and one "×" per file, all reading the same —
+                  the file they act on is in a different element, which a reader
+                  using the buttons alone never reaches. Same rule as the two
+                  form buttons in `DocumentsCard`, and the ถอน buttons on the
+                  roles screen: the name says its object. */}
               <Button size="sm" outline color="secondary" disabled={busy === `d${attachment.id}`}
+                aria-label={`ดาวน์โหลด ${attachment.originalName}`}
                 onClick={() => download(attachment)}>
                 {busy === `d${attachment.id}` ? '…' : 'ดาวน์โหลด'}
               </Button>
               {data.canEdit && (
-                <Button close aria-label="ลบไฟล์แนบ" onClick={() => remove(attachment)} />
+                <Button close aria-label={`ลบไฟล์แนบ ${attachment.originalName}`}
+                  onClick={() => remove(attachment)} />
               )}
             </div>
           ))}

@@ -55,6 +55,7 @@ export default function RolesPage() {
   // The form.
   const [term, setTerm] = useState('');
   const [results, setResults] = useState(null);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [searching, setSearching] = useState(false);
   const [person, setPerson] = useState(null);
   const [role, setRole] = useState('');
@@ -90,10 +91,15 @@ export default function RolesPage() {
       return undefined;
     }
     setSearching(true);
+    setSearchFailed(false);
     const timer = setTimeout(() => {
       api.people(trimmed)
-        .then((r) => setResults(r.people))
-        .catch(() => setResults([]))
+        .then((r) => { setResults(r.people); })
+        // A failed search used to set `[]`, and the empty state below explains
+        // an empty result confidently: that the person has never signed in.
+        // That sentence is a claim about the person, and a request that did not
+        // arrive is no grounds for making it.
+        .catch(() => { setResults(null); setSearchFailed(true); })
         .finally(() => setSearching(false));
     }, 300);
     return () => clearTimeout(timer);
@@ -293,6 +299,11 @@ export default function RolesPage() {
                     onChange={(e) => setTerm(e.target.value)}
                   />
                   {searching && <div className="u-small u-dim mt-1">กำลังค้นหา…</div>}
+                  {searchFailed && !searching && (
+                    <div className="u-small u-muted mt-1">
+                      ค้นหาไม่สำเร็จ — ลองพิมพ์อีกครั้ง (ยังไม่ทราบว่ามีผู้ใช้ชื่อนี้หรือไม่)
+                    </div>
+                  )}
                   {results && results.length === 0 && !searching && (
                     // The likeliest reason, said plainly, because it is not
                     // obvious that a role can only be given to someone the

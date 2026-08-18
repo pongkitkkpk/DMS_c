@@ -241,8 +241,37 @@ function fileForm(name, bytes, type = 'application/pdf') {
   ok('  …the row is gone', (await call('GET', `/api/projects/${draft.id}/attachments`, { token: sh }))
     .body.attachments.every((a) => a.id !== attachmentId));
   ok('  …and so is the file', !fs.existsSync(storedPath), storedPath);
+
+  // The deletion is the one action in this file that destroys something, so the
+  // record of it is the one that cannot be reconstructed afterwards: the row
+  // that held the filename has gone with it. Before migration 005 the timeline
+  // showed the upload and nothing else, so a project read as though the file
+  // had always been absent.
+  const afterDelete = await call('GET', `/api/projects/${draft.id}/events`, { token: sh });
+  const attachmentEvents = afterDelete.body.events
+    .filter((e) => e.event_type.startsWith('ATTACHMENT_'));
+  const removalEvent = attachmentEvents.find((e) => e.event_type === 'ATTACHMENT_REMOVED');
+  ok('  …the deletion is in the project\'s record', Boolean(removalEvent),
+    JSON.stringify(attachmentEvents.map((e) => e.event_type)));
+  ok('    …naming the file, which no longer exists anywhere else',
+    Boolean(removalEvent) && removalEvent.detail &&
+    removalEvent.detail.originalName === 'เอกสารแนบ.pdf',
+    JSON.stringify(removalEvent && removalEvent.detail));
+  ok('    …and who deleted it, and when',
+    Boolean(removalEvent) && Boolean(removalEvent.actor_name) &&
+    Boolean(removalEvent.occurred_at));
+  ok('    …with this file\'s upload still recorded beside it, not replaced',
+    attachmentEvents.some((e) => e.event_type === 'ATTACHMENT_ADDED' &&
+      e.detail && e.detail.originalName === 'เอกสารแนบ.pdf'));
+  ok('    …and `detail` arrives as an object, not the JSON text of one',
+    Boolean(removalEvent) && typeof removalEvent.detail === 'object',
+    typeof (removalEvent && removalEvent.detail));
+
   ok('  …and a second delete is a clean 404',
     (await call('DELETE', `/api/projects/${draft.id}/attachments/${attachmentId}`, { token: sh })).status === 404);
+  ok('    …which records nothing — one deletion happened, not two',
+    (await call('GET', `/api/projects/${draft.id}/events`, { token: sh })).body.events
+      .filter((e) => e.event_type === 'ATTACHMENT_REMOVED').length === 1);
 
   // ------------------------------------------------------------------
   console.log('\n--- 3. email notification is absent, not half-present ---');

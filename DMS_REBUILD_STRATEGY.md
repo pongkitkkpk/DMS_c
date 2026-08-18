@@ -7,7 +7,7 @@ screens, with one item deliberately not built (email — see Phase 6). **This is
 system**: the ICIT integration is out of scope by the owner's decision and `AUTH_PROVIDER=mock`
 is where it is meant to stop.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
-**Last updated**: 2026-08-15
+**Last updated**: 2026-08-18
 
 ---
 
@@ -1637,3 +1637,115 @@ Nine assertions in `check-phase6.js` sections 13 and 14 hold all of it, includin
 two that would catch the fix going too far — a normal Thai rationale still saves,
 and a phone number sent as a JSON number is still accepted. **464 passed, 0
 failed.**
+
+---
+
+## The record kept everything except a deletion (2026-08-18)
+
+Browser pass 9, on the one card no earlier pass had opened: **ไฟล์แนบ**. It only
+renders for somebody who may edit the project, and passes 6 and 8 swept the
+system as an Admin looking at other clubs' work, so nobody had attached a file
+through the screen. Four findings, one of which is about what the system
+remembers rather than what it shows.
+
+### Deleting an attachment left no trace
+
+`project_event` is append-only and every other action writes to it — created,
+edited, phase changed, budget approved, disbursed, file attached.
+`DELETE /projects/:id/attachments/:id` wrote nothing. Reproduced by attaching a
+file as `fixture.student` and deleting it: the card went from three files to
+two, and the ประวัติ card beside it still read **7 รายการ** with three
+`แนบไฟล์` entries, one of them for a file that no longer existed.
+
+That is the wrong way round. Of everything a person can do to a project, the one
+that destroys something is the one whose record matters most — a minute of an
+approving meeting, or the quotation a disbursement was based on, could be
+attached and taken away again and the project would read as though it had never
+been there. And the deletion is the only event that cannot be reconstructed
+afterwards: the row holding the filename goes with it.
+
+Migration 005 adds `ATTACHMENT_REMOVED`, and `attachmentService.remove` writes
+it **in the same transaction as the delete**, carrying the name and size in
+`detail` because after the commit that is the only place the name still exists.
+The file is unlinked after the transaction, and only if the DELETE matched a
+row — two callers holding the same row was already possible, and only the one
+that removed anything should say so.
+
+### The filename was on the wire and never on the screen
+
+`detail` has been returned by `GET /projects/:id/events` since the endpoint was
+written, and nothing ever read it. The timeline printed `แนบไฟล์` three times
+over with nothing to tell the three files apart — which matters more now that
+deletions are recorded, since `ลบไฟล์แนบ` without a name says only that
+*something* went. Both now read `แนบไฟล์ · รายงานการประชุม.pdf`.
+
+Writing that assertion found the reason nobody had: **MariaDB's `JSON` is
+`LONGTEXT` with a `CHECK`, not a native type**, so `mysql2` returns the column as
+a *string*. A first version of the timeline change read `detail.originalName` off
+a string and rendered nothing at all, silently. `loadEvents` parses it once now,
+and one assertion pins the wire shape so a driver or engine change cannot quietly
+turn it back into text.
+
+### Three cards that could not tell "failed" from "empty"
+
+The attachments card's load was `.catch(() => setData(null))`, and `null` is also
+its loading state — so a failed read left the **skeleton up forever**. Proved by
+failing that one request in the browser while the rest of the page succeeded: the
+card sat between a fully-rendered project and a working timeline, animating, with
+no message and no way out but a reload. It is deviation 23's defect one level
+down: an ended request and a slow one looking identical, indefinitely.
+
+Two more of the same shape, found by sweeping for `catch(() => set`:
+
+| Where | On failure it said | Why that is worse than a skeleton |
+| --- | --- | --- |
+| `DocumentsCard` | `setDocuments([])` → a card saying the project has no documents | every project has both forms; there is no such state |
+| `RolesPage` search | `setResults([])` → "ไม่พบผู้ใช้ — ผู้รับสิทธิ์ต้องเคยเข้าสู่ระบบอย่างน้อยหนึ่งครั้ง" | a confident claim **about a person**, from a request that never arrived |
+
+The roles one is the sharpest: an officer trying to grant a role reads that the
+person has never signed in, which is a fact about them, and gives up. All three
+now distinguish *could not load* from *there is nothing*, with a `LoadFailed`
+card that offers a retry — `secondary`, not `danger`, because the reader did
+nothing wrong, and an outline button rather than a `btn-link`, since this theme
+draws link buttons in the muted text colour and the one control on the card
+would have been the one thing that did not look pressable. Verified by failing
+the request, seeing the message, re-enabling it and pressing ลองใหม่: the card
+fills in place.
+
+Left alone, and why: `ProjectsPage` answers a failed `GET /phases` by dropping
+the phase filter chips — a convenience disappearing, not a false statement — and
+`DashboardPage` hides the year-readiness banner, which withholds a control
+rather than inventing one. Both are silent, both degrade toward doing less; a
+card apiece would be more noise than they are worth.
+
+### Every download and delete button said the same thing
+
+Three files, three buttons reading `ดาวน์โหลด`, three reading `ลบไฟล์แนบ` — the
+file each acts on being in a different element. This is exactly browser pass 8's
+finding, on the one screen that pass could not reach, and `DocumentsCard` two
+cards above already names its two buttons after the forms. Each button now names
+its file. The visible text is unchanged.
+
+**What held.** The refusal for a disallowed type reads correctly and names both
+the extension and the whole allow-list (`.exe` sent past the `accept` filter, as
+a determined user would). Thai filenames survive the round trip on screen and in
+the record. The delete confirmation names the file it is about. The upload
+appears in the timeline without a reload now, because the card tells the page
+when it has written something the record cares about.
+
+Six new assertions in `check-phase6.js` §2 — the deletion is recorded, names the
+file, names who and when, does not replace the upload event, arrives as an object
+rather than JSON text, and a second delete records nothing. **470 passed, 0
+failed.**
+
+### One thing this session did not fix, in the machine rather than the code
+
+MariaDB would not start: `Can't open and lock privilege tables: Incorrect file
+format 'db'`. One of the 24 Aria tables in the `mysql` schema —
+`data/mysql/db.MAD` — holds **error-log text from 2025-09-26** where its rows
+should be, including `InnoDB: Page … log sequence number … is in the future`.
+Restored from XAMPP's own `mysql/backup` copy (the damaged files are kept), which
+resets database-level grants to the shipped defaults; nothing here uses them, and
+the `dms` schema itself is untouched. Worth knowing about, because the same disk
+event that wrote a log into a table file was already reporting InnoDB damage a
+year ago.

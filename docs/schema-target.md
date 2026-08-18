@@ -462,7 +462,8 @@ CREATE TABLE project_event (                   -- Q15: replaces status_project +
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, --      logstatus_project + historyeditproject
   project_id   INT UNSIGNED NOT NULL,
   event_type   ENUM('CREATED','PHASE_CHANGED','EDITED','BUDGET_APPROVED',
-                    'DISBURSED','ATTACHMENT_ADDED') NOT NULL,
+                    'DISBURSED','ATTACHMENT_ADDED',
+                    'ATTACHMENT_REMOVED') NOT NULL,   -- added by migration 005
   from_phase_id INT UNSIGNED NULL,
   to_phase_id   INT UNSIGNED NULL,
   edited_section VARCHAR(64) NULL,             -- was historyeditproject.editpage (Thai UI name)

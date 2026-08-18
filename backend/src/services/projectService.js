@@ -250,7 +250,23 @@ async function loadEvents(projectId, conn = pool) {
       ORDER BY e.occurred_at, e.id`,
     [projectId]
   );
-  return rows;
+  // `detail` is a JSON column, and MariaDB's JSON is LONGTEXT with a CHECK
+  // rather than a native type — so mysql2 hands it back as a **string**, not
+  // the object it was written as. Nothing read it until the timeline started
+  // naming attachments, at which point every consumer would have had to know
+  // that and parse it, or quietly render nothing. Parsed once, here.
+  return rows.map((row) => ({ ...row, detail: parseDetail(row.detail) }));
+}
+
+/** A stored `detail`, as an object. Unreadable JSON is a fault, not a crash. */
+function parseDetail(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'object') return value;   // a driver that parses it for us
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 /** camelCase for the wire; the database keeps snake_case. */

@@ -24,6 +24,10 @@
  * 4. **The row is written after the bytes, and removed if the row fails.** A
  *    half-succeeded upload leaves neither a file nobody knows about nor a row
  *    pointing at nothing.
+ * 5. **Both directions are recorded.** Attaching a file and deleting one each
+ *    write a `project_event`. Deletion is the only action here that destroys
+ *    something, so it is the one whose absence from the record was worst —
+ *    see migration 005.
  */
 const crypto = require('crypto');
 const fs = require('fs/promises');
@@ -239,11 +243,41 @@ async function read(row) {
   }
 }
 
-/** Remove the row, then the file. The row is the record; losing it is what matters. */
+/**
+ * Remove the row and the event that says so, then the file.
+ *
+ * The event is written in the same transaction as the delete, because after the
+ * row is gone it is the only place the file's name still exists — recording it
+ * afterwards would leave a window in which the file is unfindable and the
+ * record does not say it ever went. `ATTACHMENT_ADDED` without a matching
+ * `ATTACHMENT_REMOVED` is what the timeline read as before migration 005: three
+ * attachments listed as added, two of them present, and no account of the third.
+ *
+ * The file follows the row rather than leading it. A row without its bytes
+ * answers 404 (`read`), which is a state the system already handles; bytes
+ * without their row are litter nothing points at.
+ */
 async function remove(actor, project, row) {
-  await pool.query('DELETE FROM project_attachment WHERE id = ? AND project_id = ?',
-    [row.id, project.id]);
-  await fs.unlink(resolveWithin(row.storage_path)).catch(() => {});
+  const recorded = await transaction(async (conn) => {
+    const [result] = await conn.query(
+      'DELETE FROM project_attachment WHERE id = ? AND project_id = ?',
+      [row.id, project.id]
+    );
+    // Two callers can pass `loadAttachment` for the same row; only the one whose
+    // DELETE matched actually removed anything, and only it writes the event.
+    if (result.affectedRows === 0) return false;
+
+    await recordEvent(conn, {
+      projectId: project.id,
+      type: 'ATTACHMENT_REMOVED',
+      actorPersonId: actor.person.id,
+      detail: { originalName: row.original_name, byteSize: row.byte_size },
+    });
+    return true;
+  });
+
+  if (recorded) await fs.unlink(resolveWithin(row.storage_path)).catch(() => {});
+  return recorded;
 }
 
 module.exports = {
