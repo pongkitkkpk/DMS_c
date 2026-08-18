@@ -274,7 +274,7 @@ function timestepRoot(document, capacity) {
     ...indexed('endM', capacity, rows, (row) => monthIndex(row.end_on)),
     // The old system initialised these to `false`/`""` and posted them
     // unchanged, so the Gantt's year header has always printed blank. Filling
-    // it is deviation 23.
+    // it is deviation 36.
     start_inyear: years[0] || '',
     end_inyear: years[years.length - 1] || '',
     is_inyear: years.length > 0 && years[0] === years[years.length - 1],

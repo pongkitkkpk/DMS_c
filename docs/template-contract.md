@@ -333,4 +333,4 @@ Restating the contract as requirements (Q4/Q7/Q8):
 - **`is_inyear` / `start_inyear` / `end_inyear` were never set by the old system.** They are
   initialised to `false`/`""` in `CSD_timestep.js:399-401` and posted unchanged, so the Gantt's
   year header has always printed blank. The assembler now derives them from the activity dates
-  — deviation 23.
+  — deviation 36.
