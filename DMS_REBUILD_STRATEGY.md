@@ -2040,3 +2040,27 @@ the real form, saved, and reloaded the edit page fresh from the server —
 swapped. Restored the original coordinator afterward. The mocked test proved
 the logic against a stated double; this proved the same fix against the
 actual API response shape end to end.
+
+## Dashboard and spending summary, three roles (2026-08-19)
+
+Read `DashboardPage.js` and `SpendingPage.js` first, then opened both as
+STUACT, ADMIN, and SH. All three clean:
+
+- STUACT's phase tiles, budget card, and the readiness banner for 2568 (its
+  jurisdiction's 10 clubs, 0 funded/headed/advised) all matched what the
+  underlying pages already show; `/spending`'s totals matched the allocations
+  card for the same year.
+- SH sees no readiness banner (not fetched — `mayAllocate` gates the request,
+  not just the render), no `สรุปการใช้เงิน` link, "อ่านอย่างเดียว" instead of
+  "แก้ไขได้", and no unfunded-club summary row (its `clubs` list is never
+  fetched, so there is nothing to count).
+- ADMIN's readiness banner showed a live `เปลี่ยนเป็นปี 2568` button, which
+  looked at first like it shouldn't be there — `setAcademicYear` requires the
+  *target* year to already have an Admin, and no fixture seeds one for 2568.
+  Reading `check-phase6.js` explained it: its year-rollover test grants
+  `fixture.admin` an ADMIN membership for `yr + 1` to test this exact gate,
+  moves the system forward, then back, but never revokes that membership —
+  so it persists as leftover state after any `check:all` run and the banner
+  is correctly reporting it. Not a defect; not clicked, since doing so for
+  real (outside that test's own move-back) would advance the whole dev
+  system to 2568 for real.
