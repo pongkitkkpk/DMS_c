@@ -468,6 +468,16 @@ deviations in the same sense as the rest: the old system did none of them.
     on กนศ.06 as a headcount nobody typed. Digits with an optional decimal part are
     required now; `"12.0"` is still twelve, because a browser number input can send
     exactly that. Same rule as deviation 24, one notation further down
+41. **A failed save never creates a second project.** Creating one is nine requests —
+    the core row, then eight lists — and a failure after the first left a project that
+    existed while the dialog said บันทึกไม่สำเร็จ and the page still believed it was
+    creating. Pressing save again made another: two presses produced ร่างที่ 8 and
+    ร่างที่ 9, identical, half-empty, each holding a draft number the club's numbering
+    will not reuse. The page now updates what it created, names the draft in the failure
+    message, and stops calling the button สร้างโครงการ. The old system posted every
+    field of every list in unawaited fire-and-forget writes and announced success before
+    any of them answered (`docs/business-rules.md`, "Transitions"), so there is nothing
+    to port here — this is the new system's own defect, found by browser pass 10
 
 Eleven more were written out in the phase close-outs below rather than here, and their
 numbers had drifted: each close-out continued a count from the master list as it stood

@@ -1885,3 +1885,64 @@ screen in the system, and nothing exercises a real network — these are unit
 tests of components against stated doubles, not an end-to-end run. Browser
 passes are still how a screen gets read for the first time; what changed is that
 what they find can now be written down somewhere that runs again.
+
+---
+
+## Browser pass 10: two presses of a failing button, two projects (2026-08-18)
+
+The project form is the largest screen in the system and the only one no pass
+had opened on its own terms. Reading `save()` before opening it showed why that
+mattered: creating a project is **nine requests** — `POST /projects` for the core
+row, then eight `PUT …/sections/*` — and only the first of them makes the
+project exist.
+
+### What a failure after the first request looked like
+
+Reproduced by pasting 22,000 Thai characters into หลักการและเหตุผล, which is
+66,000 bytes and over the column (the defect found on 2026-08-17, now a named
+400):
+
+1. `POST /projects` → **201**. The project exists, with a draft number.
+2. `PUT …/sections/rationales` → **400**, naming the bytes.
+3. The dialog says **บันทึกไม่สำเร็จ**, the page stays on `/projects/new`, and
+   everything typed is still on screen — which is right.
+
+But the page went on believing it was creating something. Pressing save again
+posted a *second* project. Two presses of a button that both reported failure
+left **ร่างที่ 8 and ร่างที่ 9**, identical, both half-empty, both consuming a
+draft number that the club's numbering will never reuse. Nothing on the screen
+said either existed; "บันทึกไม่สำเร็จ" reads as *nothing happened*, and for the
+core row it was false.
+
+### The fix, and the two things it deliberately does not do
+
+The page now remembers what it created and updates that project on every later
+attempt. The failure dialog names the draft:
+
+> โครงการถูกสร้างไว้แล้วเป็น "ร่างที่ 10" — แก้ตรงนี้แล้วกดบันทึกอีกครั้ง
+> ระบบจะบันทึกทับร่างเดิม ไม่สร้างใหม่
+
+and the button stops saying สร้างโครงการ, because the next press no longer
+creates anything.
+
+- **It does not navigate to `/projects/:id/edit`.** That would remount the page
+  against the server's copy and discard everything typed since — the work the
+  retry exists to save.
+- **It does not roll the create back.** A half-filled draft the author can see
+  and finish is better than a delete that also has to be got right on a
+  connection that has just proved unreliable, and worse: the failure is usually
+  *in* one of the lists, so the core row is the part that succeeded.
+
+The id is held in state rather than in the URL for the same reason, and
+`created` is read from a local variable inside the failing attempt's own `catch`
+— React state has not updated yet at that point, so the first failure, the one
+that matters most, would have shown no footer at all.
+
+Verified in the browser end to end: two failures now leave exactly one draft
+(ร่างที่ 10), and correcting the rationale and pressing again completes that same
+project rather than a third one.
+
+Five tests in `ProjectFormPage.save.test.js`, four of which fail against the
+page as it was — the fifth is the pre-existing "no name, no request" guard,
+which passed both before and after and is there to show the others are not
+passing by accident. **31 frontend tests, 481 API assertions, 0 failures.**

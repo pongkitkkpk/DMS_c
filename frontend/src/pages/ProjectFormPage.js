@@ -149,6 +149,24 @@ export default function ProjectFormPage() {
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  /**
+   * The project this page created but has not finished saving.
+   *
+   * A create is one request and the eight lists are eight more, so a failure
+   * after the first one leaves a project that exists with a draft number and no
+   * lists — while the dialog says บันทึกไม่สำเร็จ and the page still believes it
+   * is on `/projects/new`. Pressing save again then created *another* project:
+   * two presses of a button that both reported failure produced ร่างที่ 8 and
+   * ร่างที่ 9, identical and both half-empty (reproduced 2026-08-18 by pasting
+   * a rationale past the column's byte limit).
+   *
+   * Held in state rather than in the URL on purpose. Navigating to
+   * `/projects/:id/edit` would remount this page against the server's copy and
+   * discard everything typed since — which is the work the retry exists to
+   * save.
+   */
+  const [created, setCreated] = useState(null);
+  const targetId = id || (created && created.id);
 
   useEffect(() => {
     Promise.all([api.tags(), api.advisors(), api.limits()])
@@ -213,6 +231,10 @@ export default function ProjectFormPage() {
       return;
     }
     setSaving(true);
+    // `created` is state, so it still reads null inside this attempt's own
+    // `catch` — the update has not been applied yet. The local copy is what the
+    // failure message can rely on.
+    let justCreated = null;
     try {
       const body = {
         ...core,
@@ -221,10 +243,17 @@ export default function ProjectFormPage() {
       };
 
       // The core row first: the child lists need an id to hang from, and on a
-      // new project there is not one until this returns.
-      const projectId = isNew
-        ? (await api.createProject(body)).id
-        : (await api.updateProject(id, body), id);
+      // new project there is not one until this returns. A project this page
+      // already created is updated rather than created again — see `created`.
+      let projectId = targetId;
+      if (!projectId) {
+        const project = await api.createProject(body);
+        projectId = project.id;
+        justCreated = { id: project.id, draftSequence: project.draftSequence };
+        setCreated(justCreated);
+      } else {
+        await api.updateProject(projectId, body);
+      }
 
       // Each list is an independent replace. They are saved in order and the
       // first failure stops the rest, so the message names the list that
@@ -246,7 +275,20 @@ export default function ProjectFormPage() {
       });
       history.push(`/projects/${projectId}`);
     } catch (err) {
-      await Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: messageOf(err) });
+      // Say what survived. "บันทึกไม่สำเร็จ" on its own is read as "nothing
+      // happened", and when the core row went in that is not true — the draft
+      // is in the list, under a number, and the reader deserves to know both
+      // that and that pressing save again will fill it in rather than make a
+      // second one.
+      const draft = !id && (justCreated || created);
+      await Swal.fire({
+        icon: 'error',
+        title: 'บันทึกไม่สำเร็จ',
+        text: messageOf(err),
+        footer: draft
+          ? `โครงการถูกสร้างไว้แล้วเป็น “ร่างที่ ${draft.draftSequence}” — แก้ตรงนี้แล้วกดบันทึกอีกครั้ง ระบบจะบันทึกทับร่างเดิม ไม่สร้างใหม่`
+          : undefined,
+      });
     } finally {
       setSaving(false);
     }
@@ -283,7 +325,7 @@ export default function ProjectFormPage() {
         <div className="u-spacer u-row">
           <Button outline color="secondary" onClick={() => history.goBack()} disabled={saving}>ยกเลิก</Button>
           <Button color="primary" onClick={save} disabled={saving}>
-            {saving ? 'กำลังบันทึก…' : (isNew ? 'สร้างโครงการ' : 'บันทึกการแก้ไข')}
+            {saving ? 'กำลังบันทึก…' : (targetId ? 'บันทึกการแก้ไข' : 'สร้างโครงการ')}
           </Button>
         </div>
       </div>
@@ -414,7 +456,7 @@ export default function ProjectFormPage() {
         <div className="u-row" style={{ justifyContent: 'flex-end', paddingBottom: 'var(--s-6)' }}>
           <Button outline color="secondary" onClick={() => history.goBack()} disabled={saving}>ยกเลิก</Button>
           <Button color="primary" onClick={save} disabled={saving}>
-            {saving ? 'กำลังบันทึก…' : (isNew ? 'สร้างโครงการ' : 'บันทึกการแก้ไข')}
+            {saving ? 'กำลังบันทึก…' : (targetId ? 'บันทึกการแก้ไข' : 'สร้างโครงการ')}
           </Button>
         </div>
       </div>
