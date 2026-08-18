@@ -1962,20 +1962,27 @@ Both roles came back clean:
   reachable), the ปีการศึกษา picker and the แก้ไข/กำหนด dialog both open
   correctly with the current amount pre-filled, and cancelling leaves the
   figure untouched.
-- SH sees exactly its own club's row, read-only, no `กำหนด`/`แก้ไข` controls and
-  no fetch of the full club list — matching `mayAllocate` gating client-side
-  API calls, not just the buttons.
+- SH and AD each see exactly their own club's row, read-only, no
+  `กำหนด`/`แก้ไข` controls and no fetch of the full club list — matching
+  `mayAllocate` gating client-side API calls, not just the buttons.
 - `/history`'s two tables link out correctly (`ปีการศึกษา` → `/allocations?year=`,
   the phase matrix → `/projects?year=`) and its totals match the row on
   `/allocations` for the same year.
-- `/profile` renders the right `ROLE_SUMMARY` sentence for STUACT and leaves
-  the identity fields correctly uneditable.
+- `/profile` renders the right `ROLE_SUMMARY` sentence for STUACT and AD (the
+  advisor's card also names `advisor_agency`) and leaves the identity fields
+  correctly uneditable.
 
-No defect found. Confirmed with a full regression run rather than more manual
-clicking once the browser session's typing actions started failing on a
-transient tool-side outage (unrelated to the app): **31 frontend tests, 481 API
-assertions, 0 failures**, both suites re-run clean against a freshly reseeded
-database.
+No defect found on any of the three screens across four roles. The browser
+session's `type`/`navigate` actions failed on a transient tool-side outage
+(unrelated to the app) partway through, so Q33's "lower below committed"
+warning was confirmed via the API acceptance script that session instead of a
+click-through — the outage cleared in the next session and the same flow was
+then walked end to end: lowering ชมรมพุทธศาสน์'s ceiling to ฿50,000 against
+฿96,000 already approved produced the exact warning text
+`allocationService.js` builds, the danger banner named the club, the row
+turned red with "เกินวงเงิน", and restoring the ceiling to ฿500,000 cleared
+both. **31 frontend tests, 481 API assertions, 0 failures**, both suites
+re-run clean against a freshly reseeded database.
 
 ## The second coordinator's name, filed under the first (2026-08-19)
 
