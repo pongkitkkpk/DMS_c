@@ -2064,3 +2064,15 @@ STUACT, ADMIN, and SH. All three clean:
   is correctly reporting it. Not a defect; not clicked, since doing so for
   real (outside that test's own move-back) would advance the whole dev
   system to 2568 for real.
+
+## Requested and parked (2026-08-19)
+
+**Dashboard needs an Excel export of its summary.** Owner asked for this
+while reviewing `/dashboard` — the phase-status tiles and the
+allocation/spending table should be downloadable as an Excel file, not just
+read on screen. Not designed or built yet; parked here so it isn't lost.
+Whoever picks it up next should decide: export the whole page's data in one
+file or one sheet per card, and whether it is scoped the same way the page
+already is (a club sees its own row, STUACT its jurisdiction, ADMIN
+everything) — which it should be, since anything else would leak scope the
+screen itself refuses to.
