@@ -1844,3 +1844,44 @@ The close-out text is the fuller statement of each, so it stays where it is and
 is renumbered 30–40, with one-line entries added to the master list pointing at
 it. Q22 requires the deviations to be listed; a list with two meanings for the
 same number is the failure mode that requirement exists to prevent.
+
+---
+
+## The frontend had no tests at all (2026-08-18)
+
+Every defect in browser passes 6 through 9 — the seven-hour timestamps, the
+unreadable attendance card, the endless skeleton, the roles screen's confident
+"ไม่พบผู้ใช้", six sets of identically-named buttons — was found by a person
+opening a page and reading it. None of the 481 assertions could have caught any
+of them, because every one of those is an HTTP assertion about what the API
+answers, and every one of these is about what the page does with the answer.
+
+That is the whole gap, and it is why the same shape of defect kept reappearing
+on screens the previous pass had not reached.
+
+`@testing-library/react` and jest (already inside `react-scripts`), and **26
+tests in four files**, each pinning something a browser pass had to find by
+hand:
+
+| File | What it holds |
+| --- | --- |
+| `ui.test.js` | the Buddhist year, the day surviving without a UTC guess, `00:03` not rendering as `07:03`, money keeping both satang digits, and `—` rather than `0.00` for a value nobody set |
+| `AttachmentsCard.test.js` | a failed list says so and retries in place; every download and delete button names its file; deleting asks first and a "no" deletes nothing; a refusal shows the server's own sentence |
+| `DocumentsCard.test.js` | a failed read never renders as "this project has no forms"; each button names its form; a phase-blocked form is disabled and says why |
+| `ProjectPage.timeline.test.js` | the record names the file that was deleted, tells three uploads apart, prints nothing for an `EDITED` detail that has no name in it, and survives a `detail` that arrives as JSON text |
+
+**Checked that they can fail.** Putting the two attachment defects back into the
+working copy — the swallowed `catch` and the fixed `aria-label` — turned 7 of
+the 10 tests in that file red, including the three about deleting, which fail
+because the button naming the file is how the test reaches it. Restored
+afterwards; the point of the exercise is that a test which cannot fail is not
+evidence of anything.
+
+`npm run test:once` in `frontend/` runs them without a watcher and without the
+API: every one mocks `../api`, so nothing here depends on a database being up.
+
+**What this does not cover.** Nothing renders `ProjectFormPage`, the biggest
+screen in the system, and nothing exercises a real network — these are unit
+tests of components against stated doubles, not an end-to-end run. Browser
+passes are still how a screen gets read for the first time; what changed is that
+what they find can now be written down somewhere that runs again.
