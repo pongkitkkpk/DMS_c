@@ -37,7 +37,7 @@ The migration and seed scripts read the same `DB_*` environment variables the
 running app does. From `backend/`, with a `.env` pointed at Aiven instead of
 XAMPP:
 
-```
+```env
 DB_HOST=<aiven host>
 DB_PORT=<aiven port>
 DB_USER=<aiven user>
@@ -48,7 +48,7 @@ DB_SSL_CA_PATH=<path to the downloaded ca.pem>
 
 Then, from `backend/`:
 
-```
+```bash
 npm run db:migrate
 npm run db:seed
 ```
@@ -56,7 +56,7 @@ npm run db:seed
 `db:seed` (no `--no-fixtures` flag) loads the demonstration accounts shown on
 the login page — that's the point of a demo. Confirm it worked:
 
-```
+```bash
 npm run check:all
 ```
 
@@ -66,7 +66,7 @@ fixtures are in place before Render ever sees them.
 
 ## 3. Generate the two secrets
 
-```
+```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
