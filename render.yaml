@@ -1,0 +1,75 @@
+# Render Blueprint for the DMS demo — see DEPLOY.md for the full walkthrough
+# (Aiven MySQL setup, secret values, and what to click where).
+#
+# Two services, one repo: the API needs a rootDir because this is a monorepo,
+# and the static site needs REACT_APP_API_BASE baked in at *build* time — a
+# React env var is not readable at runtime, so the API's URL has to be known
+# before this file is applied. It is: Render URLs are `<name>.onrender.com`,
+# so the names below are fixed on purpose rather than left to Render to pick.
+services:
+  - type: web
+    name: dms-demo-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS in front of the app and forwards over plain
+      # HTTP from one hop away — this is what makes `req.ip` (and therefore
+      # the per-address login-guess budget) mean the caller, not Render.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: AUTH_PROVIDER
+        value: mock
+      # The demo's front door — see config.js. Both required together in
+      # production, and deliberately not defaulted here: fill them in on the
+      # dashboard (DEPLOY.md has the exact commands to generate them).
+      - key: ALLOW_MOCK_AUTH
+        value: "1"
+      - key: MOCK_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 2h
+      - key: CORS_ORIGIN
+        value: https://dms-demo.onrender.com
+      - key: ACADEMIC_YEAR
+        value: "2567"
+      # Aiven's connection details — sync: false means the dashboard, not
+      # this file, is where the actual values live.
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_NAME
+        sync: false
+      # Aiven requires TLS. This is a path, not the certificate text itself —
+      # it is where Render mounts a Secret File you add on the dashboard
+      # (DEPLOY.md walks through downloading it from Aiven).
+      - key: DB_SSL_CA_PATH
+        value: /etc/secrets/aiven-ca.pem
+
+  - type: web
+    name: dms-demo
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_BASE
+        value: https://dms-demo-api.onrender.com
+    # A client-routed SPA: every path that is not a real static file has to
+    # still serve index.html, or refreshing anywhere but "/" is a 404.
+    routes:
+      - source: /**
+        destination: /index.html
