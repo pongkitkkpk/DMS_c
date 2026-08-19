@@ -146,6 +146,18 @@ const check = {
    * (verified 2026-08-18 on `PATCH /api/projects/1`). Round-tripping through
    * `Date.UTC` asks the calendar instead of the parser, so `2023-02-29` is
    * refused and `2024-02-29` is not.
+   *
+   * The first 10 characters are read, not the whole string — but anything past
+   * them has to be a `T` (a `Date.toISOString()` value's time component,
+   * `2024-01-01T10:30:00.000Z`) or nothing. This started as an unconditional
+   * `.slice(0, 10)`, which is the same mistake as `scalar()` exists to catch
+   * one level up: `"2024-01-01/2024-02-01"` and `"2024-01-01abcdefgh"` both
+   * quietly became `2024-01-01`, a confident answer to a value that was
+   * probably not meant as a plain date. No caller in this codebase sends a
+   * date longer than 10 characters — the browser's own `<input type="date">`
+   * never does — so the leniency was paying for a convenience nothing used,
+   * at the cost of exactly the silent-coercion class of bug this file exists
+   * to refuse.
    */
   date({ required = false } = {}) {
     return (value, label) => {
@@ -153,7 +165,11 @@ const check = {
         if (required) throw HttpError.badRequest(`${label}: ต้องระบุวันที่`);
         return null;
       }
-      const s = String(scalar(value, label)).slice(0, 10);
+      const full = String(scalar(value, label));
+      const s = full.slice(0, 10);
+      if (full.length > 10 && full[10] !== 'T') {
+        throw HttpError.badRequest(`${label}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)`);
+      }
       if (!DATE_PATTERN.test(s)) {
         throw HttpError.badRequest(`${label}: วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)`);
       }

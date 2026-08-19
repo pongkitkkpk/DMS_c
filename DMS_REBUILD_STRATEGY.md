@@ -2099,3 +2099,29 @@ Verified live as ADMIN: downloaded `dashboard_2567.xlsx`, opened it back up
 with `xlsx.readFile`, and it matched the on-screen dashboard row for row — 8
 projects across the right phases, the one funded club's three amounts, and
 all 68 remaining clubs marked unfunded rather than omitted.
+
+## `check.date()` had one more silent coercion (2026-08-19)
+
+Went back into `validate.js` — the file the 2026-08-17 audit had already gone
+through once for exactly this class of bug — and found one more instance of
+it in the validator that audit didn't touch: `date()` read only the first 10
+characters of whatever arrived and never looked at the rest.
+
+```
+"2024-01-01/2024-02-01" → 2024-01-01   (the second date silently dropped)
+"2024-01-01abcdefgh"    → 2024-01-01   (trailing garbage silently dropped)
+```
+
+Both are exactly the shape the `scalar()` guard exists to stop one level up —
+a confident answer to input nobody meant — except `scalar()` only checks the
+*type* arrived is right, not that a same-typed string is well-formed past the
+point the code bothered to look. The slicing existed to accept
+`Date.toISOString()` output (`2024-01-01T10:30:00.000Z`), but nothing in this
+codebase actually sends that: the frontend's own date fields are native
+`<input type="date">`, which never yields more than 10 characters. The
+leniency was paying for a convenience nothing used.
+
+Fixed to allow only two shapes past the 10th character: nothing, or a literal
+`T` (the ISO datetime separator) — everything else is now a named 400 instead
+of a quiet truncation. Verified against the same probe values plus a real
+invalid calendar date, and reran `npm run check:all`: 483 passed, 0 failed.
