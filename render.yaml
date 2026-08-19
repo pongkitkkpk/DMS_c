@@ -52,11 +52,12 @@ services:
         sync: false
       - key: DB_NAME
         sync: false
-      # Aiven requires TLS. This is a path, not the certificate text itself —
-      # it is where Render mounts a Secret File you add on the dashboard
-      # (DEPLOY.md walks through downloading it from Aiven).
-      - key: DB_SSL_CA_PATH
-        value: /etc/secrets/aiven-ca.pem
+      # Aiven requires TLS. This is the permissive fallback (encrypt, don't
+      # verify the server's certificate against a CA) rather than
+      # DB_SSL_CA_PATH's stricter pinned-CA path — one less manual step (no
+      # Secret File to fetch from Aiven and upload) for what this demo needs.
+      - key: DB_SSL
+        value: "1"
 
   - type: web
     name: dms-demo

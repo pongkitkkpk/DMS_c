@@ -27,9 +27,6 @@ work below is filling in the values it deliberately leaves blank
    - **Password**
    - **Database name** — either use the default `defaultdb` or create one
      named `dms` (Aiven's console has a "Databases" tab for this)
-4. Download the **CA Certificate** from the same page (usually a "CA
-   Certificate" download link near the connection details). Keep the file —
-   it's pasted into Render in step 4.
 
 ## 2. Load the schema and demo data
 
@@ -43,7 +40,7 @@ DB_PORT=<aiven port>
 DB_USER=<aiven user>
 DB_PASS=<aiven password>
 DB_NAME=dms
-DB_SSL_CA_PATH=<path to the downloaded ca.pem>
+DB_SSL=1
 ```
 
 Then, from `backend/`:
@@ -90,11 +87,7 @@ account, `fixture.admin` included.
    Environment** and fill in every `sync: false` value from the file:
    `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME` (from step 1),
    `JWT_SECRET`, `MOCK_PASSWORD` (from step 3).
-4. Same page, **Secret Files → Add Secret File**: name it `aiven-ca.pem`,
-   paste the certificate contents from step 1. This is what
-   `DB_SSL_CA_PATH=/etc/secrets/aiven-ca.pem` in `render.yaml` reads —
-   Render mounts secret files under `/etc/secrets/<name>`.
-5. Save — Render redeploys the API with the real values.
+4. Save — Render redeploys the API with the real values.
 
 Both service names are fixed in `render.yaml` (`dms-demo-api`, `dms-demo`)
 specifically so each one's URL is known before the other builds — a static
