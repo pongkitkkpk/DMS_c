@@ -37,6 +37,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const mysql = require('mysql2/promise');
+const { dbConnectionOptions } = require('../src/db/connectionOptions');
 
 function parseArgs(argv) {
   const args = {};
@@ -64,14 +65,7 @@ async function main() {
     process.exit(2);
   }
 
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || '',
-    database: process.env.DB_NAME || 'dms',
-    charset: 'utf8mb4_unicode_ci',
-  });
+  const conn = await mysql.createConnection(dbConnectionOptions());
 
   try {
     // Identity is ICIT's and is written on login, never here — the split

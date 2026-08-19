@@ -14,18 +14,14 @@ const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const mysql = require('mysql2/promise');
+const { dbConnectionOptions } = require('./connectionOptions');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
 async function connect() {
   return mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || '',
-    database: process.env.DB_NAME || 'dms',
+    ...dbConnectionOptions(),
     multipleStatements: true,
-    charset: 'utf8mb4_unicode_ci',
   });
 }
 

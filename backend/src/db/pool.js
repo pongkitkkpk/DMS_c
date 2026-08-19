@@ -2,19 +2,15 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const mysql = require('mysql2/promise');
+const { dbConnectionOptions } = require('./connectionOptions');
 
 // One pool for the process. `mysql2` replaces the old `mysql@2.18` driver, which
 // is unmaintained and cannot negotiate MySQL 8's default auth plugin. Same API
 // plus promises — see DMS_REBUILD_STRATEGY.md, "Stack".
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'dms',
+  ...dbConnectionOptions(),
   waitForConnections: true,
   connectionLimit: 10,
-  charset: 'utf8mb4_unicode_ci',
   // Keep DECIMAL as a string rather than letting JS float-round money.
   decimalNumbers: false,
   /**

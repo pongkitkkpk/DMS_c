@@ -13,6 +13,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const mysql = require('mysql2/promise');
+const { dbConnectionOptions } = require('./connectionOptions');
 const { seedTaxonomy } = require('./seeds/taxonomy');
 const { seedReference } = require('./seeds/reference');
 const { seedFixtures, ACADEMIC_YEAR: FIXTURE_ACADEMIC_YEAR } = require('./seeds/fixtures');
@@ -39,14 +40,7 @@ async function main() {
   const withFixtures = !process.argv.includes('--no-fixtures');
   const force = process.argv.includes('--force');
 
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || '',
-    database: process.env.DB_NAME || 'dms',
-    charset: 'utf8mb4_unicode_ci',
-  });
+  const conn = await mysql.createConnection(dbConnectionOptions());
 
   const log = (msg) => console.log(msg);
 
