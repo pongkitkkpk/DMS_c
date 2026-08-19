@@ -61,7 +61,6 @@ services:
   - type: web
     name: dms-demo
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: build
