@@ -11,7 +11,8 @@
     "react-router-dom": "^5.3.4",
     "react-scripts": "5.0.1",
     "reactstrap": "^8.10.1",
-    "sweetalert2": "^11.10.7"
+    "sweetalert2": "^11.10.7",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -20,8 +21,16 @@
     "test:once": "react-scripts test --watchAll=false"
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.2",

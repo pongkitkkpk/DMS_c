@@ -19,6 +19,7 @@ import Swal from 'sweetalert2';
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
 import { Card, Empty, PhasePill, Skeleton, money } from '../components/ui';
+import { downloadDashboardExcel } from '../utils/exportDashboardExcel';
 
 /** Admin and STUACT enter allocations; adviser and student read them (Q30). */
 const MAY_ALLOCATE = ['ADMIN', 'STUACT'];
@@ -155,6 +156,18 @@ export default function DashboardPage() {
   const membership = session.membership;
   const scopeLabel = (membership && (membership.club_name || membership.club_group_name)) || '';
 
+  const exportExcel = () => {
+    downloadDashboardExcel({
+      academicYear: session.academicYear,
+      scopeLabel,
+      phases,
+      counts,
+      projectsTotal: projects.total,
+      allocations,
+      unfundedClubs: unfunded,
+    });
+  };
+
   return (
     <>
       <div className="page-head">
@@ -165,7 +178,12 @@ export default function DashboardPage() {
             {scopeLabel && ` · ${scopeLabel}`}
           </div>
         </div>
-        <Link className="u-spacer u-small u-muted" to="/projects">ดูรายการโครงการทั้งหมด →</Link>
+        <div className="u-spacer u-row">
+          <Button size="sm" outline color="secondary" onClick={exportExcel}>
+            ดาวน์โหลด Excel
+          </Button>
+          <Link className="u-small u-muted" to="/projects">ดูรายการโครงการทั้งหมด →</Link>
+        </div>
       </div>
 
       {/* Three things have to exist before a year can be worked in — its

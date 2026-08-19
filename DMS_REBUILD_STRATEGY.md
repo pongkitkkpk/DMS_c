@@ -2076,3 +2076,26 @@ file or one sheet per card, and whether it is scoped the same way the page
 already is (a club sees its own row, STUACT its jurisdiction, ADMIN
 everything) — which it should be, since anything else would leak scope the
 screen itself refuses to.
+
+## The Excel export, built (2026-08-19)
+
+Answered both open questions from the parked note above by building it
+**client-side**, entirely from what `DashboardPage` already holds in state
+(`frontend/src/utils/exportDashboardExcel.js`, via the `xlsx` package). There
+is no export endpoint on the server and no second query — the phase tiles and
+the allocation table are exactly what fed the screen a moment earlier, so the
+file cannot show a scope the page itself refused to. A club sees its own row,
+STUACT its jurisdiction, ADMIN everything, the same as `/dashboard` always did.
+
+One file, three sheets: `ภาพรวม` (year, scope, project count, generated-at),
+`สถานะโครงการ` (every phase with its count, including the ones sitting at
+zero), and `วงเงินจัดสรร` (every club in scope — funded rows carry the same
+three amounts and over-committed flag the table shows, and a club with no
+allocation row yet appears with blank amounts and a status of "ยังไม่ได้กำหนด
+วงเงินปี {year}" rather than either being silently dropped or shown as a
+misleading zero).
+
+Verified live as ADMIN: downloaded `dashboard_2567.xlsx`, opened it back up
+with `xlsx.readFile`, and it matched the on-screen dashboard row for row — 8
+projects across the right phases, the one funded club's three amounts, and
+all 68 remaining clubs marked unfunded rather than omitted.
