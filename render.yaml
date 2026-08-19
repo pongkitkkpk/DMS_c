@@ -71,5 +71,6 @@ services:
     # A client-routed SPA: every path that is not a real static file has to
     # still serve index.html, or refreshing anywhere but "/" is a 404.
     routes:
-      - source: /**
+      - type: rewrite
+        source: /**
         destination: /index.html
