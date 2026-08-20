@@ -155,6 +155,10 @@ it('sends the confirmed grant with the right scope and a trimmed agency', async 
     jurisdictionClubGroupId: undefined,
     advisorAgency: 'กองกิจการนักศึกษา',
   }));
+  // A successful grant reloads the table — wait for that second fetch to
+  // settle too, or its state updates land after the test (and its render
+  // tree) is already gone.
+  await waitFor(() => expect(api.membershipEvents).toHaveBeenCalledTimes(2));
 });
 
 it('checks the impact before confirming a revoke, and only revokes on confirmation', async () => {
@@ -172,6 +176,10 @@ it('checks the impact before confirming a revoke, and only revokes on confirmati
   expect(mockSwalFire).toHaveBeenCalledWith(expect.objectContaining({
     html: expect.stringContaining('2'),
   }));
+  // A successful revoke reloads the table — wait for that second fetch to
+  // settle too, or its state updates land after the test (and its render
+  // tree) is already gone.
+  await waitFor(() => expect(api.membershipEvents).toHaveBeenCalledTimes(2));
 });
 
 it('does not revoke when the confirmation is dismissed', async () => {
