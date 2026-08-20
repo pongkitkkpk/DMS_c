@@ -108,14 +108,22 @@ name is already taken on Render, edit both the taken one *and* the other
 service's env var/URL that references it before deploying, or the frontend
 will build pointing at a URL that doesn't exist.
 
+**This happened on the actual deploy.** `dms-demo-api` was already taken, so
+the live API landed at `dms-demo-api-hqwa.onrender.com` instead — `dms-demo`
+came through unchanged. `render.yaml`'s `REACT_APP_API_BASE` is pinned to the
+real API URL to match. If you redeploy under different service names, update
+that value and push — the static site does not pick up a changed env var
+until its *next build*, so a dashboard-only edit with no redeploy leaves the
+old URL baked into the files already served.
+
 ## 5. Check it
 
-- `https://dms-demo-api.onrender.com/api/health` → `{"status":"ok",...}`
-- `https://dms-demo.onrender.com` → the login page, with the demonstration
-  account list showing (confirms `GET /api/auth/mode` is reachable and
-  `ALLOW_MOCK_AUTH`/`MOCK_PASSWORD` are both set — see `config.js`, deviation
-  19 in `docs/DECISIONS.md`). Pick any account, enter the shared
-  `MOCK_PASSWORD`.
+- `https://<your-api-service>.onrender.com/api/health` → `{"status":"ok","database":"ok",...}`
+- `https://<your-frontend-service>.onrender.com` → the login page, with the
+  demonstration account list showing (confirms `GET /api/auth/mode` is
+  reachable and `ALLOW_MOCK_AUTH`/`MOCK_PASSWORD` are both set — see
+  `config.js`, deviation 19 in `docs/DECISIONS.md`). Pick any account, enter
+  the shared `MOCK_PASSWORD`.
 
 ## Known limits of this setup, worth knowing before sharing the link
 

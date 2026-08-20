@@ -66,8 +66,13 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: build
     envVars:
+      # `dms-demo-api` was already taken on Render when this was first
+      # deployed, so the live API landed at `dms-demo-api-hqwa` instead —
+      # DEPLOY.md's "check both names before deploying" warning, hit for
+      # real. This has to track whatever the API's actual URL turns out to
+      # be, not the name requested above.
       - key: REACT_APP_API_BASE
-        value: https://dms-demo-api.onrender.com
+        value: https://dms-demo-api-hqwa.onrender.com
     # A client-routed SPA: every path that is not a real static file has to
     # still serve index.html, or refreshing anywhere but "/" is a 404.
     routes:
