@@ -11,7 +11,7 @@ import { Input, Alert, Button } from 'reactstrap';
 
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
-import { PhasePill, Empty, Skeleton } from '../components/ui';
+import { PhasePill, Empty, Skeleton, rowLinkClick } from '../components/ui';
 
 export default function ProjectsPage() {
   const { session } = useAuth();
@@ -145,7 +145,7 @@ export default function ProjectsPage() {
               </thead>
               <tbody>
                 {data.items.map((p) => (
-                  <tr key={p.id}>
+                  <tr key={p.id} onClick={rowLinkClick(history, `/projects/${p.id}`)} style={{ cursor: 'pointer' }}>
                     <td className="u-small u-dim u-mono">
                       {p.projectNumber || `ร่างที่ ${p.draftSequence}`}
                     </td>

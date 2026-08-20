@@ -16,18 +16,19 @@
  * screen that owns it rather than growing a second way to do the same thing.
  */
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom';
 import { Alert } from 'reactstrap';
 
 import { api, messageOf } from '../api';
 import { useAuth } from '../AuthContext';
-import { Card, Empty, PhasePill, Skeleton, money } from '../components/ui';
+import { Card, Empty, PhasePill, Skeleton, money, rowLinkClick } from '../components/ui';
 
 /** Q30 again — who may set a ceiling, as opposed to read one. */
 const MAY_ALLOCATE = ['ADMIN', 'STUACT'];
 
 export default function HistoryPage() {
   const { session } = useAuth();
+  const history = useHistory();
   const [data, setData] = useState(null);
   const [phases, setPhases] = useState([]);
   const [error, setError] = useState(null);
@@ -94,7 +95,11 @@ export default function HistoryPage() {
                 </thead>
                 <tbody>
                   {years.map((year) => (
-                    <tr key={year.academicYear}>
+                    <tr
+                      key={year.academicYear}
+                      onClick={rowLinkClick(history, `/allocations?year=${year.academicYear}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td>
                         {/* Two tables on this page each link a bare year, and
                             the two go to different screens. "2567" twice tells
@@ -168,7 +173,11 @@ export default function HistoryPage() {
                   </thead>
                   <tbody>
                     {years.map((year) => (
-                      <tr key={year.academicYear}>
+                      <tr
+                        key={year.academicYear}
+                        onClick={rowLinkClick(history, `/projects?year=${year.academicYear}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         <td>
                           <Link
                             to={`/projects?year=${year.academicYear}`}

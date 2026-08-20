@@ -41,6 +41,22 @@ export function PhasePill({ code, children }) {
   return <span className={`pill pill--${PHASE_TONE[code] || 'neutral'}`}>{children}</span>;
 }
 
+/**
+ * Makes a whole `table-x` row open the same place its one real link does,
+ * without stretching a pseudo-element over the `<tr>` (`position: relative`
+ * on a table row is not a reliable containing block in every engine — on
+ * iPad, both Safari and Chrome are WebKit, and WebKit was resolving that
+ * stretched link's `inset: 0` against the page instead of the row, so every
+ * tap opened whichever project was last in the list). Clicks that land on
+ * the link itself are left alone, so opening in a new tab still works.
+ */
+export function rowLinkClick(history, to) {
+  return (e) => {
+    if (e.target.closest('a')) return;
+    history.push(to);
+  };
+}
+
 export function Pill({ tone = 'neutral', plain = false, children }) {
   return <span className={`pill pill--${tone}${plain ? ' pill--plain' : ''}`}>{children}</span>;
 }

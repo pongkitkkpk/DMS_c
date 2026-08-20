@@ -423,21 +423,16 @@ a:hover {
 /* The whole row lights up on hover, so the whole row has to be the target.
    Only the title cell holds a link, and a row where three of four cells look
    clickable and are not is a row that ignores most of the clicks aimed at it.
-   Stretching the existing link over the row is the fix that keeps one real
-   anchor — still one tab stop, still a right-clickable URL — rather than
-   putting a click handler on the `tr` and rebuilding keyboard access by hand.
-   The trade is that text in the row can no longer be selected; for a row whose
-   only purpose is to open the project, that is the right way round.
-
-   `a.` and not `.` — the allocation table reuses this class on a plain `div`
-   for rows that are not links and that carry the ceiling's edit controls. An
-   overlay there would swallow the clicks meant for them. */
-.table-x tbody tr { position: relative; }
-a.table-x__title::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-}
+   This used to be a link stretched over the row with an absolutely
+   positioned `::after` on a `position: relative` `<tr>` — one real anchor,
+   still one tab stop, still a right-clickable URL, no click handler to
+   rebuild keyboard access by hand. It came off a real device: `position:
+   relative` on a table row is not a reliable containing block in every
+   engine, and on iPad (Safari and Chrome are both WebKit there) `inset: 0`
+   was resolving against the page instead of the row, so every tap opened
+   whichever project was last in the list. The row click now goes through
+   `rowLinkClick` (`components/ui.js`) instead — same one real anchor, click
+   handled in JS rather than CSS positioning. */
 
 /* -------------------------------------------------------------------------
    Stats — the budget panel

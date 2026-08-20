@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route } from 'react-router-dom';
+import { MemoryRouter, Route, Switch } from 'react-router-dom';
 
 import ProjectsPage from './ProjectsPage';
 import { api } from '../api';
@@ -114,6 +114,41 @@ it('offers the create button only to a student head, who alone may create', asyn
 
   await screen.findByText('ยังไม่มีโครงการในขอบเขตของบัญชีนี้');
   expect(screen.queryByRole('link', { name: '+ สร้างโครงการ' })).not.toBeInTheDocument();
+});
+
+it('opens the row that was actually clicked, not just the row\'s own link', async () => {
+  // Regression for a live bug: the row used to be made clickable by stretching
+  // its `<a>` over the `<tr>` with CSS (`position: relative` + an absolutely
+  // positioned `::after`). On iPad, both Safari and Chrome are WebKit, and
+  // WebKit did not treat the `<tr>` as a containing block for that overlay —
+  // every row's overlay landed on the whole page instead of its own row, so
+  // whichever project was last in the list ate every tap, everywhere on the
+  // screen. Clicking a non-link cell of the *first* row here must open the
+  // first project, not the last one.
+  api.listProjects.mockResolvedValue({
+    total: 2,
+    items: [
+      { id: 1, name: 'โครงการหนึ่ง', projectNumber: null, draftSequence: 1,
+        club: { nameTh: 'ชมรมหนึ่ง' }, phase: { code: 'DRAFT_PROPOSAL', nameTh: 'ร่างคำขออนุมัติ' } },
+      { id: 2, name: 'โครงการสอง', projectNumber: null, draftSequence: 2,
+        club: { nameTh: 'ชมรมสอง' }, phase: { code: 'DRAFT_PROPOSAL', nameTh: 'ร่างคำขออนุมัติ' } },
+    ],
+  });
+  mockSession = { role: 'SH', membership: { club_name: 'ชมรมหนึ่ง' } };
+  render(
+    <MemoryRouter initialEntries={['/projects']}>
+      <Switch>
+        <Route exact path="/projects"><ProjectsPage /></Route>
+        <Route path="/projects/:id" render={({ match }) => <div>เปิดโครงการ {match.params.id}</div>} />
+      </Switch>
+    </MemoryRouter>
+  );
+
+  await screen.findByText('โครงการหนึ่ง');
+  // The club-name cell of the first row — not the row's own link.
+  fireEvent.click(screen.getByText('ชมรมหนึ่ง'));
+
+  expect(await screen.findByText('เปิดโครงการ 1')).toBeInTheDocument();
 });
 
 it('debounces a typed search rather than firing a request per keystroke', async () => {
