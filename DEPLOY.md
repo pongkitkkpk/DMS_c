@@ -89,6 +89,17 @@ account, `fixture.admin` included.
    `JWT_SECRET`, `MOCK_PASSWORD` (from step 3).
 4. Save — Render redeploys the API with the real values.
 
+**If you set up TLS before this file dropped the CA-cert step**, `dms-demo-api`
+may still carry a `DB_SSL_CA_PATH` variable pointing at a Secret File
+(`/etc/secrets/aiven-ca.pem`) that no longer exists — `render.yaml` no longer
+declares it, but a Blueprint sync only manages variables *currently in the
+file* and does not delete one added earlier by hand. The symptom is the API
+crashing on boot with `ENOENT: ... /etc/secrets/aiven-ca.pem`, because
+`connectionOptions.js` prefers a CA path over `DB_SSL=1` whenever one is set,
+found or not. Fix: **dms-demo-api → Environment**, delete `DB_SSL_CA_PATH`
+(and the Secret File, if one is still attached) — `DB_SSL=1` alone is correct
+and needs no file.
+
 Both service names are fixed in `render.yaml` (`dms-demo-api`, `dms-demo`)
 specifically so each one's URL is known before the other builds — a static
 site's `REACT_APP_API_BASE` is baked in at *build* time, not read at
