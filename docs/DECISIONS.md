@@ -1310,3 +1310,24 @@ Not built. It changes what a user of the system experiences rather than how the
 code reads, which is the line the owner drew on 2026-08-14 (see "How far Q2
 reaches"), so it is theirs to call. Nothing about the current behaviour is wrong
 — it is the pre-existing behaviour of the write path, kept on purpose.
+
+### `xlsx` has two unpatched CVEs — not reachable, checked and recorded (2026-08-20)
+
+`npm audit` on the frontend flags `xlsx` (SheetJS, pinned at `0.18.5` —
+the last version the project published to the public npm registry) for a
+prototype-pollution issue and a ReDoS, both **high severity, no fix
+available**. Worth a real look rather than a blanket "known issue, ignored":
+both CVEs are in SheetJS's *parsing* path — malformed input reaching
+`XLSX.read`/`readFile` — and this app never calls either. The only use is
+`frontend/src/utils/exportDashboardExcel.js`, which only *writes*:
+`json_to_sheet` over data the dashboard already fetched from the server (so
+already scoped to the caller), `book_append_sheet`, `writeFile`. No upload
+ever reaches this library — the server's own `.xlsx` allow-list
+(`attachmentService.js:54`) is a MIME/extension check for storage, not a
+parse, and doesn't use this package at all.
+
+Left as-is. Swapping to a maintained library (`exceljs` is the usual
+alternative) would be justified the day this app parses a spreadsheet
+someone else produced — reading one is exactly the operation these CVEs are
+about — but doing that now would be dependency churn against a vulnerability
+this app's actual code path cannot trigger.
