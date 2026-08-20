@@ -36,8 +36,11 @@ services:
         sync: false
       - key: JWT_EXPIRES_IN
         value: 2h
+      # dms-demo was also taken, so the live frontend landed at
+      # dms-demo-kw69 — same trap as the API's own name above. This has to
+      # track whatever the frontend's actual URL turns out to be.
       - key: CORS_ORIGIN
-        value: https://dms-demo.onrender.com
+        value: https://dms-demo-kw69.onrender.com
       - key: ACADEMIC_YEAR
         value: "2567"
       # Aiven's connection details — sync: false means the dashboard, not
