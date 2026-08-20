@@ -4,6 +4,19 @@
  * open the form, which roles it lets them pick, and what it silently refuses
  * to submit before the server ever sees it (a หัวหน้าชมรม on a staff
  * account, an อาจารย์ที่ปรึกษา with no agency for กนศ.04).
+ *
+ * Fake timers throughout: the search box debounces through a real
+ * `setTimeout` (`RolesPage.js`), and without advancing it ourselves that
+ * 300ms fires whenever it likes relative to the test's own assertions —
+ * invisible from the outside (the tests still passed) but it was landing
+ * state updates outside of what Testing Library was watching, which is
+ * exactly what the "not wrapped in act(...)" warnings were. This closes it
+ * for the tests that only touch the grant/revoke reload; the three that also
+ * type into the search box still print some — Testing Library's `findBy*`
+ * auto-advances Jest's fake timers for its own polling, but not for every
+ * `setTimeout` this component schedules off of a keystroke, and chasing the
+ * exact sequencing further wasn't worth it for warnings with no effect on
+ * whether the tests pass.
  */
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -71,9 +84,20 @@ const show = (role) => {
   );
 };
 
+/** Every test drives the UI through this, so its `type`/`click` calls can
+ * advance the search box's real `setTimeout` debounce instead of racing it.
+ * Set up fresh each test, after the fake timers it depends on are active. */
+let user;
+
 beforeEach(() => {
+  jest.useFakeTimers();
   jest.clearAllMocks();
   mockSwalFire.mockResolvedValue({ isConfirmed: true });
+  user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 it('refuses a role with nothing to grant, before any request', async () => {
@@ -103,10 +127,10 @@ it('blocks granting หัวหน้าชมรม to a staff account before 
   });
   show('STUACT');
 
-  await userEvent.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
-  await userEvent.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
-  await userEvent.selectOptions(screen.getByLabelText('สิทธิ์'), 'SH');
-  await userEvent.selectOptions(screen.getByLabelText('ชมรม'), '28');
+  await user.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
+  await user.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
+  await user.selectOptions(screen.getByLabelText('สิทธิ์'), 'SH');
+  await user.selectOptions(screen.getByLabelText('ชมรม'), '28');
 
   expect(await screen.findByText(/หัวหน้าชมรมต้องเป็นบัญชีนักศึกษา/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'ให้สิทธิ์' })).toBeDisabled();
@@ -119,15 +143,15 @@ it('blocks granting อาจารย์ที่ปรึกษา with no age
   });
   show('STUACT');
 
-  await userEvent.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
-  await userEvent.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
-  await userEvent.selectOptions(screen.getByLabelText('สิทธิ์'), 'AD');
-  await userEvent.selectOptions(screen.getByLabelText('ชมรม'), '28');
+  await user.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
+  await user.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
+  await user.selectOptions(screen.getByLabelText('สิทธิ์'), 'AD');
+  await user.selectOptions(screen.getByLabelText('ชมรม'), '28');
 
   const submit = screen.getByRole('button', { name: 'ให้สิทธิ์' });
   expect(submit).toBeDisabled();
 
-  await userEvent.type(screen.getByLabelText('หน่วยงานต้นสังกัด'), 'กองกิจการนักศึกษา');
+  await user.type(screen.getByLabelText('หน่วยงานต้นสังกัด'), 'กองกิจการนักศึกษา');
   expect(submit).toBeEnabled();
 });
 
@@ -139,13 +163,13 @@ it('sends the confirmed grant with the right scope and a trimmed agency', async 
   });
   show('STUACT');
 
-  await userEvent.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
-  await userEvent.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
-  await userEvent.selectOptions(screen.getByLabelText('สิทธิ์'), 'AD');
-  await userEvent.selectOptions(screen.getByLabelText('ชมรม'), '28');
-  await userEvent.type(screen.getByLabelText('หน่วยงานต้นสังกัด'), '  กองกิจการนักศึกษา  ');
+  await user.type(await screen.findByPlaceholderText('อย่างน้อย 3 ตัวอักษร'), 'สมหญิง');
+  await user.click(await screen.findByText('สมหญิง ที่ปรึกษา'));
+  await user.selectOptions(screen.getByLabelText('สิทธิ์'), 'AD');
+  await user.selectOptions(screen.getByLabelText('ชมรม'), '28');
+  await user.type(screen.getByLabelText('หน่วยงานต้นสังกัด'), '  กองกิจการนักศึกษา  ');
 
-  await userEvent.click(screen.getByRole('button', { name: 'ให้สิทธิ์' }));
+  await user.click(screen.getByRole('button', { name: 'ให้สิทธิ์' }));
 
   await waitFor(() => expect(api.grantMembership).toHaveBeenCalledWith({
     personId: 9,
@@ -168,7 +192,7 @@ it('checks the impact before confirming a revoke, and only revokes on confirmati
   show('STUACT');
 
   const button = await screen.findByRole('button', { name: /ถอนสิทธิ์ หัวหน้านักศึกษา ของ สมชาย นักศึกษา/ });
-  await userEvent.click(button);
+  await user.click(button);
 
   await waitFor(() => expect(api.membershipImpact).toHaveBeenCalledWith(11));
   await waitFor(() => expect(api.revokeMembership).toHaveBeenCalledWith(11));
@@ -188,7 +212,7 @@ it('does not revoke when the confirmation is dismissed', async () => {
   show('STUACT');
 
   const button = await screen.findByRole('button', { name: /ถอนสิทธิ์ หัวหน้านักศึกษา ของ สมชาย นักศึกษา/ });
-  await userEvent.click(button);
+  await user.click(button);
 
   await waitFor(() => expect(api.membershipImpact).toHaveBeenCalled());
   expect(api.revokeMembership).not.toHaveBeenCalled();
