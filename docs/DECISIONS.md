@@ -1301,8 +1301,17 @@ would be irreversible and is a one-line migration whenever the answer arrives.
 
 The two items in "Open items" above that this work did not close remain open:
 the **academic year boundary** (June is still a guess, and now also a lockout
-risk) and, newly, whether a STUACT may appoint another STUACT. Everything else
-on the post-v1 list is built.
+risk) and **editing rights** (who may edit a project, and in which phases —
+still an assumption, not a confirmed rule; see "Editing rights — an
+assumption, not a port"). Everything else on the post-v1 list is built.
+
+<!-- Correction, 2026-08-21: this note previously also listed "whether a
+     STUACT may appoint another STUACT" as open. It was not — the owner
+     answered it earlier the same day this section was first written; see
+     "Decided in the work, and open to revision" above. Left as a comment
+     rather than silently dropped, since the point of this file is that a
+     decision can be looked up, and a wrong "still open" is exactly the
+     failure that leaves a reader re-asking a question already settled. -->
 
 ### Re-authenticating without leaving the page — open (2026-08-17)
 
