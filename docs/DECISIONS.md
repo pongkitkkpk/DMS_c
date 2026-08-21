@@ -1251,7 +1251,19 @@ DMS_REBUILD_STRATEGY.md → "Reading the forms" for the two possible fixes.
 
 </details>
 
-### Two more wrong literals in the government forms — open (2026-08-17)
+### Two more wrong literals in the government forms — closed (2026-08-21)
+
+**The owner confirmed both fixes.** `scripts/patch-form-literals.js` edited
+both templates: กนศ.04 §19's template-side "บาทถ้วน" is dropped, so
+`{thailistSAll}`'s own output (which already ends in "บาทถ้วน") is the only one
+printed; กนศ.06 §10 row 4 is relabelled from a repeat of row 3's
+"นักศึกษาเข้าร่วมโครงการ" to "ผู้ทรงคุณวุฒิ / วิทยากร", matching what that row's
+tags (`grandTotalExpert`) actually count. `check-phase4.js`'s template-hash
+assertions carry the new MD5s, and two new assertions pin the rendered text —
+`npm run check:phase4` and a `npm run forms:read` on a fully-filled project
+both confirm the fix.
+
+<details><summary>The finding as originally recorded</summary>
 
 Found by rendering a project filled to every printable capacity
 (`npm run forms:review`). Both are the same shape as the ประธานชมรม defect: the
@@ -1268,6 +1280,8 @@ is proved by the same document contradicting itself.
 
 Both are one-run template edits of the kind `scripts/patch-head-title.js`
 already performed, and both are the university's call. Not changed.
+
+</details>
 
 ### Deleting a project money has left — refused, and why not cascaded (2026-08-17)
 

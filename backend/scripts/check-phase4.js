@@ -331,19 +331,24 @@ const DELIBERATELY_ABSENT = {
 
   // ------------------------------------------------------------------
   // The templates are government forms and nothing should touch them by
-  // accident. They have been edited exactly once, deliberately, on 2026-08-16:
-  // `scripts/patch-head-title.js` replaced the signatory's baked-in title with
-  // a `{clubHeadTitle}` tag in all four signature blocks. The hashes below are
-  // the post-edit ones. If this check fails, find out what changed the file
-  // before updating the number — that is the entire point of it.
-  console.log('\n--- the templates are unchanged since the one authorised edit ---');
+  // accident. They have been edited twice, both deliberately:
+  // `scripts/patch-head-title.js` (2026-08-16) replaced the signatory's
+  // baked-in title with a `{clubHeadTitle}` tag in all four signature blocks,
+  // and `scripts/patch-form-literals.js` (2026-08-21, owner-confirmed)
+  // dropped กนศ.04 §19's doubled "บาทถ้วน" and relabelled กนศ.06 §10 row 4 from
+  // a repeat of row 3's "นักศึกษาเข้าร่วมโครงการ" to "ผู้ทรงคุณวุฒิ / วิทยากร",
+  // which is what that row's tags (`grandTotalExpert`) actually count. The
+  // hashes below are the post-edit ones. If this check fails, find out what
+  // changed the file before updating the number — that is the entire point
+  // of it.
+  console.log('\n--- the templates are unchanged since the two authorised edits ---');
   const crypto = require('crypto');
   const md5 = (f) => crypto.createHash('md5')
     .update(fs.readFileSync(path.resolve(__dirname, '../../templates', f))).digest('hex');
   ok('temp04.docx matches the patched original',
-    md5('temp04.docx') === '22b65cb2e9d57e3b744871f94e77b43a', md5('temp04.docx'));
+    md5('temp04.docx') === '5c7bf718580dbc5edd7811ac40735223', md5('temp04.docx'));
   ok('temp06.docx matches the patched original',
-    md5('temp06.docx') === 'dad95a0e6b7d47a6328fc1d184977878', md5('temp06.docx'));
+    md5('temp06.docx') === '7d699ae36ca9c07a071b83513474ae80', md5('temp06.docx'));
 
   // Why the edit was made: every organisation now gets the title its own kind
   // uses, instead of all 69 being called a ชมรม.
@@ -356,6 +361,16 @@ const DELIBERATELY_ABSENT = {
   ok('  …so the doubled word is gone', !signedText.includes('ชมรมชมรม'));
   ok('  …while the approval chain keeps its own real office-holders',
     signedText.includes('นายกองค์การนักศึกษา') && signedText.includes('ประธานสภานักศึกษา'));
+
+  // 2026-08-21, owner-confirmed. Both use `document`/`temp04Text`/`temp06Text`
+  // already rendered above — the fix is in the template on disk, so any
+  // render after `patch-form-literals.js` ran already reflects it.
+  ok('กนศ.04 §19: บาทถ้วน is not doubled',
+    temp04Text.includes('หนึ่งหมื่นเก้าพันสองร้อยบาทถ้วน)') &&
+    !temp04Text.includes('บาทถ้วน บาทถ้วน'));
+  ok('กนศ.06 §10 row 4 is labelled for what it counts, not row 3\'s label again',
+    temp06Text.includes('ผู้ทรงคุณวุฒิ / วิทยากร') &&
+    (temp06Text.match(/นักศึกษาเข้าร่วมโครงการ/g) || []).length === 1);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   await pool.end();

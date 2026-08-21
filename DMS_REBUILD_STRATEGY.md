@@ -7,7 +7,7 @@ screens, with one item deliberately not built (email — see Phase 6). **This is
 system**: the ICIT integration is out of scope by the owner's decision and `AUTH_PROVIDER=mock`
 is where it is meant to stop.
 **Supersedes**: the original `DMS_REBUILD_STRATEGY.md` (commit `b8c7d31`), whose five load-bearing premises were each contradicted by the code — see `docs/DECISIONS.md` → "Why the strategy doc is obsolete".
-**Last updated**: 2026-08-18
+**Last updated**: 2026-08-21
 
 ---
 
@@ -2125,3 +2125,28 @@ Fixed to allow only two shapes past the 10th character: nothing, or a literal
 `T` (the ISO datetime separator) — everything else is now a named 400 instead
 of a quiet truncation. Verified against the same probe values plus a real
 invalid calendar date, and reran `npm run check:all`: 483 passed, 0 failed.
+
+---
+
+## A verification pass that found nothing, and two literals that were finally
+## closed (2026-08-21)
+
+Two full passes — `npm run check:all` plus `npm run test:once`, then a live
+walk of the running app (STUACT's budget panel, the iPad row-click fix from
+2026-08-20 confirmed live, ListEditor add/reorder, the arity over-capacity
+banner, project create/edit/delete end to end) — found no regressions and no
+new defects. Worth recording precisely because it is a negative result: the
+last four sessions each found something a check suite could not, and this one
+did not, which is itself evidence the surface swept so far is solid rather
+than evidence nothing is left to find.
+
+**The two literals recorded as "open, the university's call" on 2026-08-17
+are closed.** Asked the owner directly; both fixes confirmed. §19's doubled
+บาทถ้วน and §10 row 4's borrowed "นักศึกษาเข้าร่วมโครงการ" label are exactly the
+same shape of defect as the ประธานชมรม fix — the wrong word is in the template,
+not in any value the assembler supplies — so the fix is the same shape too:
+`scripts/patch-form-literals.js`, run-indexed and asserted before writing,
+alongside `scripts/patch-head-title.js` rather than replacing it. See
+`docs/DECISIONS.md` → "Two more wrong literals in the government forms" for
+the full record and the confirmed rendered text. `check-phase4.js` carries the
+new template MD5s and two new assertions; **485 passed, 0 failed.**
