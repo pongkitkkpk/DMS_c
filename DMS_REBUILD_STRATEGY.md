@@ -2150,3 +2150,48 @@ alongside `scripts/patch-head-title.js` rather than replacing it. See
 `docs/DECISIONS.md` → "Two more wrong literals in the government forms" for
 the full record and the confirmed rendered text. `check-phase4.js` carries the
 new template MD5s and two new assertions; **485 passed, 0 failed.**
+
+---
+
+## Re-authenticating without leaving the page, built (2026-08-21)
+
+The other open item from "A session that ends while the tab is open"
+(2026-08-17) — closed the same day as the two template literals above, once
+the owner confirmed both were worth building rather than leaving parked.
+
+`ReauthDialog.js` listens for a new event, `REAUTH_NEEDED_EVENT`, that `api.js`
+now dispatches on a **write's** 401 — a sibling of the read path's
+`SESSION_LOST_EVENT`, which still clears the token and redirects exactly as
+before, because a failed read has nothing in it the user typed. A failed write
+does, so the token is left alone and a SweetAlert2 prompt offers to sign back
+in over the page instead: the username is locked to the session that just
+failed (never typed, so a colleague cannot finish someone else's draft under
+their own name), and once the password checks out the token is replaced and
+the dialog says to press the same button again — no request is auto-replayed,
+which would have meant guessing at exactly the class of request this feature
+exists to protect from a silent double-submit.
+
+**One thing only a live run found.** The first version opened its prompt
+immediately on the event, and immediately lost the race: the failing page's
+own `catch` block calls its own `Swal.fire({title: 'บันทึกไม่สำเร็จ', ...})` in
+the same tick, and SweetAlert2 holds exactly one instance — calling `fire`
+again doesn't queue, it replaces. Corrupting a real token mid-edit and
+clicking save (`sessionStorage['dms.token']`'s last eight characters, the same
+trick "A session that ends while the tab is open" used) showed only the
+page's own error, never the reauth prompt, no matter how long the wait
+between screenshots. The six unit tests that mock `Swal.fire` outright never
+would have caught it — there is only one instance to race against in reality,
+and the mock has none. Fixed by having the dialog wait for `Swal.isVisible()`
+to go false — a short poll, not a fixed delay — before opening, which is also
+the correct behaviour if the failing page's own alert takes a moment to
+render: the sequence is always "see the failure, dismiss it, get offered the
+fix," never a coin flip over which one the user sees.
+
+Verified live end to end after the fix: an edit form keeps everything typed
+through the failure, the reauth prompt appears once the failure alert is
+dismissed, naming the right person; a correct password replaces the token
+(confirmed via `sessionStorage`, not just the dialog's own success message);
+pressing save again this time reaches the server and the edit persists.
+
+Six tests in `ReauthDialog.test.js`, including a regression test for the race
+above. **149 frontend, 485 backend — 634 total.**

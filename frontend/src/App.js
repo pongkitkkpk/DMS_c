@@ -11,6 +11,7 @@ import { Button } from 'reactstrap';
 
 import { AuthProvider, useAuth } from './AuthContext';
 import { Avatar, Pill, Skeleton } from './components/ui';
+import ReauthDialog from './components/ReauthDialog';
 import LoginPage from './pages/LoginPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectPage from './pages/ProjectPage';
@@ -178,6 +179,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ReauthDialog />
         <AppBar />
         <main className="app-main">
           <Switch>

@@ -38,6 +38,16 @@ client.interceptors.request.use((config) => {
 export const SESSION_LOST_EVENT = 'dms:session-lost';
 
 /**
+ * What the app listens for when a *write* dies to an expired session, as
+ * opposed to a read (`SESSION_LOST_EVENT`, below). `ReauthDialog` is the
+ * listener — it offers to sign back in over the current page rather than
+ * sending the user through the login screen, which is the recovery path the
+ * project owner asked for on 2026-08-21 (previously recorded as an open
+ * question in DECISIONS.md → "Re-authenticating without leaving the page").
+ */
+export const REAUTH_NEEDED_EVENT = 'dms:reauth-needed';
+
+/**
  * A 401 is the server saying the token is no longer good — expired, or issued to
  * a person who has since been removed. It is not a page-level error, and the
  * screens were treating it as one: every page rendered
@@ -47,10 +57,6 @@ export const SESSION_LOST_EVENT = 'dms:session-lost';
  * than that: it kept its "กำลังโหลด…" skeleton, so an ended session looked like
  * a slow one, indefinitely.
  *
- * The token is dropped here rather than left for a page to notice, because it is
- * already known to be worthless and every later request would spend a round trip
- * proving it again.
- *
  * **`/auth/*` is exempt, and that is the whole subtlety.** `POST /auth/login`
  * answers 401 for a wrong password (`routes/auth.js` —
  * "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"). That 401 is a message for the form, from
@@ -58,29 +64,32 @@ export const SESSION_LOST_EVENT = 'dms:session-lost';
  * the state of whoever was signed in when a second person mistyped a password on
  * the same browser, and would swallow the message the form exists to show.
  *
- * **Reads only, and that is not arbitrary.** A GET that comes back 401 has
- * nothing in it the user typed, so leaving the page costs them nothing. A failed
- * *write* may be a project form with an hour of work in it, and navigating away
- * from it would destroy what is still on screen. Those keep the behaviour they
- * had — the action's own error dialog, the page left exactly as it was — so the
- * text can at least be copied out before the user leaves. The session is still
- * over, and the first read after it (any nav click, any reload) makes the trip
- * to the login screen; that is their choice to make rather than ours.
- *
- * What would actually save that work is re-authenticating *without* leaving the
- * page — a sign-in dialog over the form, keeping its state. It is a real feature
- * and it changes what a user of the system experiences, so it is written down
- * for the owner rather than decided here: DMS_REBUILD_STRATEGY.md → "A session
- * that ends while the tab is open".
+ * **Reads and writes now recover differently, and that is not arbitrary.** A GET
+ * that comes back 401 has nothing in it the user typed, so bouncing to the login
+ * screen costs them nothing — the token is dropped and `SESSION_LOST_EVENT`
+ * fires, same as before. A failed *write* may be a project form with an hour of
+ * work in it, and navigating away from it would destroy what is still on
+ * screen — so the token is left alone (it is still what `ReauthDialog` reads the
+ * signed-in person's identity from) and `REAUTH_NEEDED_EVENT` fires instead. The
+ * page's own error dialog for that failed request still runs exactly as before;
+ * the reauth dialog is a second, independent offer to fix the session sitting
+ * underneath it. Once the dialog replaces the token, the button that failed is
+ * there to be pressed again — no request is auto-replayed, because guessing at
+ * that risks a silent double-submission on the one class of request this whole
+ * feature exists to protect.
  */
 client.interceptors.response.use(undefined, (error) => {
   const status = error.response && error.response.status;
   const url = (error.config && error.config.url) || '';
   const method = ((error.config && error.config.method) || 'get').toLowerCase();
   const isRead = method === 'get' || method === 'head';
-  if (status === 401 && isRead && !url.startsWith('/auth/')) {
-    clearToken();
-    window.dispatchEvent(new Event(SESSION_LOST_EVENT));
+  if (status === 401 && !url.startsWith('/auth/')) {
+    if (isRead) {
+      clearToken();
+      window.dispatchEvent(new Event(SESSION_LOST_EVENT));
+    } else {
+      window.dispatchEvent(new Event(REAUTH_NEEDED_EVENT));
+    }
   }
   // Still a rejection: the caller's own `catch` has to run, or a page that was
   // loading waits forever for a promise nobody settles.

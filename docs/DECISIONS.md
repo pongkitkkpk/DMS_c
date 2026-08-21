@@ -1313,26 +1313,33 @@ assumption, not a port"). Everything else on the post-v1 list is built.
      decision can be looked up, and a wrong "still open" is exactly the
      failure that leaves a reader re-asking a question already settled. -->
 
-### Re-authenticating without leaving the page — open (2026-08-17)
+### Re-authenticating without leaving the page — closed (2026-08-21)
 
-Deviation 23 stops a 401 on a *read* from leaving the user on a dead screen, and
-deliberately leaves writes alone, because bouncing away from a half-filled
-project form would destroy what is on it. That means a session which expires
-while somebody is filling in กนศ.04 still costs them the form: they get the
-save dialog and the page intact, they can copy the text out, and the first thing
-they click afterwards takes them to the login screen.
+**Built, on the owner's confirmation.** `ReauthDialog.js` — a SweetAlert2
+prompt, the same library every other confirmation in this app already uses —
+listens for a write's 401 (`api.js` → `REAUTH_NEEDED_EVENT`, a sibling of the
+read path's `SESSION_LOST_EVENT`) and offers to sign back in without leaving
+the page. Both things it had to get right, below, and both verified live by
+corrupting a real token mid-edit and reproducing the recovery end to end.
 
-What would actually save the work is signing in **over** the page — a dialog
-that takes a username and password, replaces the token, and lets the pending
-save be retried with the form still mounted. Two things it would have to get
-right: the page stays visible behind a blocking dialog, and **the person who
-signs in must be the same person**, or a colleague finishes someone else's draft
-under their own name.
+- **The page stays visible behind the dialog.** The token is left alone on a
+  write's 401 (only a read's 401 still clears it and redirects), so the form's
+  own state is never touched, and the dialog waits for the page's own
+  "บันทึกไม่สำเร็จ" alert to close before opening — SweetAlert2 holds one
+  instance at a time, and opening on top of it would have replaced it, dropping
+  whichever one lost the race.
+- **The person who signs in must be the same person.** The username field is
+  locked to the session that failed and never typed — read from the token that
+  is about to be replaced, not asked for — so a colleague cannot finish
+  someone else's draft under their own name. `preConfirm` still checks the
+  returned identity matches, in case a future change ever makes the field
+  editable.
 
-Not built. It changes what a user of the system experiences rather than how the
-code reads, which is the line the owner drew on 2026-08-14 (see "How far Q2
-reaches"), so it is theirs to call. Nothing about the current behaviour is wrong
-— it is the pre-existing behaviour of the write path, kept on purpose.
+No request is auto-replayed after the token is fixed — the button that failed
+is there to be pressed again, which avoids guessing at a silent double-submit
+on exactly the class of request this feature exists to protect. Six tests in
+`ReauthDialog.test.js`, including the SweetAlert race above, which was found
+by testing this live rather than assumed to be safe.
 
 ### `xlsx` has two unpatched CVEs — not reachable, checked and recorded (2026-08-20)
 
