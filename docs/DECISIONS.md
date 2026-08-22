@@ -511,6 +511,14 @@ copy — the close-out text is the full statement of each and is not repeated:
 
 ## Open items
 
+- **E-signature — requested 2026-08-22, not started.** The owner wants approvals to carry a
+  signature rather than just a phase transition. Recommendation given but not yet acted on:
+  capture the signature as an image (a canvas signature-pad drawn in the browser, exported to
+  PNG) rather than a real cryptographic digital signature — a PKI-based scheme would be
+  overkill for a university-internal approval flow already running on mock auth. Store the
+  image alongside an audit trail on the approval record (user id, timestamp, IP), matching the
+  trust level the rest of the phase machine already relies on. Needs schema/flow design before
+  implementation starts.
 - **Academic year boundary — new, opened 2026-08-13 by the auth seam.** Roles are scoped by
   `membership.academic_year`, so resolving a role requires knowing which academic year "now"
   belongs to. The old system stored it per user (`users.yearly`) and initialised it to a
