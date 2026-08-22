@@ -20,6 +20,7 @@ const { requireAuth } = require('../middleware/requireAuth');
 const scope = require('../services/scope');
 const projects = require('../services/projectService');
 const budgetService = require('../services/budgetService');
+const signatures = require('../services/signatureService');
 const { availableTransitions, performTransition } = require('../services/phaseService');
 
 const router = express.Router();
@@ -110,7 +111,14 @@ router.get('/projects/:id/transitions', loadProject, asyncRoute(async (req, res)
 
 router.post('/projects/:id/transitions', loadProject, asyncRoute(async (req, res) => {
   const toPhaseCode = check.text({ max: 32, required: true })(req.body && req.body.toPhaseCode, 'toPhaseCode');
-  const result = await performTransition(req.actor, req.project, toPhaseCode.toUpperCase());
+  // Not run through `check.text` — it is base64, not something a length or
+  // byte-count limit meant for Thai prose should apply to. `signatureService`
+  // validates its shape (a real PNG, size-capped) before anything reaches disk.
+  const signatureImage = req.body && typeof req.body.signatureImage === 'string' ? req.body.signatureImage : null;
+  const result = await performTransition(req.actor, req.project, toPhaseCode.toUpperCase(), {
+    signatureImage,
+    ip: req.ip,
+  });
   res.json(result);
 }));
 
@@ -121,6 +129,35 @@ router.post('/projects/:id/transitions', loadProject, asyncRoute(async (req, res
  */
 router.get('/projects/:id/events', loadProject, asyncRoute(async (req, res) => {
   res.json({ events: await projects.loadEvents(req.project.id) });
+}));
+
+/**
+ * Signatures captured on this project's approvals (DECISIONS.md,
+ * "E-signature", closed 2026-08-22). Read-only for the same reason the event
+ * log is: a signature exists only as a side effect of `performTransition`.
+ */
+router.get('/projects/:id/signatures', loadProject, asyncRoute(async (req, res) => {
+  res.json({ signatures: await signatures.listForProject(req.project.id) });
+}));
+
+/**
+ * The PNG itself, inline. Unlike an attachment (deviation 40 — never rendered
+ * inline, because its content-type is a claim from whoever uploaded it), this
+ * file's bytes were verified to actually be a PNG before they were written to
+ * disk (`signatureService.decodeImage`), so there is no uploaded content this
+ * route could be tricked into serving as something that runs.
+ */
+router.get('/projects/:id/signatures/:signatureId', loadProject, asyncRoute(async (req, res) => {
+  const id = check.integer({ min: 1, required: true })(req.params.signatureId, 'signatureId');
+  const row = await signatures.find(req.project.id, id);
+  if (!row) throw HttpError.notFound('ไม่พบลายเซ็นนี้');
+  const buffer = await signatures.readImage(row);
+
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline; filename="signature.png"');
+  res.setHeader('Content-Length', buffer.length);
+  res.send(buffer);
 }));
 
 module.exports = router;

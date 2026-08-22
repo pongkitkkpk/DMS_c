@@ -22,6 +22,9 @@ const { ACADEMIC_YEAR: FIXTURE_ACADEMIC_YEAR } = require('../src/db/seeds/fixtur
 
 const BACKEND = path.resolve(__dirname, '..');
 const PHASES = [2, 3, 4, 5, 6];
+// Post-v1 suites — not numbered phases in DECISIONS.md, but the same shape of
+// acceptance run: black-box, against a fresh reseed, one script per feature.
+const EXTRA_SUITES = [{ label: 'signature', script: 'scripts/check-signature.js' }];
 const API = 'http://localhost:3001/api/health';
 
 function node(script, args = []) {
@@ -89,16 +92,39 @@ function node(script, args = []) {
 
     totalPass += passed;
     totalFail += Number.isNaN(failed) ? 1 : failed;
-    results.push({ phase, passed, failed, output, stderr: run.stderr });
+    results.push({ label: `phase ${phase}`, passed, failed, output, stderr: run.stderr });
 
     const verdict = run.status === 0 ? 'ok' : 'FAILED';
     console.log(`phase ${phase}  ${String(passed).padStart(3)} passed  ${String(Number.isNaN(failed) ? '?' : failed).padStart(3)} failed  ${verdict}`);
   }
 
-  // Only the failures get reprinted. A green run should be five lines long.
+  for (const suite of EXTRA_SUITES) {
+    const migrate = node('src/db/migrate.js', ['--fresh']);
+    const seed = node('src/db/seed.js');
+    if (migrate.status !== 0 || seed.status !== 0) {
+      console.error(`reseed failed before ${suite.label}:`);
+      console.error(migrate.stderr || seed.stderr);
+      process.exit(1);
+    }
+
+    const run = node(suite.script);
+    const output = run.stdout || '';
+    const tally = output.match(/^(\d+) passed, (\d+) failed$/m);
+    const passed = tally ? Number(tally[1]) : 0;
+    const failed = tally ? Number(tally[2]) : NaN;
+
+    totalPass += passed;
+    totalFail += Number.isNaN(failed) ? 1 : failed;
+    results.push({ label: suite.label, passed, failed, output, stderr: run.stderr });
+
+    const verdict = run.status === 0 ? 'ok' : 'FAILED';
+    console.log(`${suite.label}  ${String(passed).padStart(3)} passed  ${String(Number.isNaN(failed) ? '?' : failed).padStart(3)} failed  ${verdict}`);
+  }
+
+  // Only the failures get reprinted. A green run should be short.
   const broken = results.filter((r) => r.failed !== 0);
   for (const r of broken) {
-    console.log(`\n--- phase ${r.phase} ---`);
+    console.log(`\n--- ${r.label} ---`);
     const lines = (r.output.match(/^\s*FAIL\s+.*$/gm) || []);
     lines.forEach((line) => console.log(line));
     if (!lines.length) console.log(r.stderr.trim() || '(no FAIL lines; the run aborted)');

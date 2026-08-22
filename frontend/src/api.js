@@ -134,9 +134,21 @@ export const api = {
   spending: (params) => client.get('/spending', { params }).then((r) => r.data),
   listProjects: (params) => client.get('/projects', { params }).then((r) => r.data),
   getProject: (id) => client.get(`/projects/${id}`).then((r) => r.data),
-  transition: (id, toPhaseCode) =>
-    client.post(`/projects/${id}/transitions`, { toPhaseCode }).then((r) => r.data),
+  /**
+   * `signatureImage` is a `data:image/png;base64,...` string from
+   * `SignaturePad.captureSignature`, required exactly when the transition's
+   * own `requiresSignature` flag is true — the server refuses it otherwise.
+   */
+  transition: (id, toPhaseCode, signatureImage) =>
+    client.post(`/projects/${id}/transitions`, { toPhaseCode, signatureImage }).then((r) => r.data),
   events: (id) => client.get(`/projects/${id}/events`).then((r) => r.data),
+  // Signatures captured on this project's approvals. There is no static URL
+  // for the image, same rule as an attachment (Q21) — even though the bytes
+  // are server-verified PNG and safe to render inline, the route is still
+  // behind a bearer token, so the download is a fetch, not a bare `<img src>`.
+  signatures: (id) => client.get(`/projects/${id}/signatures`).then((r) => r.data),
+  downloadSignature: (id, signatureId) =>
+    client.get(`/projects/${id}/signatures/${signatureId}`, { responseType: 'blob' }),
   phases: () => client.get('/reference/phases').then((r) => r.data),
   tags: () => client.get('/reference/tags').then((r) => r.data),
   advisors: () => client.get('/reference/advisors').then((r) => r.data),

@@ -18,6 +18,8 @@ import { api, messageOf } from '../api';
 import AttachmentsCard from '../components/AttachmentsCard';
 import BudgetPanel from '../components/BudgetPanel';
 import DocumentsCard from '../components/DocumentsCard';
+import { captureSignature } from '../components/SignaturePad';
+import SignaturesCard from '../components/SignaturesCard';
 import { calendarDate, Card, dateTime, PhasePill, PhaseStepper, Skeleton } from '../components/ui';
 
 const SECTION_LABELS = {
@@ -184,12 +186,23 @@ export default function ProjectPage() {
     });
     if (!confirmed.isConfirmed) return;
 
+    // A second step, only for the transitions the server marked as needing
+    // one — ADMIN/STUACT approving money or closing a project (DECISIONS.md,
+    // "E-signature"). Cancelling the signature dialog cancels the whole
+    // action rather than sending the transition unsigned; the server would
+    // refuse it anyway, but failing here means nothing was ever sent.
+    let signatureImage = null;
+    if (transition.requiresSignature) {
+      signatureImage = await captureSignature(`เปลี่ยนสถานะเป็น “${transition.toPhaseNameTh}”`);
+      if (!signatureImage) return;
+    }
+
     setBusy(true);
     try {
       // Success is announced only after the server answers. The old screen
       // fired four unawaited calls and showed "สำเร็จ!" immediately, so a
       // failed phase write was reported as a success (business-rules.md).
-      const result = await api.transition(id, transition.toPhaseCode);
+      const result = await api.transition(id, transition.toPhaseCode, signatureImage);
       // Anything the transition did not block is still worth saying, and this
       // is the moment to say it — Q26 warns on submit so the problem is visible
       // for the whole of the phase in which it can still be fixed.
@@ -300,6 +313,9 @@ export default function ProjectPage() {
             {available.some((t) => t.requiresBudgetCheck) && (
               <span className="u-small u-dim">ขั้นตอนนี้มีการตรวจสอบงบประมาณ</span>
             )}
+            {available.some((t) => t.requiresSignature) && (
+              <span className="u-small u-dim">ขั้นตอนนี้ต้องเซ็นชื่ออนุมัติ</span>
+            )}
             {permissions.delete && (
               <Button className="u-spacer" size="sm" outline color="danger" onClick={remove}>
                 ลบโครงการ
@@ -363,6 +379,8 @@ export default function ProjectPage() {
         <div className="col-lg-5">
           <div className="u-stack">
             <DocumentsCard projectId={id} key={project.phase.code} />
+
+            <SignaturesCard projectId={id} key={`sig-${project.phase.code}`} />
 
             <AttachmentsCard projectId={id} onChanged={reloadEvents} />
 

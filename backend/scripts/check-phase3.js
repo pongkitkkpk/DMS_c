@@ -76,8 +76,21 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
     return id;
   }
 
+  // Migration 006 (check-signature.js) put a signature requirement on
+  // BUDGET_APPROVED, REPORT_SUBMITTED and CLOSED. This suite is testing the
+  // three money limits, not the signature, so `advance` always carries one for
+  // those codes — including the calls this file expects to be refused for a
+  // *budget* reason (`blockedB` below), because omitting it would refuse them
+  // for the wrong reason (400, no signature) before the limit under test ever
+  // runs.
+  const VALID_PNG = 'data:image/png;base64,' +
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const SIGNATURE_GATED = new Set(['BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
   const advance = (token, id, toPhaseCode) =>
-    call('POST', `/api/projects/${id}/transitions`, { token, body: { toPhaseCode } });
+    call('POST', `/api/projects/${id}/transitions`, {
+      token,
+      body: { toPhaseCode, ...(SIGNATURE_GATED.has(toPhaseCode) ? { signatureImage: VALID_PNG } : {}) },
+    });
 
   // ------------------------------------------------------------------
   console.log('\n--- derived totals: nothing summable is stored ---');

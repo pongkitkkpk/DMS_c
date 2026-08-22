@@ -33,6 +33,7 @@ jest.mock('../api', () => ({
 jest.mock('../components/AttachmentsCard', () => () => <div data-testid="attachments" />);
 jest.mock('../components/DocumentsCard', () => () => <div data-testid="documents" />);
 jest.mock('../components/BudgetPanel', () => () => <div data-testid="budget" />);
+jest.mock('../components/SignaturesCard', () => () => <div data-testid="signatures" />);
 
 const mockSwalFire = jest.fn();
 jest.mock('sweetalert2', () => ({

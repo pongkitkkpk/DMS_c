@@ -346,14 +346,20 @@ async function lockClubForNumbering(conn, clubId) {
   if (!rows.length) throw HttpError.badRequest('ไม่พบชมรม');
 }
 
-/** Append to the log. Always called with the same connection as the change it describes. */
+/**
+ * Append to the log. Always called with the same connection as the change it
+ * describes. Returns the new row's id — `signatureService` hangs a signature
+ * off a `PHASE_CHANGED` event by this id, since the event is what is being
+ * signed for, not the project in general.
+ */
 async function recordEvent(conn, { projectId, type, actorPersonId, fromPhaseId = null, toPhaseId = null, section = null, detail = null }) {
-  await conn.query(
+  const [result] = await conn.query(
     `INSERT INTO project_event
        (project_id, event_type, from_phase_id, to_phase_id, edited_section, actor_person_id, detail)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [projectId, type, fromPhaseId, toPhaseId, section, actorPersonId, detail ? JSON.stringify(detail) : null]
   );
+  return result.insertId;
 }
 
 /**

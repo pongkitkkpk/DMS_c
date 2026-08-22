@@ -511,14 +511,8 @@ copy — the close-out text is the full statement of each and is not repeated:
 
 ## Open items
 
-- **E-signature — requested 2026-08-22, not started.** The owner wants approvals to carry a
-  signature rather than just a phase transition. Recommendation given but not yet acted on:
-  capture the signature as an image (a canvas signature-pad drawn in the browser, exported to
-  PNG) rather than a real cryptographic digital signature — a PKI-based scheme would be
-  overkill for a university-internal approval flow already running on mock auth. Store the
-  image alongside an audit trail on the approval record (user id, timestamp, IP), matching the
-  trust level the rest of the phase machine already relies on. Needs schema/flow design before
-  implementation starts.
+- ~~**E-signature — requested 2026-08-22, not started.**~~ **Closed the same day** — see
+  "E-signature on an approval transition — closed (2026-08-22)" under Post-v1 work.
 - **Academic year boundary — new, opened 2026-08-13 by the auth seam.** Roles are scoped by
   `membership.academic_year`, so resolving a role requires knowing which academic year "now"
   belongs to. The old system stored it per user (`users.yearly`) and initialised it to a
@@ -1369,3 +1363,84 @@ alternative) would be justified the day this app parses a spreadsheet
 someone else produced — reading one is exactly the operation these CVEs are
 about — but doing that now would be dependency churn against a vulnerability
 this app's actual code path cannot trigger.
+
+### E-signature on an approval transition — closed (2026-08-22)
+
+**Built, on the owner's confirmation.** The owner asked for approvals to carry a
+signature rather than just a phase transition, restricted to ADMIN and STUACT.
+Three questions had to be settled before writing any code, and the owner's
+answers below are what the implementation follows:
+
+- **Which transitions ask for one.** Bound to the transitions already gated to
+  ADMIN/STUACT *alone* — `PROJECT_APPROVED -> BUDGET_APPROVED`,
+  `DRAFT_REPORT -> REPORT_SUBMITTED`, `REPORT_SUBMITTED -> CLOSED`.
+  `PROPOSAL_SUBMITTED -> PROJECT_APPROVED` is also open to AD (Q5), so it is
+  deliberately excluded — the same button would otherwise ask for a signature
+  only on the days an ADMIN or STUACT happened to be the one clicking it, a
+  rule nobody could explain by looking at the screen. This also means
+  restricting *signing* to ADMIN/STUACT needed no separate check: it falls out
+  of restricting those three transitions to them, the same gate
+  `phase_transition.allowed_role` already enforces.
+- **Not printed on the government forms yet.** Kept in the system first — an
+  audit trail (who, in which role, when, from where) surfaced on the project
+  page — with printing it onto กนศ.04/06 left for later. Revisiting that is a
+  template change and a decision about where on either form it would go, not
+  something to fold into the same piece of work.
+- **A canvas drawing, not a cryptographic signature.** A PKI-based scheme would
+  be overkill for a university-internal approval flow that does not have real
+  ICIT authentication behind it yet (Q3) — this runs at the same trust level as
+  the rest of the phase machine already does (mock auth, an append-only event
+  log as the record of who did what).
+
+**Shape of the implementation**, migration 006 and `signatureService.js`:
+
+- `phase_transition.requires_signature` is a column of the same shape as
+  `requires_budget_check` — a property of the transition, seeded once
+  (`db/seeds/reference.js`), read by `phaseService.performTransition` the same
+  way the budget flag already is.
+- `project_signature` carries one row per signed `project_event` — unique on
+  `project_event_id`, because the event (a specific `PHASE_CHANGED`) is the
+  thing being signed for, not the project in general. A project that passes
+  through all three gated transitions ends up with three signatures, each
+  against a different approval.
+- The image is written to disk the same way an attachment is (Q21): a relative
+  path under `UPLOAD_ROOT`, reachable only through an authorized,
+  scope-checked route, never a static mount. Unlike an attachment, whose
+  content-type is a client's claim and is therefore never trusted for inline
+  rendering (deviation 40), this file's bytes are checked against the real PNG
+  magic number before they are ever written — so serving it back inline is
+  safe precisely because nothing unverified could have reached that path.
+- **The disk write happens before the transition's own database transaction,
+  not inside it.** `db/pool.js`'s `transaction()` documents its retry loop as
+  "pure database work... safe to re-run from the top"; writing a file inside
+  it would mean a retried attempt could write the image twice under two
+  different generated names. The bytes are written first and unlinked again if
+  the transaction that was supposed to reference them never commits — the same
+  order `attachmentService.add` already uses, for the same reason.
+- The frontend captures the drawing as a SweetAlert2 prompt holding a canvas
+  (`components/SignaturePad.js`), the same library every other confirmation in
+  this app already uses, so approving a project with a required signature is
+  "confirm, then sign" rather than a new kind of dialog. `SignaturesCard.js`
+  shows what has been recorded, fetching each thumbnail the same authorized
+  way `AttachmentsCard` fetches a download rather than through a static URL.
+
+Verified with `npm run check:signature` against a live server (21 assertions,
+all passing) — asserts which of the four ADMIN/STUACT/AD-shared transitions
+asks for a signature and which does not, that a missing or non-PNG image is
+refused before anything is written, that a refused attempt leaves no row
+behind, that a valid signature both advances the phase and is retrievable as
+real PNG bytes afterward, and that the signatures list follows the same
+out-of-scope-is-404 rule as everything else on a project (Q16 / deviation 15).
+
+**`npm run check:all` caught a real regression the first time it ran.**
+`check-phase2.js`, `check-phase3.js` and `check-phase5.js` each walk a project
+through all seven phases, and none of them knew a signature now had to travel
+with the `BUDGET_APPROVED`/`REPORT_SUBMITTED`/`CLOSED` calls — so all three
+started failing the moment migration 006 landed, `check-phase3.js` worst of
+all: `blockedB`, the assertion that a report over its approved amount is
+refused at layer (b), started failing for the wrong reason (400, no signature)
+before the budget check it exists to test ever ran. Fixed by having each
+suite's `advance()` helper attach a fixed valid PNG whenever the target code is
+one of the three — including on calls a test expects to be *refused*, since
+the refusal those tests are checking for is a budget one, not a missing
+signature. `check:all` is 506 assertions, all passing, after the fix.

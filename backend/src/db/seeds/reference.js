@@ -29,14 +29,20 @@ const PHASES = [
  *
  * Q26 hard-blocks the budget check on entry to PROJECT_APPROVED,
  * BUDGET_APPROVED and REPORT_SUBMITTED.
+ *
+ * `signature` (migration 006): only the three transitions gated to ADMIN and
+ * STUACT *alone* carry it. PROJECT_APPROVED is reachable from
+ * PROPOSAL_SUBMITTED by AD as well, so it is deliberately excluded — see the
+ * migration's own comment for why a shared button cannot ask for a signature
+ * only sometimes.
  */
 const TRANSITIONS = [
-  { from: 'DRAFT_PROPOSAL',     to: 'PROPOSAL_SUBMITTED', roles: ['SH'],                    budget: false },
-  { from: 'PROPOSAL_SUBMITTED', to: 'PROJECT_APPROVED',   roles: ['ADMIN', 'AD', 'STUACT'], budget: true  },
-  { from: 'PROJECT_APPROVED',   to: 'BUDGET_APPROVED',    roles: ['ADMIN', 'STUACT'],       budget: true  },
-  { from: 'BUDGET_APPROVED',    to: 'DRAFT_REPORT',       roles: ['SH'],                    budget: false },
-  { from: 'DRAFT_REPORT',       to: 'REPORT_SUBMITTED',   roles: ['ADMIN', 'STUACT'],       budget: true  },
-  { from: 'REPORT_SUBMITTED',   to: 'CLOSED',             roles: ['ADMIN', 'STUACT'],       budget: false },
+  { from: 'DRAFT_PROPOSAL',     to: 'PROPOSAL_SUBMITTED', roles: ['SH'],                    budget: false, signature: false },
+  { from: 'PROPOSAL_SUBMITTED', to: 'PROJECT_APPROVED',   roles: ['ADMIN', 'AD', 'STUACT'], budget: true,  signature: false },
+  { from: 'PROJECT_APPROVED',   to: 'BUDGET_APPROVED',    roles: ['ADMIN', 'STUACT'],       budget: true,  signature: true  },
+  { from: 'BUDGET_APPROVED',    to: 'DRAFT_REPORT',       roles: ['SH'],                    budget: false, signature: false },
+  { from: 'DRAFT_REPORT',       to: 'REPORT_SUBMITTED',   roles: ['ADMIN', 'STUACT'],       budget: true,  signature: true  },
+  { from: 'REPORT_SUBMITTED',   to: 'CLOSED',             roles: ['ADMIN', 'STUACT'],       budget: false, signature: true  },
 ];
 
 // The 8 vocabularies behind the 56 is_* columns. `prefix` is how a variable name
@@ -92,8 +98,8 @@ async function seedReference(conn, log) {
   for (const t of TRANSITIONS) {
     for (const role of t.roles) {
       await conn.query(
-        'INSERT INTO `phase_transition` (`from_phase_id`,`to_phase_id`,`allowed_role`,`requires_budget_check`) VALUES (?,?,?,?)',
-        [phaseId[t.from], phaseId[t.to], role, t.budget ? 1 : 0]
+        'INSERT INTO `phase_transition` (`from_phase_id`,`to_phase_id`,`allowed_role`,`requires_budget_check`,`requires_signature`) VALUES (?,?,?,?,?)',
+        [phaseId[t.from], phaseId[t.to], role, t.budget ? 1 : 0, t.signature ? 1 : 0]
       );
       transitionRows += 1;
     }

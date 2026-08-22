@@ -19,6 +19,7 @@
     "templates:tags": "node scripts/extract-template-tags.js",
     "check:phase5": "node scripts/check-phase5.js",
     "check:phase6": "node scripts/check-phase6.js",
+    "check:signature": "node scripts/check-signature.js",
     "check:all": "node scripts/check-all.js"
   },
   "dependencies": {

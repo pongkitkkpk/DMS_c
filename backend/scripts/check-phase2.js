@@ -20,6 +20,13 @@
 const B = 'http://localhost:3001';
 let pass = 0, fail = 0;
 
+// Migration 006 (check-signature.js) added a signature requirement to three
+// gates. Not this suite's concern — it is testing the machine, not the
+// signature — so the walk just supplies one wherever it is asked for.
+const VALID_PNG = 'data:image/png;base64,' +
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const SIGNATURE_GATED = new Set(['BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
+
 function ok(label, condition, extra = '') {
   if (condition) { pass++; console.log(`  PASS  ${label}`); }
   else { fail++; console.log(`  FAIL  ${label}  ${extra}`); }
@@ -196,7 +203,10 @@ async function login(username) {
         body: { items: [{ category: 'C', description: 'ค่าวัสดุ', qty1: '1', unit1: 'ชุด', unitPrice: '4800' }] },
       });
     }
-    const r = await call('POST', `/api/projects/${id}/transitions`, { token, body: { toPhaseCode: code } });
+    const r = await call('POST', `/api/projects/${id}/transitions`, {
+      token,
+      body: { toPhaseCode: code, ...(SIGNATURE_GATED.has(code) ? { signatureImage: VALID_PNG } : {}) },
+    });
     ok(`${who} advances to ${code}`, r.status === 200, r.text.slice(0, 200));
     if (code === 'PROJECT_APPROVED') numberAtApproval = r.body.projectNumber;
   }

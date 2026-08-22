@@ -27,6 +27,12 @@ jest.mock('../api', () => ({
 jest.mock('../components/AttachmentsCard', () => () => <div data-testid="attachments" />);
 jest.mock('../components/DocumentsCard', () => () => <div data-testid="documents" />);
 jest.mock('../components/BudgetPanel', () => () => <div data-testid="budget" />);
+jest.mock('../components/SignaturesCard', () => () => <div data-testid="signatures" />);
+
+const mockCaptureSignature = jest.fn();
+jest.mock('../components/SignaturePad', () => ({
+  captureSignature: (...args) => mockCaptureSignature(...args),
+}));
 
 const mockHistoryPush = jest.fn();
 jest.mock('react-router-dom', () => ({
@@ -127,7 +133,7 @@ it('advances only after confirming, and reports the new project number', async (
 
   await userEvent.click(await screen.findByText('เปลี่ยนเป็น “รออาจารย์” →', { exact: false }));
 
-  await waitFor(() => expect(api.transition).toHaveBeenCalledWith('1', 'PENDING_ADVISOR'));
+  await waitFor(() => expect(api.transition).toHaveBeenCalledWith('1', 'PENDING_ADVISOR', null));
   const successCall = mockSwalFire.mock.calls.find(([opts]) => opts.icon === 'success');
   expect(successCall[0].text).toContain('A201-2567-001');
 });
@@ -162,6 +168,64 @@ it('flags a transition that carries a budget check, before it is even clicked', 
   show();
 
   expect(await screen.findByText('ขั้นตอนนี้มีการตรวจสอบงบประมาณ')).toBeInTheDocument();
+});
+
+it('asks for a signature before advancing a transition that requires one', async () => {
+  api.getProject.mockResolvedValue({
+    ...baseProject,
+    transitions: [{ toPhaseCode: 'BUDGET_APPROVED', toPhaseNameTh: 'เงินโครงการอนุมัติ', allowedForCaller: true, requiresBudgetCheck: true, requiresSignature: true, allowedRoles: ['STUACT'] }],
+  });
+  mockSwalFire.mockResolvedValue({ isConfirmed: true });
+  mockCaptureSignature.mockResolvedValue('data:image/png;base64,AAAA');
+  api.transition.mockResolvedValue({ toPhase: { nameTh: 'เงินโครงการอนุมัติ' }, projectNumber: null, budgetWarnings: [] });
+  show();
+
+  await userEvent.click(await screen.findByText('เปลี่ยนเป็น “เงินโครงการอนุมัติ” →', { exact: false }));
+
+  await waitFor(() => expect(mockCaptureSignature).toHaveBeenCalledWith('เปลี่ยนสถานะเป็น “เงินโครงการอนุมัติ”'));
+  await waitFor(() =>
+    expect(api.transition).toHaveBeenCalledWith('1', 'BUDGET_APPROVED', 'data:image/png;base64,AAAA')
+  );
+});
+
+it('sends nothing to the server when the signature dialog is cancelled', async () => {
+  api.getProject.mockResolvedValue({
+    ...baseProject,
+    transitions: [{ toPhaseCode: 'BUDGET_APPROVED', toPhaseNameTh: 'เงินโครงการอนุมัติ', allowedForCaller: true, requiresBudgetCheck: true, requiresSignature: true, allowedRoles: ['STUACT'] }],
+  });
+  mockSwalFire.mockResolvedValue({ isConfirmed: true });
+  mockCaptureSignature.mockResolvedValue(null);
+  show();
+
+  await userEvent.click(await screen.findByText('เปลี่ยนเป็น “เงินโครงการอนุมัติ” →', { exact: false }));
+
+  await waitFor(() => expect(mockCaptureSignature).toHaveBeenCalled());
+  expect(api.transition).not.toHaveBeenCalled();
+});
+
+it('never opens the signature pad for a transition that does not require one', async () => {
+  api.getProject.mockResolvedValue({
+    ...baseProject,
+    transitions: [{ toPhaseCode: 'PENDING_ADVISOR', toPhaseNameTh: 'รออาจารย์', allowedForCaller: true, requiresBudgetCheck: false, requiresSignature: false, allowedRoles: ['SH'] }],
+  });
+  mockSwalFire.mockResolvedValue({ isConfirmed: true });
+  api.transition.mockResolvedValue({ toPhase: { nameTh: 'รออาจารย์' }, projectNumber: null, budgetWarnings: [] });
+  show();
+
+  await userEvent.click(await screen.findByText('เปลี่ยนเป็น “รออาจารย์” →', { exact: false }));
+
+  await waitFor(() => expect(api.transition).toHaveBeenCalledWith('1', 'PENDING_ADVISOR', null));
+  expect(mockCaptureSignature).not.toHaveBeenCalled();
+});
+
+it('flags a transition that requires a signature, before it is even clicked', async () => {
+  api.getProject.mockResolvedValue({
+    ...baseProject,
+    transitions: [{ toPhaseCode: 'BUDGET_APPROVED', toPhaseNameTh: 'เงินโครงการอนุมัติ', allowedForCaller: true, requiresBudgetCheck: true, requiresSignature: true, allowedRoles: ['STUACT'] }],
+  });
+  show();
+
+  expect(await screen.findByText('ขั้นตอนนี้ต้องเซ็นชื่ออนุมัติ')).toBeInTheDocument();
 });
 
 it('offers edit only when the server granted it', async () => {
