@@ -50,14 +50,104 @@ const DATA_URL_PREFIX = 'data:image/png;base64,';
 const MAX_BYTES = 300 * 1024;
 
 /**
- * Decode a `data:image/png;base64,...` string into real PNG bytes.
+ * The pad itself draws a 380x160 canvas (`SignaturePad.js`); this is headroom
+ * for a HiDPI export, not a real limit on what one produces. It exists to
+ * bound what the *dimensions themselves* can claim, independent of the
+ * MAX_BYTES check above — a PNG's declared width/height can be enormous while
+ * the file that declares them stays tiny (a single flat colour compresses to
+ * almost nothing), so a byte-size cap alone does not stop one. Whatever reads
+ * `IHDR` and decodes the image — a browser rendering `SignaturesCard.js`'s
+ * `<img>`, or any future tool this file's bytes reach — would be handed
+ * however many pixels are declared here, which is the "decompression bomb"
+ * shape of attack against an image pipeline.
+ */
+const MAX_DIMENSION = 4000;
+
+/**
+ * Walk a PNG's chunk stream (length, type, data, CRC — repeated) starting
+ * right after the 8-byte signature already verified by the caller. Returns
+ * every chunk found and the byte offset immediately after the last one
+ * walked, which is `IEND`'s end if the file is well-formed.
  *
- * The magic-byte check is what makes serving this back inline safe later
- * (`routes/projects.js`): unlike an uploaded attachment, whose content-type is
- * a claim from the client and is never trusted for inline rendering
- * (deviation 40), this file's bytes are verified here to actually be a PNG
- * before anything is written to disk — there is no path by which arbitrary
- * client content reaches this store.
+ * Every offset is checked against `buffer.length` before it is read, so a
+ * chunk whose declared length runs past the end of the buffer is refused here
+ * rather than read out of bounds — `Buffer` would not overrun memory either
+ * way, but a length that lies is exactly the kind of value this function
+ * exists to stop from being trusted further down.
+ */
+function readChunks(buffer) {
+  const chunks = [];
+  let offset = 8;
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+    const chunkEnd = dataEnd + 4;   // + CRC
+    if (chunkEnd > buffer.length) {
+      throw HttpError.badRequest('ลายเซ็น: โครงสร้างไฟล์ PNG ไม่สมบูรณ์');
+    }
+    chunks.push({ type, dataStart, dataEnd });
+    offset = chunkEnd;
+    if (type === 'IEND') break;
+  }
+  return { chunks, consumed: offset };
+}
+
+/**
+ * Confirm the bytes are a real, single, self-contained PNG — not merely
+ * something that starts with the right eight bytes.
+ *
+ * Three things the magic-byte check alone does not catch, each closed here:
+ *
+ * 1. **A declared size with no matching data.** The first chunk must be
+ *    `IHDR`, exactly 13 bytes, and its width/height must fit within
+ *    `MAX_DIMENSION` — see that constant for why a byte-size cap does not
+ *    already cover this.
+ * 2. **No terminator, or data after one.** The last chunk walked must be
+ *    `IEND`, and nothing may follow it. A client could otherwise append
+ *    arbitrary bytes after a valid, small PNG and stay under `MAX_BYTES` —
+ *    this file would still open as a PNG in anything that stops at `IEND`
+ *    (every real decoder does) while also being a container for whatever was
+ *    appended, which is the shape of a polyglot file. `nosniff` on the
+ *    download route already stops a browser from executing that tail as
+ *    something else; refusing it here means the stored bytes are never
+ *    anything but a PNG in the first place.
+ * 3. **Nothing to check at all** — an empty or truncated chunk stream, which
+ *    `readChunks` already refuses by construction.
+ */
+function assertWellFormedPng(buffer) {
+  const { chunks, consumed } = readChunks(buffer);
+
+  const ihdr = chunks[0];
+  if (!ihdr || ihdr.type !== 'IHDR' || ihdr.dataEnd - ihdr.dataStart !== 13) {
+    throw HttpError.badRequest('ลายเซ็น: ไม่พบส่วนหัว IHDR ของ PNG ที่ถูกต้อง');
+  }
+  const width = buffer.readUInt32BE(ihdr.dataStart);
+  const height = buffer.readUInt32BE(ihdr.dataStart + 4);
+  if (!width || !height || width > MAX_DIMENSION || height > MAX_DIMENSION) {
+    throw HttpError.badRequest(`ลายเซ็น: ขนาดภาพต้องไม่เกิน ${MAX_DIMENSION}x${MAX_DIMENSION} พิกเซล`);
+  }
+
+  const last = chunks[chunks.length - 1];
+  if (!last || last.type !== 'IEND') {
+    throw HttpError.badRequest('ลายเซ็น: ไม่พบส่วนท้าย IEND ของ PNG');
+  }
+  if (consumed !== buffer.length) {
+    throw HttpError.badRequest('ลายเซ็น: มีข้อมูลเกินต่อท้ายไฟล์ PNG');
+  }
+}
+
+/**
+ * Decode a `data:image/png;base64,...` string into real, well-formed PNG
+ * bytes.
+ *
+ * What this makes safe to do later (`routes/projects.js`) is serve the file
+ * back inline: unlike an uploaded attachment, whose content-type is a claim
+ * from the client and is never trusted for inline rendering (deviation 40),
+ * this file's bytes are verified here — magic number, structure, and declared
+ * dimensions — before anything is written to disk. There is no path by which
+ * arbitrary or malformed client content reaches this store.
  */
 function decodeImage(dataUrl) {
   if (typeof dataUrl !== 'string' || !dataUrl.startsWith(DATA_URL_PREFIX)) {
@@ -72,6 +162,7 @@ function decodeImage(dataUrl) {
   if (buffer.length > MAX_BYTES) {
     throw HttpError.badRequest(`ลายเซ็น: ไฟล์ใหญ่เกินไป (จำกัด ${Math.round(MAX_BYTES / 1024)} KB)`);
   }
+  assertWellFormedPng(buffer);
   return buffer;
 }
 

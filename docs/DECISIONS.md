@@ -1444,3 +1444,35 @@ suite's `advance()` helper attach a fixed valid PNG whenever the target code is
 one of the three — including on calls a test expects to be *refused*, since
 the refusal those tests are checking for is a budget one, not a missing
 signature. `check:all` is 506 assertions, all passing, after the fix.
+
+**Hardened the same day, on request: the magic-byte check alone was not
+enough.** `decodeImage` accepted anything starting with the eight-byte PNG
+signature, which leaves two gaps a byte-size cap does not close:
+
+1. **A declared size with no matching data.** A PNG's `IHDR` chunk states its
+   own width and height, and a file that is mostly one flat colour compresses
+   to almost nothing regardless of what it claims — so `MAX_BYTES` (300 KB)
+   does nothing to stop a tiny file from declaring a 50,000 x 50,000 image.
+   Whatever eventually decodes it — a browser rendering the `<img>` in
+   `SignaturesCard.js`, or any future tool this file's bytes reach — would be
+   handed however many pixels are declared, which is the "decompression
+   bomb" shape of attack against an image pipeline.
+2. **A polyglot.** Every real PNG decoder stops at the `IEND` chunk, so a
+   client could append arbitrary bytes after a small, valid PNG and stay
+   under the size cap; the file would still open as the same image everywhere
+   while also carrying a second payload nothing was ever meant to look at.
+   `X-Content-Type-Options: nosniff` on the download route already stops a
+   browser from executing that tail as something else, but the stored bytes
+   were not, before this, *only* ever a PNG.
+
+`signatureService.assertWellFormedPng` closes both without a new dependency —
+a hand-rolled chunk walker (length, type, data, CRC, repeated) in the same
+style as this file's other validators, matching the codebase's standing
+preference for validators it owns over pulling in an image-parsing library for
+a check this narrow. It requires the first chunk to be a 13-byte `IHDR` with
+both dimensions within `MAX_DIMENSION` (4000px — the pad itself draws
+380x160), and the last chunk walked to be `IEND` with nothing left over in the
+buffer after it. Two new assertions in `check-signature.js` reproduce both
+attacks against a live server — an oversized-`IHDR` PNG and a valid PNG with
+`<script>...</script>` appended — and confirm each is refused with a 400
+naming the reason. `check:all` is 508 assertions, all passing.

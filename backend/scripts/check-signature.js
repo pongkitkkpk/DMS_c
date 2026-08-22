@@ -55,6 +55,36 @@ const VALID_PNG = 'data:image/png;base64,' +
 /** Real bytes, but not a PNG — the magic-byte check should refuse this. */
 const NOT_A_PNG = 'data:image/png;base64,' + Buffer.from('this is not an image').toString('base64');
 
+/**
+ * The same 1x1 PNG, with its `IHDR` width/height overwritten to declare a
+ * 50,000 x 50,000 image — a file this small could never actually hold that
+ * many pixels, which is exactly the "declared size with no matching data"
+ * shape `assertWellFormedPng` exists to refuse. The CRC that follows is now
+ * wrong for the new IHDR bytes, but nothing here checks CRCs — only the
+ * declared dimensions — so this is a precise test of that one guard.
+ */
+const OVERSIZED_PNG = (() => {
+  const bytes = Buffer.from(VALID_PNG.slice('data:image/png;base64,'.length), 'base64');
+  const huge = Buffer.from(bytes); // copy — do not mutate the shared constant
+  huge.writeUInt32BE(50000, 16);   // IHDR width
+  huge.writeUInt32BE(50000, 20);   // IHDR height
+  return 'data:image/png;base64,' + huge.toString('base64');
+})();
+
+/**
+ * The same 1x1 PNG with extra bytes appended after its `IEND` chunk — a
+ * polyglot shape: every real PNG decoder stops at `IEND`, so this still opens
+ * as the same 1x1 image everywhere, while also carrying arbitrary bytes a
+ * decoder never looks at. `assertWellFormedPng` refuses anything left over
+ * after the chunk stream it walked, so this should be rejected the same way
+ * a non-PNG is.
+ */
+const TRAILING_GARBAGE_PNG = (() => {
+  const bytes = Buffer.from(VALID_PNG.slice('data:image/png;base64,'.length), 'base64');
+  const withTail = Buffer.concat([bytes, Buffer.from('<script>alert(1)</script>')]);
+  return 'data:image/png;base64,' + withTail.toString('base64');
+})();
+
 const advance = (token, id, toPhaseCode, signatureImage) =>
   call('POST', `/api/projects/${id}/transitions`, { token, body: { toPhaseCode, signatureImage } });
 
@@ -108,6 +138,14 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
   const bogus = await advance(stuact, projectApproved.id, 'BUDGET_APPROVED', NOT_A_PNG);
   ok('bytes that decode but are not a PNG are refused',
     bogus.status === 400 && /PNG/.test(bogus.body.error), bogus.text.slice(0, 200));
+
+  const oversized = await advance(stuact, projectApproved.id, 'BUDGET_APPROVED', OVERSIZED_PNG);
+  ok('a PNG declaring a 50,000x50,000 image is refused, even though the file itself is tiny',
+    oversized.status === 400 && /ขนาดภาพ/.test(oversized.body.error), oversized.text.slice(0, 200));
+
+  const polyglot = await advance(stuact, projectApproved.id, 'BUDGET_APPROVED', TRAILING_GARBAGE_PNG);
+  ok('bytes appended after IEND are refused, not silently stored alongside a valid PNG',
+    polyglot.status === 400 && /IEND|เกิน/.test(polyglot.body.error), polyglot.text.slice(0, 200));
 
   const wrongRole = await advance(sh, projectApproved.id, 'BUDGET_APPROVED', VALID_PNG);
   ok('a role this transition is not open to is refused before signature logic runs (403, not 400)',
