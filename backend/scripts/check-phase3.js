@@ -85,7 +85,7 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   // runs.
   const VALID_PNG = 'data:image/png;base64,' +
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-  const SIGNATURE_GATED = new Set(['BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
+  const SIGNATURE_GATED = new Set(['PROPOSAL_SUBMITTED', 'BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
   const advance = (token, id, toPhaseCode) =>
     call('POST', `/api/projects/${id}/transitions`, {
       token,

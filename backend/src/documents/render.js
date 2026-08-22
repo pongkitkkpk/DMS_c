@@ -15,10 +15,46 @@ const path = require('path');
 const Docxtemplater = require('docxtemplater');
 const PizZip = require('pizzip');
 const expressionParser = require('docxtemplater/expressions.js');
+const ImageModule = require('docxtemplater-image-module-free');
 
 const { HttpError } = require('../lib/httpError');
 const { assertPrintable } = require('./arity');
 const { build } = require('./assembler');
+
+/**
+ * A fresh `ImageModule` per render, bound to one `document` — docxtemplater
+ * refuses to attach one module instance to a second document ("cannot attach
+ * a module that was already attached"), verified against `check-phase4.js`,
+ * which renders many documents in one process.
+ *
+ * Embeds กนศ.04's three signature images (migration 007). The payload's
+ * `signatureX` value is a plain string key ('sh'/'advisor'/'stuact'), never
+ * the image buffer directly: `docxtemplater-image-module-free` branches on
+ * `typeof tagValue`, and a `Buffer` is `typeof 'object'`, which the module
+ * misreads as its own internal "already resolved" shape (`{rId, sizePixel}`)
+ * instead of a value to hand to `getImage` — found by rendering a project
+ * with a real signature and reading the module's own source at the line that
+ * threw. `getImage` here is what turns the key back into the bytes
+ * `loadDocument` already fetched once. A falsy tag value (no signature yet)
+ * never reaches `getImage` at all — the template wraps every `{%signatureX}`
+ * in `{#hasSignatureX}...{/hasSignatureX}`, each its own paragraph (see
+ * `scripts/patch-signature-images.js`), and docxtemplater drops a falsy
+ * section before its module runs, leaving the template's own blank dotted
+ * line as the fallback.
+ *
+ * The fixed 150x60px size is a print size, not a measurement of what was
+ * drawn: `SignaturePad.js`'s canvas is a fixed 380x160, and stretching every
+ * signature to one box is what keeps the cover letter's layout stable
+ * regardless of how large or small a signature was drawn.
+ */
+function newImageModule(document) {
+  const bytesFor = { sh: document.signatures.sh, advisor: document.signatures.advisor, stuact: document.signatures.stuact };
+  return new ImageModule({
+    fileType: 'docx',
+    getImage: (key) => bytesFor[key],
+    getSize: () => [150, 60],
+  });
+}
 
 const TEMPLATES_DIR = path.resolve(__dirname, '../../../templates');
 
@@ -76,6 +112,7 @@ function render(form, document) {
     paragraphLoop: true,
     linebreaks: true,
     nullGetter,
+    modules: [newImageModule(document)],
   });
 
   try {

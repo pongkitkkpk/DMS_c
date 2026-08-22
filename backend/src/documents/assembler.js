@@ -25,6 +25,7 @@ const { thaiDate, thaiYear, monthIndex, bahtText } = require('./thai');
 const { LIMITS } = require('./arity');
 const projects = require('../services/projectService');
 const budgetService = require('../services/budgetService');
+const signatureService = require('../services/signatureService');
 
 // --------------------------------------------------------------------------
 // Formatting
@@ -147,11 +148,12 @@ async function loadDocument(projectId, conn = pool) {
   const project = await projects.findProject(projectId, conn);
   if (!project) return null;
 
-  const [sections, lines, disbursements, summary] = await Promise.all([
+  const [sections, lines, disbursements, summary, signatures] = await Promise.all([
     projects.loadSections(projectId, conn),
     budgetService.loadLines(projectId, conn),
     budgetService.loadDisbursements(projectId, conn),
     budgetService.loadSummary(project),
+    signatureService.findForDocument(projectId, conn),
   ]);
 
   // Correlated subqueries rather than a join: a person can hold more than one
@@ -185,6 +187,7 @@ async function loadDocument(projectId, conn = pool) {
       money: summary.money,
     },
     disbursements,
+    signatures,
   };
 }
 
@@ -432,6 +435,41 @@ function indicatorRoot(document, form) {
 // The payloads
 // --------------------------------------------------------------------------
 
+/**
+ * The three signature images กนศ.04's cover letter can carry — SH
+ * (submission), AD (endorsement), and the earliest ADMIN/STUACT approval on
+ * record, standing in for the form's otherwise-blank "ที่ปรึกษาฝ่าย...
+ * สำหรับกองกิจการนักศึกษา" line (owner-confirmed, migration 007). Each pairs
+ * a boolean section flag with the image itself: `docxtemplater` drops a
+ * `{#hasSignatureX}...{/hasSignatureX}` section to nothing when its flag is
+ * falsy, which is what leaves the template's own blank dotted line as the
+ * fallback when a signature does not exist yet — the same "unresolved is a
+ * blank, not a crash" rule `nullGetter` applies to plain fields, expressed
+ * the way a boolean-gated section already is elsewhere in this file
+ * (`is_newproject`, `is_etcfollow`).
+ */
+function signatureRoots(document) {
+  const { sh, advisor, stuact } = document.signatures || {};
+  // The tag's *value* is a plain string key, never the image buffer itself —
+  // `docxtemplater-image-module-free` branches on `typeof tagValue`, and a
+  // `Buffer` is `typeof 'object'`, which the module reads as its own internal
+  // "already resolved" cache shape (`{rId, sizePixel}`) rather than as
+  // something to hand to `getImage`. `render.js`'s `newImageModule(document)`
+  // is what turns this key back into the real bytes. The key is the same
+  // constant regardless of whether a signature exists — when `hasSignatureX`
+  // is falsy, docxtemplater drops the whole section before `signatureX`'s
+  // value is ever read, the same rule that lets `|| ''` be safe for every
+  // other maybe-absent field in this file.
+  return {
+    hasSignatureSh: Boolean(sh),
+    signatureSh: 'sh',
+    hasSignatureAdvisor: Boolean(advisor),
+    signatureAdvisor: 'advisor',
+    hasSignatureStuact: Boolean(stuact),
+    signatureStuact: 'stuact',
+  };
+}
+
 /** กนศ.04 — the proposal. */
 function buildTemp04(document) {
   const limits = LIMITS.temp04;
@@ -446,6 +484,7 @@ function buildTemp04(document) {
     user: people.user,
     userSH: people.userSH,
     clubHeadTitle: clubHeadTitle(document.project.club_name),
+    ...signatureRoots(document),
   };
 }
 

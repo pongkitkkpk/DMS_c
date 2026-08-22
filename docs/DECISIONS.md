@@ -1476,3 +1476,76 @@ buffer after it. Two new assertions in `check-signature.js` reproduce both
 attacks against a live server — an oversized-`IHDR` PNG and a valid PNG with
 `<script>...</script>` appended — and confirm each is refused with a 400
 naming the reason. `check:all` is 508 assertions, all passing.
+
+**Extended the same day: SH and AD, so กนศ.04's own signature blocks are not
+blank.** `npm run forms:read` was run to sanity-check the feature above and
+turned up a second mismatch: the ADMIN/STUACT signature this feature captures
+has nowhere to print on กนศ.04 at all. The form's own cover letter carries
+three signature lines — ประธานชมรม (SH, the project owner), อาจารย์ที่ปรึกษา
+(AD), and a blank "ที่ปรึกษาฝ่าย... สำหรับกองกิจการนักศึกษา" line that carries
+no data in any form — and none of the three is ADMIN or STUACT. The owner
+confirmed extending capture to SH and AD (migration 007) rather than leaving
+the mismatch as a known gap.
+
+- **SH** signs at `DRAFT_PROPOSAL -> PROPOSAL_SUBMITTED`, unambiguous because
+  that transition is SH-only already — the same shape as the three
+  ADMIN/STUACT gates, just one role earlier.
+- **AD does not get a transition of its own.** `PROPOSAL_SUBMITTED ->
+  PROJECT_APPROVED` is shared with ADMIN/STUACT (the same reason it was
+  excluded from `requires_signature` in the first place), so gating it on a
+  signature would ask for one only on the days AD happened to be the one
+  clicking that button. The advisor's endorsement is instead a standalone,
+  one-time action — `POST /projects/:id/advisor-endorsement` — checked and
+  written under a lock on the project row rather than a schema constraint,
+  because "at most one row where `signer_role = 'AD'`" is not a partial
+  unique index MySQL can express, and ADMIN/STUACT rows on the same project
+  are *supposed* to repeat. A new `ADVISOR_ENDORSED` project_event gives it
+  something to hang a signature off, the same shape every other signature
+  already uses.
+- **The form's third, blank signature line reuses whichever ADMIN/STUACT
+  signature already exists** (the earliest one on record) rather than
+  inventing a fourth signing action — the owner's confirmed simplification,
+  since that slot's real-world signer (a STUACT staffer endorsing the
+  request) is not a role the software actually distinguishes from the STUACT
+  who later approves the money.
+
+**Two bugs found only by actually rendering a signed document — reasoning
+about the template was not enough:**
+
+1. **`docxtemplater-image-module-free` requires its `{%tag}` alone in its own
+   paragraph — not "alone in its own text run alongside loop tags," which
+   the module's own error ("Raw tag not in paragraph") only reports at
+   compile time, against every document, the moment the first project with
+   any signature loads. The first patch attempt wrote
+   `{#hasSignatureSh}{%signatureSh}{/hasSignatureSh}` as one run in one
+   paragraph; the fix (`scripts/patch-signature-images.js`) is three cloned
+   paragraphs, one tag each, which `paragraphLoop: true` (already set) is
+   what makes act as a single section.
+2. **A `Buffer` is `typeof 'object'`, and the image module uses that exact
+   check to decide whether a tag's value is a raw identifier to hand to
+   `getImage` or its own internal `{rId, sizePixel}` cache shape from an
+   earlier resolve pass.** Passing the decoded PNG bytes directly as the
+   payload value took the second branch, and crashed inside the module
+   itself (`Cannot read properties of undefined (reading '0')`) only when a
+   project actually had a signature to embed — every fixture without one
+   took the falsy branch and never touched this path, which is why
+   `check-phase4.js`'s 74 assertions were green before this was found and
+   still say nothing about it. `assembler.js`'s `signatureRoots` now sends a
+   plain string key (`'sh'`/`'advisor'`/`'stuact'`); `render.js`'s
+   `newImageModule(document)` is what turns the key back into the bytes.
+
+Neither is guessable from the template or the library's README — both were
+found by rendering an actual signed project (`npm run forms:review`) and
+reading a real stack trace, which is the whole reason that script exists
+rather than trusting `npm run forms:read`'s text-only output.
+
+**Verified**, on top of the 21 assertions above: `check-signature.js` grew to
+35 (SH's submission signature, the endorsement's role/ownership check, its
+one-time-only 409, and that `permissions.endorseAsAdvisor` withdraws itself
+once used) and `check-phase4.js`'s template-hash assertion carries the new
+MD5 (temp04.docx only — temp06 is untouched). `check:all` is 520 assertions,
+all passing, including every fixture project rendering กนศ.04 with no
+signature yet (the blank dotted line, unchanged) and the `forms:review`
+project rendering it with all three (three distinct embedded images,
+verified as real PNGs by unzipping the output, not merely that the render
+did not throw).

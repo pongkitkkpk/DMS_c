@@ -47,10 +47,11 @@ router.post('/projects', asyncRoute(async (req, res) => {
 // --------------------------------------------------------------------------
 
 router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
-  const [sections, budget, transitions] = await Promise.all([
+  const [sections, budget, transitions, advisorEndorsed] = await Promise.all([
     projects.loadSections(req.project.id),
     budgetService.loadSummary(req.project),
     availableTransitions(pool, req.project, req.actor),
+    signatures.hasSignature(req.project.id, 'AD'),
   ]);
 
   res.json({
@@ -65,6 +66,12 @@ router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
     permissions: {
       edit: scope.permits(() => scope.assertCanEdit(req.actor, req.project)),
       delete: scope.permits(() => scope.assertCanDelete(req.actor, req.project)),
+      // A fact about the role and ownership *and* about whether it has
+      // already happened once — unlike `edit`/`delete`, this permission is
+      // not a pure function of the assertion alone (`endorseAsAdvisor` is a
+      // one-time action), so it is folded in here rather than left for the
+      // client to combine with a separate "already endorsed" read.
+      endorseAsAdvisor: scope.permits(() => scope.assertCanEndorseAsAdvisor(req.actor, req.project)) && !advisorEndorsed,
     },
   });
 }));
@@ -134,10 +141,26 @@ router.get('/projects/:id/events', loadProject, asyncRoute(async (req, res) => {
 /**
  * Signatures captured on this project's approvals (DECISIONS.md,
  * "E-signature", closed 2026-08-22). Read-only for the same reason the event
- * log is: a signature exists only as a side effect of `performTransition`.
+ * log is: a signature exists only as a side effect of `performTransition` or
+ * `advisor-endorsement`, below — never written directly.
  */
 router.get('/projects/:id/signatures', loadProject, asyncRoute(async (req, res) => {
   res.json({ signatures: await signatures.listForProject(req.project.id) });
+}));
+
+/**
+ * The advisor's one-time endorsement (migration 007) — not a phase
+ * transition, because AD does not own one of its own
+ * (`PROPOSAL_SUBMITTED -> PROJECT_APPROVED` is shared with ADMIN/STUACT).
+ * `assertCanEndorseAsAdvisor` checks both that the caller is AD and that they
+ * are *this* project's advisor; `endorseAsAdvisor` itself refuses a second
+ * call with a 409 naming why.
+ */
+router.post('/projects/:id/advisor-endorsement', loadProject, asyncRoute(async (req, res) => {
+  scope.assertCanEndorseAsAdvisor(req.actor, req.project);
+  const signatureImage = req.body && typeof req.body.signatureImage === 'string' ? req.body.signatureImage : null;
+  const result = await signatures.endorseAsAdvisor(req.actor, req.project, { signatureImage, ip: req.ip });
+  res.json(result);
 }));
 
 /**

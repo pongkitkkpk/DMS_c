@@ -41,6 +41,7 @@ const EVENT_LABELS = {
   DISBURSED: 'เบิกจ่าย',
   ATTACHMENT_ADDED: 'แนบไฟล์',
   ATTACHMENT_REMOVED: 'ลบไฟล์แนบ',
+  ADVISOR_ENDORSED: 'เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)',
 };
 
 /**
@@ -255,6 +256,29 @@ export default function ProjectPage() {
     }
   };
 
+  /**
+   * The advisor's one-time endorsement — not a phase transition, since AD
+   * does not own one of its own (`PROPOSAL_SUBMITTED -> PROJECT_APPROVED` is
+   * shared with ADMIN/STUACT). `permissions.endorseAsAdvisor` already folds
+   * in "has this already happened", so a second click failing is only ever a
+   * race with another tab, not the expected path.
+   */
+  const endorse = async () => {
+    const signatureImage = await captureSignature('เซ็นรับรองโครงการในฐานะอาจารย์ที่ปรึกษา');
+    if (!signatureImage) return;
+
+    setBusy(true);
+    try {
+      await api.endorseAsAdvisor(id, signatureImage);
+      await Swal.fire({ icon: 'success', title: 'เซ็นรับรองโครงการแล้ว' });
+      load();
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'เซ็นรับรองไม่สำเร็จ', text: messageOf(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error) {
     return (
       <Alert color="danger">
@@ -292,7 +316,7 @@ export default function ProjectPage() {
           <PhaseStepper phases={phases} currentOrdinal={project.phase.ordinal} />
         </div>
 
-        {(available.length > 0 || blocked.length > 0 || permissions.edit || permissions.delete) && (
+        {(available.length > 0 || blocked.length > 0 || permissions.edit || permissions.delete || permissions.endorseAsAdvisor) && (
           <div
             className="card-x__body u-row"
             style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-surface-2)', flexWrap: 'wrap' }}
@@ -315,6 +339,11 @@ export default function ProjectPage() {
             )}
             {available.some((t) => t.requiresSignature) && (
               <span className="u-small u-dim">ขั้นตอนนี้ต้องเซ็นชื่ออนุมัติ</span>
+            )}
+            {permissions.endorseAsAdvisor && (
+              <Button color="primary" outline disabled={busy} onClick={endorse}>
+                เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)
+              </Button>
             )}
             {permissions.delete && (
               <Button className="u-spacer" size="sm" outline color="danger" onClick={remove}>

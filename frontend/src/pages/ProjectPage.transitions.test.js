@@ -20,6 +20,7 @@ jest.mock('../api', () => ({
     phases: jest.fn(),
     transition: jest.fn(),
     deleteProject: jest.fn(),
+    endorseAsAdvisor: jest.fn(),
   },
   messageOf: () => 'error',
 }));
@@ -226,6 +227,38 @@ it('flags a transition that requires a signature, before it is even clicked', as
   show();
 
   expect(await screen.findByText('ขั้นตอนนี้ต้องเซ็นชื่ออนุมัติ')).toBeInTheDocument();
+});
+
+it('offers the advisor endorsement action only when the server granted it', async () => {
+  api.getProject.mockResolvedValue({ ...baseProject, permissions: { edit: false, delete: false, endorseAsAdvisor: true } });
+  mockCaptureSignature.mockResolvedValue('data:image/png;base64,AAAA');
+  api.endorseAsAdvisor.mockResolvedValue({ endorsed: true });
+  show();
+
+  await userEvent.click(await screen.findByText('เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)'));
+
+  await waitFor(() =>
+    expect(api.endorseAsAdvisor).toHaveBeenCalledWith('1', 'data:image/png;base64,AAAA')
+  );
+});
+
+it('does not send an endorsement when the signature dialog is cancelled', async () => {
+  api.getProject.mockResolvedValue({ ...baseProject, permissions: { edit: false, delete: false, endorseAsAdvisor: true } });
+  mockCaptureSignature.mockResolvedValue(null);
+  show();
+
+  await userEvent.click(await screen.findByText('เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)'));
+
+  await waitFor(() => expect(mockCaptureSignature).toHaveBeenCalled());
+  expect(api.endorseAsAdvisor).not.toHaveBeenCalled();
+});
+
+it('hides the advisor endorsement action when the server did not grant it', async () => {
+  api.getProject.mockResolvedValue({ ...baseProject, permissions: { edit: false, delete: false, endorseAsAdvisor: false } });
+  show();
+
+  await screen.findByText('โครงการตัวอย่าง');
+  expect(screen.queryByText('เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)')).not.toBeInTheDocument();
 });
 
 it('offers edit only when the server granted it', async () => {

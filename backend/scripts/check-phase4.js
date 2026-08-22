@@ -331,22 +331,24 @@ const DELIBERATELY_ABSENT = {
 
   // ------------------------------------------------------------------
   // The templates are government forms and nothing should touch them by
-  // accident. They have been edited twice, both deliberately:
+  // accident. They have been edited three times, all deliberately:
   // `scripts/patch-head-title.js` (2026-08-16) replaced the signatory's
-  // baked-in title with a `{clubHeadTitle}` tag in all four signature blocks,
-  // and `scripts/patch-form-literals.js` (2026-08-21, owner-confirmed)
-  // dropped กนศ.04 §19's doubled "บาทถ้วน" and relabelled กนศ.06 §10 row 4 from
-  // a repeat of row 3's "นักศึกษาเข้าร่วมโครงการ" to "ผู้ทรงคุณวุฒิ / วิทยากร",
-  // which is what that row's tags (`grandTotalExpert`) actually count. The
-  // hashes below are the post-edit ones. If this check fails, find out what
-  // changed the file before updating the number — that is the entire point
-  // of it.
-  console.log('\n--- the templates are unchanged since the two authorised edits ---');
+  // baked-in title with a `{clubHeadTitle}` tag in all four signature blocks;
+  // `scripts/patch-form-literals.js` (2026-08-21, owner-confirmed) dropped
+  // กนศ.04 §19's doubled "บาทถ้วน" and relabelled กนศ.06 §10 row 4 from a
+  // repeat of row 3's "นักศึกษาเข้าร่วมโครงการ" to "ผู้ทรงคุณวุฒิ / วิทยากร",
+  // which is what that row's tags (`grandTotalExpert`) actually count; and
+  // `scripts/patch-signature-images.js` (2026-08-22, owner-confirmed, migration
+  // 007) inserted the three `{#hasSignatureX}{%signatureX}{/hasSignatureX}`
+  // paragraphs กนศ.04's cover letter now carries. The hashes below are the
+  // post-edit ones. If this check fails, find out what changed the file
+  // before updating the number — that is the entire point of it.
+  console.log('\n--- the templates are unchanged since the authorised edits ---');
   const crypto = require('crypto');
   const md5 = (f) => crypto.createHash('md5')
     .update(fs.readFileSync(path.resolve(__dirname, '../../templates', f))).digest('hex');
   ok('temp04.docx matches the patched original',
-    md5('temp04.docx') === '5c7bf718580dbc5edd7811ac40735223', md5('temp04.docx'));
+    md5('temp04.docx') === '0a4a9a5f9048ffa6ace254624a56d9ba', md5('temp04.docx'));
   ok('temp06.docx matches the patched original',
     md5('temp06.docx') === '7d699ae36ca9c07a071b83513474ae80', md5('temp06.docx'));
 

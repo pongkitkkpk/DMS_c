@@ -149,6 +149,10 @@ export const api = {
   signatures: (id) => client.get(`/projects/${id}/signatures`).then((r) => r.data),
   downloadSignature: (id, signatureId) =>
     client.get(`/projects/${id}/signatures/${signatureId}`, { responseType: 'blob' }),
+  // The advisor's one-time endorsement — not a phase transition, since AD
+  // does not own one of its own (the next step is shared with ADMIN/STUACT).
+  endorseAsAdvisor: (id, signatureImage) =>
+    client.post(`/projects/${id}/advisor-endorsement`, { signatureImage }).then((r) => r.data),
   phases: () => client.get('/reference/phases').then((r) => r.data),
   tags: () => client.get('/reference/tags').then((r) => r.data),
   advisors: () => client.get('/reference/advisors').then((r) => r.data),

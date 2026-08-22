@@ -277,10 +277,11 @@ async function login(username) {
         body: { items: [{ category: 'C', description: 'ค่าวัสดุ', qty1: '1', unit1: 'ชุด', unitPrice: '4800' }] },
       });
     }
-    // Migration 006 (check-signature.js) put a signature requirement on
-    // BUDGET_APPROVED, REPORT_SUBMITTED and CLOSED — not this suite's concern,
-    // which is that the screens' own calls can walk the machine at all.
-    const needsSignature = code === 'BUDGET_APPROVED' || code === 'REPORT_SUBMITTED' || code === 'CLOSED';
+    // Migrations 006/007 (check-signature.js) put a signature requirement on
+    // PROPOSAL_SUBMITTED, BUDGET_APPROVED, REPORT_SUBMITTED and CLOSED — not
+    // this suite's concern, which is that the screens' own calls can walk the
+    // machine at all.
+    const needsSignature = ['PROPOSAL_SUBMITTED', 'BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED'].includes(code);
     const signatureImage = needsSignature
       ? 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
       : undefined;

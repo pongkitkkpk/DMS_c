@@ -7,12 +7,16 @@
  *   npm run check:signature
  *
  * Closes the "E-signature" open item in docs/DECISIONS.md (raised and closed
- * 2026-08-22): approving PROJECT_APPROVED -> BUDGET_APPROVED,
- * DRAFT_REPORT -> REPORT_SUBMITTED and REPORT_SUBMITTED -> CLOSED now
- * requires a signature image, and only ADMIN/STUACT can ever reach those
- * transitions in the first place. PROPOSAL_SUBMITTED -> PROJECT_APPROVED is
- * deliberately excluded (AD may also take it), and is checked here too, so a
- * future change that widens `requires_signature` to it would be caught.
+ * 2026-08-22, extended the same day to SH and AD): approving
+ * PROJECT_APPROVED -> BUDGET_APPROVED, DRAFT_REPORT -> REPORT_SUBMITTED and
+ * REPORT_SUBMITTED -> CLOSED requires a signature image and only ADMIN/STUACT
+ * can ever reach those transitions; DRAFT_PROPOSAL -> PROPOSAL_SUBMITTED
+ * requires one too, and is SH-only already. PROPOSAL_SUBMITTED ->
+ * PROJECT_APPROVED is deliberately excluded (AD may also take it), and is
+ * checked here too, so a future change that widens `requires_signature` to it
+ * would be caught. The advisor's own endorsement is a separate, standalone
+ * action (`POST /projects/:id/advisor-endorsement`) rather than a transition,
+ * since AD does not own one of its own.
  *
  * Black box against a live server, like the phase acceptance runs. It writes
  * to the development database and acts on the one-project-per-phase fixtures
@@ -100,6 +104,7 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
   const mine = await call('GET', '/api/projects', { token: sh });
   const byPhase = (code) => mine.body.items.find((p) => p.phase.code === code);
 
+  const draftProposal     = byPhase('DRAFT_PROPOSAL');     // ordinal 1
   const proposalSubmitted = byPhase('PROPOSAL_SUBMITTED'); // ordinal 2
   const projectApproved   = byPhase('PROJECT_APPROVED');   // ordinal 3
   const draftReport       = byPhase('DRAFT_REPORT');       // ordinal 5
@@ -107,6 +112,11 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
 
   // ------------------------------------------------------------------
   console.log('\n--- which transitions ask for a signature ---');
+
+  const t1 = await call('GET', `/api/projects/${draftProposal.id}/transitions`, { token: sh });
+  const toSubmitted = t1.body.transitions.find((t) => t.toPhaseCode === 'PROPOSAL_SUBMITTED');
+  ok('DRAFT_PROPOSAL -> PROPOSAL_SUBMITTED asks for a signature (SH-only, no shared-button ambiguity)',
+    toSubmitted && toSubmitted.requiresSignature === true, JSON.stringify(toSubmitted));
 
   const t2 = await call('GET', `/api/projects/${proposalSubmitted.id}/transitions`, { token: ad });
   const toApproved = t2.body.transitions.find((t) => t.toPhaseCode === 'PROJECT_APPROVED');
@@ -202,6 +212,56 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
   ok('STUACT signs REPORT_SUBMITTED -> CLOSED', closeAdvance.status === 200, closeAdvance.text.slice(0, 300));
   const closeSig = await call('GET', `/api/projects/${reportSubmitted.id}/signatures`, { token: stuact });
   ok('recorded against STUACT', closeSig.body.signatures[0] && closeSig.body.signatures[0].signerRole === 'STUACT');
+
+  // ------------------------------------------------------------------
+  console.log('\n--- SH signs at submission (migration 007) ---');
+
+  const shMissing = await advance(sh, draftProposal.id, 'PROPOSAL_SUBMITTED', undefined);
+  ok('SH cannot submit without a signature', shMissing.status === 400 && /เซ็น/.test(shMissing.body.error),
+    shMissing.text.slice(0, 200));
+
+  const shSubmit = await advance(sh, draftProposal.id, 'PROPOSAL_SUBMITTED', VALID_PNG);
+  ok('SH submits with a valid signature', shSubmit.status === 200, shSubmit.text.slice(0, 300));
+
+  const shSig = await call('GET', `/api/projects/${draftProposal.id}/signatures`, { token: sh });
+  ok('recorded against SH', shSig.body.signatures[0] && shSig.body.signatures[0].signerRole === 'SH',
+    JSON.stringify(shSig.body));
+
+  // ------------------------------------------------------------------
+  console.log('\n--- the advisor endorses, once, standalone (migration 007) ---');
+
+  const before = await call('GET', `/api/projects/${draftProposal.id}`, { token: ad });
+  ok('the server offers the endorsement action before it has happened',
+    before.body.permissions && before.body.permissions.endorseAsAdvisor === true, JSON.stringify(before.body.permissions));
+
+  const wrongEndorser = await call('POST', `/api/projects/${draftProposal.id}/advisor-endorsement`,
+    { token: sh, body: { signatureImage: VALID_PNG } });
+  ok('only the project\'s own advisor may endorse it (SH here, refused)', wrongEndorser.status === 403,
+    wrongEndorser.text.slice(0, 200));
+
+  const missingEndorsement = await call('POST', `/api/projects/${draftProposal.id}/advisor-endorsement`,
+    { token: ad, body: {} });
+  ok('the advisor cannot endorse without a signature either', missingEndorsement.status === 400,
+    missingEndorsement.text.slice(0, 200));
+
+  const endorsed = await call('POST', `/api/projects/${draftProposal.id}/advisor-endorsement`,
+    { token: ad, body: { signatureImage: VALID_PNG } });
+  ok('the advisor endorses with a valid signature', endorsed.status === 200 && endorsed.body.endorsed === true,
+    endorsed.text.slice(0, 200));
+
+  const again = await call('POST', `/api/projects/${draftProposal.id}/advisor-endorsement`,
+    { token: ad, body: { signatureImage: VALID_PNG } });
+  ok('a second endorsement is refused, naming why (409)', again.status === 409, again.text.slice(0, 200));
+
+  const after = await call('GET', `/api/projects/${draftProposal.id}`, { token: ad });
+  ok('the server withdraws the action once it has happened',
+    after.body.permissions && after.body.permissions.endorseAsAdvisor === false, JSON.stringify(after.body.permissions));
+
+  const endorsedSig = (await call('GET', `/api/projects/${draftProposal.id}/signatures`, { token: ad })).body.signatures;
+  const adRow = endorsedSig.find((s) => s.signerRole === 'AD');
+  ok('recorded against AD, against its own event (not a phase change)',
+    adRow && adRow.eventType === 'ADVISOR_ENDORSED', JSON.stringify(adRow));
+  ok('exactly one AD signature exists, not two', endorsedSig.filter((s) => s.signerRole === 'AD').length === 1);
 
   // ------------------------------------------------------------------
   console.log('\n--- scope: signatures follow the same rule as everything else on a project ---');

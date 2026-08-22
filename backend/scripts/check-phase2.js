@@ -20,12 +20,12 @@
 const B = 'http://localhost:3001';
 let pass = 0, fail = 0;
 
-// Migration 006 (check-signature.js) added a signature requirement to three
-// gates. Not this suite's concern — it is testing the machine, not the
+// Migrations 006/007 (check-signature.js) added a signature requirement to
+// four gates. Not this suite's concern — it is testing the machine, not the
 // signature — so the walk just supplies one wherever it is asked for.
 const VALID_PNG = 'data:image/png;base64,' +
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-const SIGNATURE_GATED = new Set(['BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
+const SIGNATURE_GATED = new Set(['PROPOSAL_SUBMITTED', 'BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
 
 function ok(label, condition, extra = '') {
   if (condition) { pass++; console.log(`  PASS  ${label}`); }

@@ -174,6 +174,29 @@ function assertCanApproveBudget(actor) {
   }
 }
 
+/**
+ * Only the project's own advisor may endorse it (migration 007's
+ * `signatureService.endorseAsAdvisor`) — the advisor named on the project
+ * specifically, not `AD` in general, since an advisor of a different club is
+ * a stranger to this one's project. This is deliberately not routed through
+ * `assertCanEdit`'s "AD may not edit at all" (Q5): that rule is about
+ * changing a project's content, and an advisor endorsing their own advisee's
+ * project is neither editing nor viewing — it is signing, the same third
+ * category `assertCanApproveBudget` already carves out for ADMIN/STUACT.
+ */
+function assertCanEndorseAsAdvisor(actor, project) {
+  assertVisible(actor, project);
+
+  const membership = actor.membership;
+  if (!membership || membership.role !== 'AD' ||
+      Number(project.advisor_person_id) !== Number(actor.person.id)) {
+    throw HttpError.forbidden('เซ็นรับรองโครงการได้เฉพาะอาจารย์ที่ปรึกษาของโครงการนี้เท่านั้น');
+  }
+  if (project.phase_code === 'CLOSED') {
+    throw HttpError.forbidden('โครงการปิดแล้ว ไม่สามารถเซ็นรับรองได้');
+  }
+}
+
 /** True if `project` (a row carrying `club_id` and `club_group_id`) is inside the actor's scope. */
 function isInScope(actor, project) {
   const membership = actor.membership;
@@ -297,6 +320,7 @@ module.exports = {
   assertCanGrantRole,
   GRANTABLE_ROLES,
   assertCanApproveBudget,
+  assertCanEndorseAsAdvisor,
   permits,
   isInScope,
   assertVisible,

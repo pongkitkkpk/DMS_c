@@ -103,6 +103,7 @@ async function main() {
   const outDir = path.resolve(args.out || path.join(__dirname, '..', '..', 'generated', 'forms'));
 
   const sh = await login('fixture.student');
+  const ad = await login('fixture.advisor');
   const stuact = await login('fixture.stuact');
   const admin = await login('fixture.admin');
 
@@ -302,6 +303,13 @@ async function main() {
     }));
   };
 
+  // Migrations 006/007: a signature is required to enter these four phases.
+  // Not what this script exists to exercise, so every one of them just gets
+  // the same drawn PNG.
+  const SIGNATURE_GATED = new Set(['PROPOSAL_SUBMITTED', 'BUDGET_APPROVED', 'REPORT_SUBMITTED', 'CLOSED']);
+  const VALID_PNG = 'data:image/png;base64,' +
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
   const walk = [
     ['PROPOSAL_SUBMITTED', sh, null, null],
     ['PROJECT_APPROVED', stuact, null, null],
@@ -314,10 +322,20 @@ async function main() {
   for (const [code, token, before, after] of walk) {
     if (before) await before();
     const moved = must(`advance to ${code}`, await call('POST', `/api/projects/${id}/transitions`, {
-      token, body: { toPhaseCode: code },
+      token, body: { toPhaseCode: code, ...(SIGNATURE_GATED.has(code) ? { signatureImage: VALID_PNG } : {}) },
     }));
     if (after) await after();
     console.log(`  → ${code}${moved.projectNumber ? `  เลขที่ ${moved.projectNumber}` : ''}`);
+
+    // The advisor's endorsement is not part of the walk — AD does not own a
+    // transition of its own (migration 007) — so it is a separate call, made
+    // right after submission, matching กนศ.04's own cover-letter ordering.
+    if (code === 'PROPOSAL_SUBMITTED') {
+      must('advisor endorsement', await call('POST', `/api/projects/${id}/advisor-endorsement`, {
+        token: ad, body: { signatureImage: VALID_PNG },
+      }));
+      console.log('  → เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)');
+    }
   }
 
   console.log(`  อนุมัติ ${approved.toLocaleString()} · ใช้จริงประมาณ ${spent.toLocaleString()} บาท`);

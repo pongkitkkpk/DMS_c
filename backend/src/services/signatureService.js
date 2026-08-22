@@ -1,17 +1,29 @@
 /**
- * Signatures on an approval transition.
+ * Signatures — on an approval transition, and (migration 007) the two
+ * signatures กนศ.04's own cover letter carries that a phase transition cannot
+ * produce on its own.
  *
  * Closes the "E-signature" open item in `docs/DECISIONS.md` (raised and
- * closed 2026-08-22). A signature is bound to the `project_event` row the
- * approving transition writes, not to the project in general — a project
- * passes through PROJECT_APPROVED, BUDGET_APPROVED and CLOSED on separate
- * occasions, each a distinct approval with its own signer, so
- * `project_signature.project_event_id` is unique. Which transitions demand
- * one lives on `phase_transition.requires_signature` (migration 006); only
- * ADMIN and STUACT ever sign, because those are the only two roles any
- * `requires_signature` transition is ever open to — `phaseService` already
- * refuses any other role before signature logic runs, so nothing here needs
- * to check the role again.
+ * closed 2026-08-22, extended 2026-08-22). A signature is bound to a
+ * `project_event` row, not to the project in general — a project passes
+ * through several signed moments over its life, each a distinct signature, so
+ * `project_signature.project_event_id` is unique. Two shapes exist:
+ *
+ * - **Transition-bound** (ADMIN/STUACT approving money or closing, and now
+ *   SH submitting): `phase_transition.requires_signature` says which moves
+ *   demand one, and `phaseService.performTransition` is the only writer —
+ *   the transition's own role gate is what stops the wrong role from
+ *   signing, so nothing here re-checks it.
+ * - **Standalone** (`endorseAsAdvisor`): AD does not own a phase transition —
+ *   `PROPOSAL_SUBMITTED -> PROJECT_APPROVED` is shared with ADMIN/STUACT, so
+ *   requiring a signature there would ask for one only on the days AD
+ *   happened to be the one clicking it (migration 006's own reasoning for
+ *   excluding that transition). The advisor's endorsement is instead its own
+ *   one-time action against a new `ADVISOR_ENDORSED` event, checked and
+ *   written under a lock on the project row rather than a schema constraint,
+ *   because a partial unique index ("only one row per project where
+ *   signer_role = 'AD'") is not expressible in MySQL, and ADMIN/STUACT are
+ *   *supposed* to sign more than once per project.
  *
  * Captured as a canvas drawing exported to PNG rather than a cryptographic
  * signature — a PKI scheme would be overkill for a university-internal
@@ -22,22 +34,22 @@
  * `attachmentService` rather than reimplemented, since the traversal guard is
  * identical for both.
  *
- * The bytes are written to disk *before* `phaseService.performTransition`
- * opens its transaction, and removed again if that transaction never
- * commits. `db/pool.js`'s `transaction()` documents its retry loop as "pure
- * database work... safe to re-run from the top" — a retried attempt calling
- * back into disk I/O would risk writing the image twice under two different
- * generated names, which is the same reason `attachmentService.add` writes
- * its file ahead of the row rather than inside the transaction that inserts
- * it.
+ * The bytes are written to disk *before* the caller's own transaction opens,
+ * and removed again if that transaction never commits. `db/pool.js`'s
+ * `transaction()` documents its retry loop as "pure database work... safe to
+ * re-run from the top" — a retried attempt calling back into disk I/O would
+ * risk writing the image twice under two different generated names, which is
+ * the same reason `attachmentService.add` writes its file ahead of the row
+ * rather than inside the transaction that inserts it.
  */
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
-const { pool } = require('../db/pool');
+const { pool, transaction } = require('../db/pool');
 const { HttpError } = require('../lib/httpError');
 const { resolveWithin } = require('./attachmentService');
+const { recordEvent } = require('./projectService');
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const DATA_URL_PREFIX = 'data:image/png;base64,';
@@ -218,7 +230,7 @@ async function listForProject(projectId, conn = pool) {
   const [rows] = await conn.query(
     `SELECT s.id, s.project_event_id, s.signer_role, s.signed_at, s.ip_address,
             p.full_name_th AS signer_name,
-            e.to_phase_id, ph.name_th AS to_phase_name_th
+            e.event_type, e.to_phase_id, ph.name_th AS to_phase_name_th
        FROM project_signature s
        JOIN person p ON p.id = s.signer_person_id
        JOIN project_event e ON e.id = s.project_event_id
@@ -232,10 +244,97 @@ async function listForProject(projectId, conn = pool) {
     eventId: row.project_event_id,
     signerName: row.signer_name,
     signerRole: row.signer_role,
+    // `ADVISOR_ENDORSED` carries no phase change, so `toPhaseNameTh` is null
+    // for it — `eventType` is what lets a screen tell that apart from "the
+    // phase name just failed to load" and print its own label instead.
+    eventType: row.event_type,
     toPhaseNameTh: row.to_phase_name_th,
     signedAt: row.signed_at,
     ipAddress: row.ip_address,
   }));
+}
+
+/** Whether `projectId` already carries a signature from `role` — used to make AD's endorsement one-time. */
+async function hasSignature(projectId, role, conn = pool) {
+  const [[row]] = await conn.query(
+    'SELECT 1 AS present FROM project_signature WHERE project_id = ? AND signer_role = ? LIMIT 1',
+    [projectId, role]
+  );
+  return Boolean(row);
+}
+
+/**
+ * The one signature per role that กนศ.04's cover letter needs, as image
+ * bytes ready to hand to the document renderer — `sh` (submission), `advisor`
+ * (endorsement), `stuact` (the earliest ADMIN/STUACT approval on record, the
+ * owner's confirmed simplification for the form's third, otherwise-blank
+ * signature line rather than inventing a fourth signing action).
+ *
+ * A signature whose file has gone missing renders as no signature rather than
+ * failing the whole document — the same "missing is a fact about disk, not a
+ * fault in the request" reasoning `attachmentService.read` already uses,
+ * applied to a render instead of a download.
+ */
+async function findForDocument(projectId, conn = pool) {
+  const [rows] = await conn.query(
+    `SELECT signer_role, image_path FROM project_signature
+      WHERE project_id = ? ORDER BY signed_at ASC, id ASC`,
+    [projectId]
+  );
+  const byRole = (roles) => rows.find((r) => roles.includes(r.signer_role)) || null;
+  const rowFor = { sh: byRole(['SH']), advisor: byRole(['AD']), stuact: byRole(['ADMIN', 'STUACT']) };
+
+  const bytesOf = async (row) => {
+    if (!row) return null;
+    try {
+      return await readImage(row);
+    } catch {
+      return null;
+    }
+  };
+  const [sh, advisor, stuact] = await Promise.all(
+    [rowFor.sh, rowFor.advisor, rowFor.stuact].map(bytesOf)
+  );
+  return { sh, advisor, stuact };
+}
+
+/**
+ * The advisor's one-time endorsement — not a phase transition, because AD
+ * does not own one (`PROPOSAL_SUBMITTED -> PROJECT_APPROVED` is shared with
+ * ADMIN/STUACT; see this file's header). Locks the project row to serialize
+ * a double-click into one winner, the same shape `lockClubForNumbering` uses
+ * for the same reason: the uniqueness this needs — one `AD` row per project —
+ * is not a constraint MySQL can express, since ADMIN/STUACT rows on the same
+ * project are supposed to repeat.
+ */
+async function endorseAsAdvisor(actor, project, { signatureImage, ip = null } = {}) {
+  const staged = await stage(project.id, signatureImage);
+  try {
+    return await transaction(async (conn) => {
+      await conn.query('SELECT id FROM project WHERE id = ? FOR UPDATE', [project.id]);
+      if (await hasSignature(project.id, 'AD', conn)) {
+        throw HttpError.conflict('โครงการนี้มีการเซ็นรับรองจากอาจารย์ที่ปรึกษาแล้ว');
+      }
+
+      const eventId = await recordEvent(conn, {
+        projectId: project.id,
+        type: 'ADVISOR_ENDORSED',
+        actorPersonId: actor.person.id,
+      });
+      await record(conn, {
+        projectId: project.id,
+        eventId,
+        personId: actor.person.id,
+        role: 'AD',
+        relativePath: staged.relativePath,
+        ip,
+      });
+      return { endorsed: true };
+    });
+  } catch (err) {
+    await discard(staged);
+    throw err;
+  }
 }
 
 /** One signature's row, scoped to its project so an id alone reaches nothing (same rule as `attachmentService.find`). */
@@ -258,4 +357,7 @@ async function readImage(row) {
   }
 }
 
-module.exports = { isRequired, stage, discard, record, listForProject, find, readImage };
+module.exports = {
+  isRequired, stage, discard, record, listForProject, find, readImage,
+  hasSignature, findForDocument, endorseAsAdvisor,
+};
