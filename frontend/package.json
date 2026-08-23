@@ -12,6 +12,7 @@
     "react-scripts": "5.0.1",
     "reactstrap": "^8.10.1",
     "sweetalert2": "^11.10.7",
+    "write-excel-file": "^4.1.1",
     "xlsx": "^0.18.5"
   },
   "scripts": {

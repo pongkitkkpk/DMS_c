@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [phases, setPhases] = useState([]);
   const [readiness, setReadiness] = useState(null);
   const [error, setError] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const mayAllocate = MAY_ALLOCATE.includes(session.role);
 
@@ -156,16 +157,23 @@ export default function DashboardPage() {
   const membership = session.membership;
   const scopeLabel = (membership && (membership.club_name || membership.club_group_name)) || '';
 
-  const exportExcel = () => {
-    downloadDashboardExcel({
-      academicYear: session.academicYear,
-      scopeLabel,
-      phases,
-      counts,
-      projectsTotal: projects.total,
-      allocations,
-      unfundedClubs: unfunded,
-    });
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      await downloadDashboardExcel({
+        academicYear: session.academicYear,
+        scopeLabel,
+        phases,
+        counts,
+        projectsTotal: projects.total,
+        allocations,
+        unfundedClubs: unfunded,
+      });
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'สร้างไฟล์ไม่สำเร็จ', text: messageOf(err) });
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -179,8 +187,8 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="u-spacer u-row">
-          <Button size="sm" outline color="secondary" onClick={exportExcel}>
-            ดาวน์โหลด Excel
+          <Button size="sm" outline color="secondary" disabled={exporting} onClick={exportExcel}>
+            {exporting ? 'กำลังสร้างไฟล์...' : 'ดาวน์โหลด Excel'}
           </Button>
           <Link className="u-small u-muted" to="/projects">ดูรายการโครงการทั้งหมด →</Link>
         </div>

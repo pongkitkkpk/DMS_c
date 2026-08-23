@@ -14,7 +14,7 @@ import React from 'react';
  * None of them is the brand red. The accent belongs to actions the user can
  * take; a status is not an action, and a red status would read as a problem.
  */
-const PHASE_TONE = {
+export const PHASE_TONE = {
   DRAFT_PROPOSAL: 'neutral',
   PROPOSAL_SUBMITTED: 'active',
   PROJECT_APPROVED: 'go',

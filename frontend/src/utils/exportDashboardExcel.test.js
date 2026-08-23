@@ -1,6 +1,4 @@
-import * as XLSX from 'xlsx';
-
-import { buildDashboardWorkbook } from './exportDashboardExcel';
+import { buildDashboardSheets } from './exportDashboardExcel';
 
 const phases = [
   { code: 'P1', ordinal: 1, name_th: 'ร่างคำขออนุมัติ' },
@@ -32,12 +30,12 @@ const unfundedClubs = [
   { code: 'C03', nameTh: 'ชมรมซี', campusName: 'บางซื่อ' },
 ];
 
-function sheetRows(wb, name) {
-  return XLSX.utils.sheet_to_json(wb.Sheets[name]);
+function sheetByName(sheets, name) {
+  return sheets.find((s) => s.sheet === name);
 }
 
-describe('buildDashboardWorkbook', () => {
-  const build = () => buildDashboardWorkbook({
+describe('buildDashboardSheets', () => {
+  const build = (extra = {}) => buildDashboardSheets({
     academicYear: 2567,
     scopeLabel: 'ชมรมเอ',
     phases,
@@ -45,31 +43,48 @@ describe('buildDashboardWorkbook', () => {
     projectsTotal: 4,
     allocations,
     unfundedClubs,
+    ...extra,
   });
 
   test('carries every phase, including ones with zero projects', () => {
-    const rows = sheetRows(build(), 'สถานะโครงการ');
-    expect(rows).toHaveLength(2);
-    expect(rows[0]['จำนวนโครงการ']).toBe(3);
-    expect(rows[1]['จำนวนโครงการ']).toBe(1);
+    const { data } = sheetByName(build(), 'สถานะโครงการ');
+    // data[0] is the header row.
+    expect(data).toHaveLength(3);
+    expect(data[1][2].value).toBe(3);
+    expect(data[2][2].value).toBe(1);
   });
 
   test('allocation sheet carries funded clubs as numbers and flags the over-committed one', () => {
-    const rows = sheetRows(build(), 'วงเงินจัดสรร');
-    expect(rows[0]['จัดสรร (บาท)']).toBe(10000);
-    expect(rows[1]['สถานะ']).toBe('เกินวงเงิน');
+    const { data } = sheetByName(build(), 'วงเงินจัดสรร');
+    expect(data[1][3].value).toBe(10000);
+    expect(data[2][6].value).toBe('เกินวงเงิน');
+    expect(data[2][6].backgroundColor).toBeTruthy();
   });
 
   test('an unfunded club appears without amounts, marked as unfunded rather than zero', () => {
-    const rows = sheetRows(build(), 'วงเงินจัดสรร');
-    const row = rows.find((r) => r['รหัสชมรม'] === 'C03');
-    expect(row['จัดสรร (บาท)']).toBeNull();
-    expect(row['สถานะ']).toBe('ยังไม่ได้กำหนดวงเงินปี 2567');
+    const { data } = sheetByName(build(), 'วงเงินจัดสรร');
+    const row = data.find((r) => r[0].value === 'C03');
+    expect(row[3].value).toBeNull();
+    expect(row[6].value).toBe('ยังไม่ได้กำหนดวงเงินปี 2567');
   });
 
   test('summary sheet names the scope and the year', () => {
-    const rows = XLSX.utils.sheet_to_json(build().Sheets['ภาพรวม'], { header: 1 });
-    expect(rows).toContainEqual(['ปีการศึกษา', 2567]);
-    expect(rows).toContainEqual(['ขอบเขต', 'ชมรมเอ']);
+    const { data } = sheetByName(build(), 'ภาพรวม');
+    const flat = data.map((row) => row.map((cell) => cell && cell.value));
+    expect(flat).toContainEqual(['ปีการศึกษา', 2567]);
+    expect(flat).toContainEqual(['ขอบเขต', 'ชมรมเอ']);
+  });
+
+  test('anchors the chart image on the summary sheet when one is given', () => {
+    const blob = new Blob(['fake-png-bytes'], { type: 'image/png' });
+    const summary = sheetByName(build({ chartImage: { blob, width: 640, height: 360 } }), 'ภาพรวม');
+    expect(summary.images).toHaveLength(1);
+    expect(summary.images[0].content).toBe(blob);
+    expect(summary.images[0].width).toBe(640);
+  });
+
+  test('adds no image when no chart was rendered (e.g. a year with zero projects)', () => {
+    const summary = sheetByName(build({ chartImage: null }), 'ภาพรวม');
+    expect(summary.images).toBeUndefined();
   });
 });
