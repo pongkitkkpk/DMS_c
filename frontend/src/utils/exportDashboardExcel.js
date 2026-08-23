@@ -97,11 +97,15 @@ function summarySheetData({ academicYear, scopeLabel, totalProjects, generatedAt
   ];
 }
 
-// Doubled versus the image's *logical* size: `pieChartImage.js` renders the
-// canvas at 2x for crispness, and a doubled DPI is the standard way to tell
-// a `.xlsx` viewer "this many raw pixels, but display them at half that" —
-// the same idea as a `@2x` asset.
-const CHART_DPI = 192;
+// `write-excel-file` converts `image.width`/`image.height` to on-sheet EMUs
+// as `px * 9525 * (96 / dpi)` — at `dpi: 96` that is a straight pixels-to-EMU
+// conversion, so pairing it with `chartImage.width`/`height` (the *logical*,
+// pre-2x size `pieChartImage.js` returns) places the image at exactly that
+// logical size. The crispness from rendering the canvas at 2x needs no DPI
+// trick to preserve: the embedded PNG is still the full 2x raster regardless
+// of what box these numbers size it into, so Excel scales a sharper image
+// into that box either way.
+const CHART_DPI = 96;
 
 /**
  * `unfundedClubs` and `allocations`/`phases`/`counts` mirror exactly what
@@ -131,7 +135,12 @@ export function buildDashboardSheets({
       width: chartImage.width,
       height: chartImage.height,
       dpi: CHART_DPI,
-      anchor: { row: 6, column: 0 },
+      // 1-based, unlike everything else here — `write-excel-file` computes
+      // `column - 1`/`row - 1` when it emits the drawing XML, so a 0-based
+      // `column: 0` becomes an invalid `-1`. `row: 7, column: 1` is column A,
+      // the blank row directly below `summarySheetData`'s four rows (title,
+      // blank, then 4 rows of figures — rows 1-6).
+      anchor: { row: 7, column: 1 },
     }];
   }
 

@@ -17,7 +17,18 @@ const TONE_BASE_COLOR = {
   done: '#4a4744',
 };
 
-/** Second phase sharing a tone gets a lighter shade, not a second hue. */
+// A cap rather than letting `seen * SHADE_STEP` grow unbounded: past a
+// handful of phases sharing one tone, further lightening washes out toward
+// white and two late shades would stop being distinguishable anyway.
+const SHADE_STEP = 0.35;
+const MAX_SHADE = 0.75;
+
+/**
+ * The Nth phase sharing a tone gets progressively lighter, not just a
+ * second, fixed shade — a tone with three or more phases (none exist today,
+ * but `PHASE_TONE` is free to grow one) would otherwise give its 2nd and 3rd
+ * phase the identical lightened colour.
+ */
 function lighten(hex, amount) {
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 0xff;
@@ -48,7 +59,7 @@ export function computePhaseChartSlices(phases, counts) {
         label: phase.name_th,
         value,
         percent: total ? (value / total) * 100 : 0,
-        color: seen === 0 ? base : lighten(base, 0.35),
+        color: seen === 0 ? base : lighten(base, Math.min(seen * SHADE_STEP, MAX_SHADE)),
       };
     })
     .filter((slice) => slice.value > 0);

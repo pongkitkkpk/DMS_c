@@ -80,7 +80,17 @@ describe('buildDashboardSheets', () => {
     const summary = sheetByName(build({ chartImage: { blob, width: 640, height: 360 } }), 'ภาพรวม');
     expect(summary.images).toHaveLength(1);
     expect(summary.images[0].content).toBe(blob);
+    // `write-excel-file`'s anchor is 1-based — it subtracts 1 when writing
+    // the drawing XML, so a 0-based `column: 0`/`row: 0` here would become
+    // an invalid `-1` in the exported file.
+    expect(summary.images[0].anchor.column).toBeGreaterThanOrEqual(1);
+    expect(summary.images[0].anchor.row).toBeGreaterThanOrEqual(1);
+    // `dpi: 96` paired with the *logical* (pre-2x) width places the image at
+    // its intended on-sheet size — pairing a doubled dpi with this same
+    // logical width would halve it (`pxToEmu_` in write-excel-file's own
+    // source: `px * 9525 * (96 / dpi)`).
     expect(summary.images[0].width).toBe(640);
+    expect(summary.images[0].dpi).toBe(96);
   });
 
   test('adds no image when no chart was rendered (e.g. a year with zero projects)', () => {

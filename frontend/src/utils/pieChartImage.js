@@ -10,9 +10,10 @@
  * The canvas is rendered at 2x `WIDTH`/`HEIGHT` (`SCALE`) so it stays crisp
  * rather than pixelating the moment someone zooms in on the sheet; the
  * returned `width`/`height` are the *logical* (1x) size the image should
- * occupy on the sheet — `exportDashboardExcel.js` pairs them with a doubled
- * `dpi` so the embedded image displays at that logical size, not its raw
- * pixel count.
+ * occupy on the sheet. That 2x raster still embeds in full regardless of
+ * what box it's placed into, so the crispness survives on its own —
+ * `exportDashboardExcel.js` doesn't need any DPI trick to preserve it, just
+ * to place the box at this logical size (see the `CHART_DPI` comment there).
  */
 const SCALE = 2;
 const WIDTH = 640;
@@ -34,8 +35,9 @@ function drawChart(ctx, slices, title) {
   let angle = -Math.PI / 2;
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2;
+  const total = slices.reduce((s, x) => s + x.value, 0);
   for (const slice of slices) {
-    const sweep = (slice.value / slices.reduce((s, x) => s + x.value, 0)) * Math.PI * 2;
+    const sweep = (slice.value / total) * Math.PI * 2;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, radius, angle, angle + sweep);

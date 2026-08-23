@@ -39,4 +39,18 @@ describe('computePhaseChartSlices', () => {
     const slices = computePhaseChartSlices(phases, new Map());
     expect(slices).toHaveLength(0);
   });
+
+  test('three phases sharing a tone still get three distinct colours', () => {
+    // No real phase code repeats a tone three times today, so this uses
+    // unknown codes — `computePhaseChartSlices` falls back to 'neutral' for
+    // any code `PHASE_TONE` doesn't list, which puts all three in one tone.
+    const threeNeutral = [
+      { code: 'FAKE_A', ordinal: 1, name_th: 'A' },
+      { code: 'FAKE_B', ordinal: 2, name_th: 'B' },
+      { code: 'FAKE_C', ordinal: 3, name_th: 'C' },
+    ];
+    const counts = new Map([['FAKE_A', 1], ['FAKE_B', 1], ['FAKE_C', 1]]);
+    const slices = computePhaseChartSlices(threeNeutral, counts);
+    expect(new Set(slices.map((s) => s.color)).size).toBe(3);
+  });
 });
