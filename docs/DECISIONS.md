@@ -1343,26 +1343,32 @@ on exactly the class of request this feature exists to protect. Six tests in
 `ReauthDialog.test.js`, including the SweetAlert race above, which was found
 by testing this live rather than assumed to be safe.
 
-### `xlsx` has two unpatched CVEs — not reachable, checked and recorded (2026-08-20)
+### ~~`xlsx` has two unpatched CVEs — not reachable, checked and recorded (2026-08-20)~~
 
-`npm audit` on the frontend flags `xlsx` (SheetJS, pinned at `0.18.5` —
-the last version the project published to the public npm registry) for a
+**Superseded (2026-08-24) — the dependency is gone, not just unreachable.**
+`frontend/src/utils/exportDashboardExcel.js` was rewritten to add a chart and
+cell styling to the dashboard export, which `xlsx`'s free tier cannot do at
+all. `ExcelJS` was tried first — the obvious choice on paper — but its
+browser bundle turned out to depend on Node's `fs`/`crypto`/`stream`/`util`
+deeply enough that `workbook.xlsx.writeBuffer()` hung forever even after
+polyfilling webpack 5's module resolution, found only by clicking the
+export button and watching it never resolve. `write-excel-file` replaced it
+instead: built for browsers specifically, one dependency (`fflate`, pure JS,
+no Node built-ins), verified by unzipping real output rather than trusting
+its docs a second time. Nothing in the frontend imports `xlsx` any more, so
+it was removed (`npm uninstall xlsx`) rather than left installed and merely
+unused — the two CVEs below are no longer this app's risk to accept at all.
+
+*Original entry, kept for the reasoning that held at the time:* `npm audit`
+on the frontend flagged `xlsx` (SheetJS, pinned at `0.18.5` — the last
+version the project published to the public npm registry) for a
 prototype-pollution issue and a ReDoS, both **high severity, no fix
-available**. Worth a real look rather than a blanket "known issue, ignored":
-both CVEs are in SheetJS's *parsing* path — malformed input reaching
-`XLSX.read`/`readFile` — and this app never calls either. The only use is
-`frontend/src/utils/exportDashboardExcel.js`, which only *writes*:
-`json_to_sheet` over data the dashboard already fetched from the server (so
-already scoped to the caller), `book_append_sheet`, `writeFile`. No upload
-ever reaches this library — the server's own `.xlsx` allow-list
-(`attachmentService.js:54`) is a MIME/extension check for storage, not a
-parse, and doesn't use this package at all.
-
-Left as-is. Swapping to a maintained library (`exceljs` is the usual
-alternative) would be justified the day this app parses a spreadsheet
-someone else produced — reading one is exactly the operation these CVEs are
-about — but doing that now would be dependency churn against a vulnerability
-this app's actual code path cannot trigger.
+available**. Both CVEs were in SheetJS's *parsing* path — malformed input
+reaching `XLSX.read`/`readFile` — and this app never called either; the only
+use was the dashboard export, which only *wrote*. Left as-is at the time,
+on the reasoning that swapping libraries would be dependency churn against a
+vulnerability this app's actual code path could not trigger — which held
+until the export needed something `xlsx` genuinely could not do.
 
 ### E-signature on an approval transition — closed (2026-08-22)
 
