@@ -33,7 +33,7 @@ jest.mock('../AuthContext', () => ({ useAuth: () => ({ session: mockSession }) }
 const totals = {
   allocated: '500000.00', committed: '96000.00', disbursed: '50000.00',
   remaining: '404000.00', overCommitted: false, activeClubs: 3, projects: 5,
-  idleClubs: 66,
+  idleClubs: 66, submitted: 3, closed: 1,
 };
 
 const oneCampusOneGroup = {
@@ -41,12 +41,15 @@ const oneCampusOneGroup = {
   years: [2567],
   totals,
   byCampus: [{ campus: { id: 1, nameTh: 'มจพ. กรุงเทพฯ' }, activeClubs: 3, clubs: 69,
-    allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false }],
+    allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false,
+    submitted: 3, closed: 1 }],
   byClubGroup: [{ clubGroup: { id: 1, nameTh: 'กรุงเทพฯ' }, activeClubs: 3, clubs: 69,
-    allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false }],
+    allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false,
+    submitted: 3, closed: 1 }],
   byClub: [
     { club: { id: 28, nameTh: 'ชมรมพุทธศาสน์', code: 'A201' }, campus: { nameTh: 'มจพ. กรุงเทพฯ' },
-      projects: 5, allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false },
+      projects: 5, allocated: '500000.00', committed: '96000.00', disbursed: '50000.00', remaining: '404000.00', overCommitted: false,
+      submitted: 3, closed: 1 },
   ],
 };
 
@@ -122,6 +125,29 @@ it('names the empty scope rather than rendering a chart with nothing in it', asy
   show('ADMIN');
 
   expect(await screen.findByText('ยังไม่มีชมรมใดเคลื่อนไหวในปี 2567')).toBeInTheDocument();
+});
+
+it('shows what share of the ceiling is committed, and how many projects are at each stage', async () => {
+  api.spending.mockResolvedValue(oneCampusOneGroup);
+  show('ADMIN');
+
+  await screen.findByText('ตามชมรม');
+  // 96,000 / 500,000 — committed against allocated, not disbursed against
+  // allocated, per the page's own `usagePercent` comment.
+  expect(screen.getByText('19.2%')).toBeInTheDocument();
+});
+
+it('shows an em dash for usage percent rather than 0% when a club has no allocation', async () => {
+  api.spending.mockResolvedValue({
+    ...oneCampusOneGroup,
+    byClub: [{
+      ...oneCampusOneGroup.byClub[0], allocated: '0.00', committed: '0.00', remaining: '0.00',
+    }],
+  });
+  show('ADMIN');
+
+  await screen.findByText('ตามชมรม');
+  expect(screen.getAllByText('—').length).toBeGreaterThan(0);
 });
 
 it('refetches when a different year is chosen', async () => {

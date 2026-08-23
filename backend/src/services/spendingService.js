@@ -105,13 +105,22 @@ async function totalsByClub(actor, year) {
   // `uq_plan_line_project` makes this at most one plan line per project, so the
   // LEFT JOIN cannot multiply the count. A project with no plan line yet still
   // counts as a project and contributes 0 — which is what a year in progress
-  // looks like.
+  // looks like. `phase_id` is a required column, so the join to `phase` is
+  // always exactly one row per project and cannot multiply it either.
+  //
+  // `submitted`/`closed` split the same `projects` count by where each one
+  // currently sits: DRAFT_PROPOSAL is excluded from `submitted` because it has
+  // not been sent anywhere yet, and CLOSED is its own count rather than folded
+  // into `submitted` because "closed" is the answer, not "still moving".
   const [committed] = await pool.query(
     `SELECT p.club_id,
             COUNT(*) AS projects,
-            COALESCE(SUM(pl.approved_amount), 0) AS total
+            COALESCE(SUM(pl.approved_amount), 0) AS total,
+            SUM(CASE WHEN ph.code NOT IN ('DRAFT_PROPOSAL', 'CLOSED') THEN 1 ELSE 0 END) AS submitted,
+            SUM(CASE WHEN ph.code = 'CLOSED' THEN 1 ELSE 0 END) AS closed
        FROM project p
        JOIN club c ON c.id = p.club_id
+       JOIN phase ph ON ph.id = p.phase_id
        LEFT JOIN budget_plan_line pl ON pl.project_id = p.id
       WHERE p.academic_year = ? AND ${visibility.sql}
       GROUP BY p.club_id`,
@@ -132,7 +141,7 @@ async function totalsByClub(actor, year) {
   const at = (clubId) => {
     const key = Number(clubId);
     if (!byClub.has(key)) {
-      byClub.set(key, { allocated: 0, committed: 0, disbursed: 0, projects: 0 });
+      byClub.set(key, { allocated: 0, committed: 0, disbursed: 0, projects: 0, submitted: 0, closed: 0 });
     }
     return byClub.get(key);
   };
@@ -142,6 +151,8 @@ async function totalsByClub(actor, year) {
     const entry = at(row.club_id);
     entry.committed = satang(row.total);
     entry.projects = Number(row.projects);
+    entry.submitted = Number(row.submitted);
+    entry.closed = Number(row.closed);
   }
   for (const row of disbursed) at(row.club_id).disbursed = satang(row.total);
 
@@ -160,18 +171,24 @@ function present(sums) {
     // the state is legal and every read says so.
     overCommitted: remaining < 0,
     // Not sent as a percentage — the client decides how to draw it, and a
-    // ratio against a zero ceiling has no answer worth inventing here.
+    // ratio against a zero ceiling has no answer worth inventing here. Same
+    // reasoning for `submitted`/`closed`: counts, not a share of `projects`,
+    // for the same zero-denominator reason.
     projects: sums.projects,
+    submitted: sums.submitted,
+    closed: sums.closed,
   };
 }
 
-const empty = () => ({ allocated: 0, committed: 0, disbursed: 0, projects: 0 });
+const empty = () => ({ allocated: 0, committed: 0, disbursed: 0, projects: 0, submitted: 0, closed: 0 });
 
 function add(into, from) {
   into.allocated += from.allocated;
   into.committed += from.committed;
   into.disbursed += from.disbursed;
   into.projects += from.projects;
+  into.submitted += from.submitted;
+  into.closed += from.closed;
   return into;
 }
 

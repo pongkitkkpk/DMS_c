@@ -539,8 +539,9 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   // against a ceiling nobody set is the state worth not dropping. Asserted as
   // the union rather than by looking for a zero-allocation club, because
   // whether one exists depends on what the assertions above happened to fund.
-  const fromProjects = (await call('GET', `/api/projects?year=${year}&pageSize=200`, { token: admin }))
-    .body.items.map((project) => project.club.id);
+  const projectItems = (await call('GET', `/api/projects?year=${year}&pageSize=200`, { token: admin }))
+    .body.items;
+  const fromProjects = projectItems.map((project) => project.club.id);
   const expected = [...new Set([
     ...allocationRows.items.map((row) => row.club.id),
     ...fromProjects,
@@ -553,6 +554,23 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   ok('  …and the clubs with nothing at all are counted rather than listed',
     spending.body.totals.idleClubs + spending.body.totals.activeClubs
       === spending.body.totals.clubs);
+
+  // `submitted`/`closed` split the same project count by phase — DRAFT_PROPOSAL
+  // counts toward neither (nothing has been sent yet), CLOSED counts only
+  // toward `closed`, everything else counts toward `submitted`.
+  const expectedByClub = new Map();
+  for (const project of projectItems) {
+    const entry = expectedByClub.get(project.club.id) || { submitted: 0, closed: 0 };
+    if (project.phase.code === 'CLOSED') entry.closed += 1;
+    else if (project.phase.code !== 'DRAFT_PROPOSAL') entry.submitted += 1;
+    expectedByClub.set(project.club.id, entry);
+  }
+  ok('submitted/closed counts agree with each club\'s projects, split by phase',
+    spending.body.byClub.every((club) => {
+      const want = expectedByClub.get(club.club.id) || { submitted: 0, closed: 0 };
+      return club.submitted === want.submitted && club.closed === want.closed;
+    }),
+    JSON.stringify(spending.body.byClub.map((c) => [c.club.code, c.submitted, c.closed])));
 
   // Q33: an allocation may be lowered below what is already committed, and the
   // summary is one of the places that has to say so rather than clamp it.

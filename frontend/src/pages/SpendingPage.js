@@ -71,6 +71,25 @@ function MoneySection({ rows, firstColumn }) {
   );
 }
 
+/**
+ * `committed ÷ allocated`, as a percentage — "how much of the ceiling has
+ * been promised to a project", not "how much has actually been spent"
+ * (that comparison is `disbursed ÷ allocated`, a different question, kept
+ * separate rather than folded into this one number).
+ *
+ * A club with no ceiling has no ratio to report — `0 ÷ 0` is not "0%", it is
+ * "not applicable", so it prints the same em dash `money()` uses for a
+ * missing figure rather than a misleading `0.0%`.
+ */
+function usagePercent(allocated, committed) {
+  // Both arrive as decimal strings (`"500000.00"`), like every other money
+  // figure on this page — `!allocated` would miss `"0.00"`, which is truthy
+  // as a non-empty string regardless of what number it spells.
+  const denominator = Number(allocated);
+  if (!denominator) return '—';
+  return `${((Number(committed) / denominator) * 100).toFixed(1)}%`;
+}
+
 /** The table that carries the exact figures the chart above it draws. */
 function MoneyTable({ rows, firstColumn }) {
   return (
@@ -81,8 +100,11 @@ function MoneyTable({ rows, firstColumn }) {
             <th>{firstColumn}</th>
             <th style={{ textAlign: 'right' }}>จัดสรร</th>
             <th style={{ textAlign: 'right' }}>อนุมัติแล้ว</th>
+            <th style={{ textAlign: 'right' }}>% ใช้เงิน</th>
             <th style={{ textAlign: 'right' }}>จ่ายจริง</th>
             <th style={{ textAlign: 'right' }}>คงเหลือ</th>
+            <th style={{ textAlign: 'right' }}>เสนออนุมัติ</th>
+            <th style={{ textAlign: 'right' }}>ปิดโครงการ</th>
           </tr>
         </thead>
         <tbody>
@@ -94,6 +116,9 @@ function MoneyTable({ rows, firstColumn }) {
               </td>
               <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.allocated)}</td>
               <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.committed)}</td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>
+                {usagePercent(row.allocated, row.committed)}
+              </td>
               <td className="u-mono" style={{ textAlign: 'right' }}>{money(row.disbursed)}</td>
               <td
                 className="u-mono"
@@ -106,6 +131,8 @@ function MoneyTable({ rows, firstColumn }) {
                 {money(row.remaining)}
                 {row.overCommitted && <div className="u-small">เกินวงเงิน</div>}
               </td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>{row.submitted}</td>
+              <td className="u-mono" style={{ textAlign: 'right' }}>{row.closed}</td>
             </tr>
           ))}
         </tbody>
