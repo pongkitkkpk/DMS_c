@@ -64,7 +64,7 @@ the login page — that's the point of a demo. Confirm it worked:
 npm run check:all
 ```
 
-against the same `.env`. This is the same 483-assertion suite the project
+against the same `.env`. This is the same 521-assertion suite the project
 already runs locally; seeing it pass against Aiven means the schema and
 fixtures are in place before Render ever sees them.
 
