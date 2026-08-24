@@ -1555,3 +1555,46 @@ signature yet (the blank dotted line, unchanged) and the `forms:review`
 project rendering it with all three (three distinct embedded images,
 verified as real PNGs by unzipping the output, not merely that the render
 did not throw).
+
+### `xmldom`'s critical CVEs, pulled in by the image module — not reachable, checked and recorded (2026-08-25)
+
+A routine `npm audit` on the backend (run as part of a verification pass —
+`check:all` at 521, frontend suite at 170, both still green) flagged
+`xmldom`, pinned by `docxtemplater-image-module-free` (the package
+`render.js` uses to embed the three signature images on กนศ.04) as
+**critical** severity — eight distinct advisories rolled into that one
+rating: XML misinterpretation, multiple-root-node confusion, and injection
+through unescaped CDATA/comment/processing-instruction serialization. No fix
+is available from either package.
+
+All eight are about `xmldom`'s `DOMParser` (parsing attacker-shaped XML) or
+its `XMLSerializer` (writing attacker-controlled text into XML unescaped).
+`docxtemplater-image-module-free` ships **two** copies of its code —
+`js/index.js`, which `package.json`'s `"main"` points `require()` at, and a
+separate bundled `build/imagemodule.js` — and only the second one calls
+`XMLSerializer`. Node's module resolution never loads `build/`; grepping for
+`require(` across every file `js/index.js` actually pulls in (`docUtils.js`,
+`imgManager.js`, `templates.js`) confirms none of them reach the bundle
+either. So the serialization-injection advisories have no code path `require`
+can reach here, regardless of how the module is configured — not because the
+function is never called, but because the file containing it is never
+loaded.
+
+`DOMParser` **is** in the loaded file, called exactly once, inside
+`getInnerPptx`, which reads an image's position out of a **PowerPoint**
+slide's XML. It is only reachable through an `if (this.fileType === "pptx")`
+branch (`index.js:113-118`); the `else` branch (`getInnerDocx`) used for
+`.docx` returns its input untouched and never constructs a `DOMParser`.
+`render.js` constructs the module with `fileType: 'docx'` as a literal, not a
+variable — the only occurrence of `fileType` in `src/documents/` — and
+`templates/` holds exactly two files, `temp04.docx` and `temp06.docx`;
+nothing in this codebase ever renders a `.pptx`. `getInnerPptx` is therefore
+dead code on every request this app can make, not merely unlikely to be hit.
+
+Same shape of finding as the `xlsx` entry above, and the same resolution:
+left installed rather than swapped, because the vulnerable path is provably
+unreachable rather than merely believed safe, and replacing a working image
+module against no actual exposure would be dependency churn for its own
+sake. Revisit if this app ever needs to render `.pptx`, or if
+`docxtemplater-image-module-free` is ever reconfigured with a non-literal
+`fileType`.
