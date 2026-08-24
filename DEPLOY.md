@@ -30,6 +30,13 @@ work below is filling in the values it deliberately leaves blank
 
 ## 2. Load the schema and demo data
 
+**Migrations no longer need doing by hand** — `render.yaml` runs
+`npm run db:migrate` as part of the API's build, so every deploy brings the
+schema up to date before the new code starts. The step below is still how you
+do it the *first* time, because the demo data (`db:seed`) is not part of a
+deploy and never will be: seeding truncates the tables it owns, which is right
+for standing up a fresh database and catastrophic on a running one.
+
 The migration and seed scripts read the same `DB_*` environment variables the
 running app does. From `backend/`, with a `.env` pointed at Aiven instead of
 XAMPP:

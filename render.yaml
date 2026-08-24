@@ -12,7 +12,21 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install
+    # Migrations run on every deploy, not by hand from somebody's laptop.
+    #
+    # They used to be a manual step in DEPLOY.md, and the gap did what gaps do:
+    # 006 and 007 sat unapplied on Aiven while this service happily served the
+    # code that expected them. Nothing looked broken — the project *list* never
+    # touches `phase_transition.requires_signature`, so only opening a single
+    # project 500'd, which is the kind of half-failure nobody notices until a
+    # visitor finds it. `db:migrate` reads `schema_migration` and applies only
+    # what it has not recorded, so re-running it on every deploy is a no-op
+    # once the schema is current.
+    #
+    # A failed migration now fails the whole build, and that is the point: this
+    # service keeps serving the previous deploy rather than starting against a
+    # schema it disagrees with.
+    buildCommand: npm install && npm run db:migrate
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
