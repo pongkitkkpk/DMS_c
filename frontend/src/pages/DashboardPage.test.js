@@ -9,7 +9,7 @@
  * way for every role.
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route } from 'react-router-dom';
 
@@ -23,6 +23,7 @@ jest.mock('../api', () => ({
     phases: jest.fn(),
     clubs: jest.fn(),
     readiness: jest.fn(),
+    setAllocation: jest.fn(),
   },
   messageOf: () => 'error',
 }));
@@ -31,6 +32,16 @@ const mockDownload = jest.fn();
 jest.mock('../utils/exportDashboardExcel', () => ({
   downloadDashboardExcel: (...args) => mockDownload(...args),
 }));
+
+const mockSwalFire = jest.fn();
+jest.mock('sweetalert2', () => ({
+  __esModule: true,
+  default: { fire: (...args) => mockSwalFire(...args) },
+}));
+
+const autoConfirm = (amount = '12345') => mockSwalFire.mockImplementation((opts) => (
+  Promise.resolve(opts.input === 'text' ? { isConfirmed: true, value: amount } : { isConfirmed: true })
+));
 
 const phases = [
   { code: 'DRAFT_PROPOSAL', ordinal: 1, name_th: 'ร่างคำขออนุมัติ' },
@@ -87,6 +98,8 @@ const show = (role) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  autoConfirm();
+  api.setAllocation.mockResolvedValue({ warnings: [] });
 });
 
 it('counts projects per phase, including a phase with zero', async () => {
@@ -105,6 +118,22 @@ it('lets ADMIN edit an allocation and see the export button', async () => {
   expect(await screen.findByText(/แก้ไขได้/)).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /แก้ไขวงเงินจัดสรรของ ชมรมพุทธศาสน์/ })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'ดาวน์โหลด Excel' })).toBeInTheDocument();
+});
+
+it('actually saves an allocation edit from the dashboard table, not just the button', async () => {
+  stubApi({ role: 'ADMIN' });
+  show('ADMIN');
+
+  const edit = await screen.findByRole('button', { name: /แก้ไขวงเงินจัดสรรของ ชมรมพุทธศาสน์/ });
+  await userEvent.click(edit);
+
+  await waitFor(() => expect(api.setAllocation).toHaveBeenCalledWith({
+    clubId: 28, academicYear: 2567, amount: '12345',
+  }));
+  // A successful save reloads the page (api.allocations again) — wait for
+  // that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.allocations).toHaveBeenCalledTimes(2));
 });
 
 it('gives SH a read-only table but still the export button', async () => {
