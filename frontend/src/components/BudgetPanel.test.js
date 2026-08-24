@@ -174,6 +174,12 @@ it('disables save until a line is actually dirty, and saves the mapped rows on c
     3, 'PLANNED',
     [expect.objectContaining({ category: 'A', description: 'ค่าตอบแทนวิทยากร (แก้ไข)', unitPrice: '500' })]
   ));
+  // save()'s own state updates (setDirty/setBusy) and the reload it triggers
+  // (api.budget again) both land after the awaited setLines call resolves, so
+  // wait for the button to reflect "saved" (disabled again, since !dirty) and
+  // for the reload, rather than let those updates land after the test returns.
+  await waitFor(() => expect(saveButton).toBeDisabled());
+  await waitFor(() => expect(api.budget).toHaveBeenCalledTimes(2));
 });
 
 it('adds a blank row on "+ เพิ่มรายการ" and removes a row on its own delete button', async () => {
@@ -221,4 +227,9 @@ it('records a disbursement and clears the form, without letting the ledger be ed
     9, { amount: '5000', receivedByName: 'นายซี', issuedByName: 'นายดี' }
   ));
   await waitFor(() => expect(screen.getByPlaceholderText('จำนวนเงิน')).toHaveValue(''));
+  // The submit handler's own `finally` (setBusy(false)) and the reload it
+  // triggers (api.budget again) both land after this same await, so wait for
+  // both rather than let their state updates land after the test returns.
+  await waitFor(() => expect(screen.getByText('บันทึกการเบิกจ่าย')).not.toBeDisabled());
+  await waitFor(() => expect(api.budget).toHaveBeenCalledTimes(2));
 });
