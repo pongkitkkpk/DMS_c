@@ -97,6 +97,10 @@ it('warns before editing a year already closed, naming what already happened', a
     title: 'แก้ไขวงเงินของปี 2565',
     html: expect.stringContaining('อนุมัติเงินไปแล้ว'),
   }));
+  // A successful save reloads the page (api.allocations again) — wait for
+  // that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.allocations).toHaveBeenCalledTimes(2));
 });
 
 it('tells an unfunded past year apart from one being corrected', async () => {
@@ -111,6 +115,11 @@ it('tells an unfunded past year apart from one being corrected', async () => {
     title: 'กำหนดวงเงินย้อนหลังให้ปี 2565',
     html: expect.stringContaining('ยังไม่เคยมีวงเงิน'),
   }));
+  // autoConfirm() resolves every dialog after this one too, so the save and
+  // its reload (api.allocations again) run to completion regardless — wait
+  // for that or its state updates land after the test (and its render tree)
+  // is already gone.
+  await waitFor(() => expect(api.allocations).toHaveBeenCalledTimes(2));
 });
 
 it('asks only once for a future year — no retroactive warning', async () => {
@@ -126,6 +135,10 @@ it('asks only once for a future year — no retroactive warning', async () => {
     clubId: 28, academicYear: 2569, amount: '12345',
   }));
   expect(mockSwalFire).toHaveBeenCalledTimes(1); // the amount prompt only
+  // A successful save reloads the page (api.allocations again) — wait for
+  // that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.allocations).toHaveBeenCalledTimes(2));
 });
 
 it('surfaces Q33\'s warning after a save that succeeds anyway', async () => {
@@ -143,6 +156,10 @@ it('surfaces Q33\'s warning after a save that succeeds anyway', async () => {
     title: 'บันทึกแล้ว แต่โปรดทราบ',
     text: 'วงเงินใหม่ต่ำกว่ายอดที่อนุมัติไปแล้ว',
   })));
+  // The warning dialog fires before load() — wait for the reload (api.allocations
+  // again) too, or its state updates land after the test (and its render tree)
+  // is already gone.
+  await waitFor(() => expect(api.allocations).toHaveBeenCalledTimes(2));
 });
 
 it('gives a read-only role no edit controls at all', async () => {

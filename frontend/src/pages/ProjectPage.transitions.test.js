@@ -137,6 +137,10 @@ it('advances only after confirming, and reports the new project number', async (
   await waitFor(() => expect(api.transition).toHaveBeenCalledWith('1', 'PENDING_ADVISOR', null));
   const successCall = mockSwalFire.mock.calls.find(([opts]) => opts.icon === 'success');
   expect(successCall[0].text).toContain('A201-2567-001');
+  // A successful transition reloads the page (api.getProject again) — wait
+  // for that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
 });
 
 it('marks a warning-carrying transition as a warning, not a plain success', async () => {
@@ -159,6 +163,10 @@ it('marks a warning-carrying transition as a warning, not a plain success', asyn
     expect(call[0].icon).toBe('warning');
     expect(call[0].text).toContain('เกินงบตามแผน');
   });
+  // A successful transition reloads the page (api.getProject again) — wait
+  // for that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
 });
 
 it('flags a transition that carries a budget check, before it is even clicked', async () => {
@@ -187,6 +195,10 @@ it('asks for a signature before advancing a transition that requires one', async
   await waitFor(() =>
     expect(api.transition).toHaveBeenCalledWith('1', 'BUDGET_APPROVED', 'data:image/png;base64,AAAA')
   );
+  // A successful transition reloads the page (api.getProject again) — wait
+  // for that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
 });
 
 it('sends nothing to the server when the signature dialog is cancelled', async () => {
@@ -217,6 +229,10 @@ it('never opens the signature pad for a transition that does not require one', a
 
   await waitFor(() => expect(api.transition).toHaveBeenCalledWith('1', 'PENDING_ADVISOR', null));
   expect(mockCaptureSignature).not.toHaveBeenCalled();
+  // A successful transition reloads the page (api.getProject again) — wait
+  // for that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
 });
 
 it('flags a transition that requires a signature, before it is even clicked', async () => {
@@ -240,6 +256,10 @@ it('offers the advisor endorsement action only when the server granted it', asyn
   await waitFor(() =>
     expect(api.endorseAsAdvisor).toHaveBeenCalledWith('1', 'data:image/png;base64,AAAA')
   );
+  // A successful endorsement reloads the page (api.getProject again) — wait
+  // for that second fetch to settle too, or its state updates land after the
+  // test (and its render tree) is already gone.
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
 });
 
 it('does not send an endorsement when the signature dialog is cancelled', async () => {
