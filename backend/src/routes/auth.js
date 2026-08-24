@@ -10,6 +10,7 @@
  * signed as the literal `"user"`. Here the provider settles identity and the
  * database settles role.
  */
+const crypto = require('crypto');
 const express = require('express');
 
 const { config } = require('../config');
@@ -56,6 +57,19 @@ function sessionBody(person, memberships) {
 }
 
 /**
+ * Constant-time string equality, the same shape as `providers/mock.js`'s
+ * `passwordAccepted`: hash first so both buffers are the same length whatever
+ * was typed, since `timingSafeEqual` throws on a length mismatch and the throw
+ * itself would leak the length.
+ */
+function safeEqual(given, expected) {
+  return crypto.timingSafeEqual(
+    crypto.createHash('sha256').update(String(given)).digest(),
+    crypto.createHash('sha256').update(String(expected)).digest()
+  );
+}
+
+/**
  * Q17's local admin fallback: identity only, and still no role of its own.
  * Whoever `ADMIN_USERNAME` names must hold a `membership` like anyone else, so
  * the backdoor can never mint privileges that are not in the database.
@@ -64,7 +78,7 @@ function sessionBody(person, memberships) {
 function localAdminIdentity(username, password) {
   const { localAdmin } = config;
   if (!localAdmin.enabled) return null;
-  if (username !== localAdmin.username || password !== localAdmin.password) return null;
+  if (!safeEqual(username, localAdmin.username) || !safeEqual(password, localAdmin.password)) return null;
 
   return {
     idStudent: localAdmin.username,
