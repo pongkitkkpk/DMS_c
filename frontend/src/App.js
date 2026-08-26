@@ -68,7 +68,7 @@ const NAV = [
  * reading, and sending them there can only produce a 403 the system then has to
  * explain.
  */
-function RequireAuth({ children }) {
+export function RequireAuth({ children }) {
   const { session, loading, ended } = useAuth();
   const location = useLocation();
   if (loading) {
@@ -89,7 +89,7 @@ function RequireAuth({ children }) {
   return children;
 }
 
-function AppBar() {
+export function AppBar() {
   const { session, logout } = useAuth();
   const history = useHistory();
   if (!session) return null;
