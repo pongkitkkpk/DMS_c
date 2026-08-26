@@ -723,6 +723,7 @@ module.exports = {
   assertMayApprove,
   assertMayDisburse,
   assertTransitionAllowed,
+  enforce,
   evaluate,
   loadDisbursements,
   loadLines,

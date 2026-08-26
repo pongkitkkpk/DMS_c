@@ -55,6 +55,7 @@ npm start                     # http://localhost:3000
 | คำสั่ง | ทำอะไร |
 | --- | --- |
 | `npm run db:reset` | ล้างและสร้างฐานข้อมูลใหม่พร้อมข้อมูลตั้งต้น |
+| `npm test` | ชุดตรวจ unit test 335 ข้อ — ครบทุกไฟล์ใน `backend/src/services/`, `backend/src/documents/`, middleware หลัก, ประตูความปลอดภัยก่อน deploy, route wiring ที่มี logic จริง และ `academicYearService` (ลำดับความสำคัญ 3 แหล่งของปีการศึกษา + กัน "เข้าปีที่ไม่มี ADMIN เลย" ซึ่งจะทำให้ไม่มีใครกำหนดสิทธิ์ได้อีก) — mock เฉพาะฐานข้อมูลเมื่อจำเป็น ไม่ต้องเปิด API หรือ MariaDB |
 | `npm run check:all` | ชุดตรวจทั้งหมด 521 ข้อ (ต้องเปิด API ไว้ก่อน — มันรีซีดให้เองระหว่าง suite) |
 | `npm run forms:read -- --project <id>` | เรนเดอร์ฟอร์มของโครงการนั้นออกมาเป็นข้อความ อ่านได้โดยไม่ต้องเปิด Word |
 | `npm run forms:review` | สร้างโครงการที่กรอกเต็มทุกช่องแล้วเซฟไฟล์ `.docx` ทั้งสองใบไว้ที่ `generated/forms/` |
