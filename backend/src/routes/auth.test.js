@@ -182,9 +182,9 @@ describe('GET /api/auth/mode', () => {
     expect(res.status).toBe(200);
     expect(res.body.provider).toBe('mock');
     expect(res.body.requiresSharedPassword).toBe(false);
-    // The five fixtures from `auth/providers/mock.js`'s DIRECTORY, none of
+    // The six fixtures from `auth/providers/mock.js`'s DIRECTORY, none of
     // which has a `person` row yet in this test's fake database.
-    expect(res.body.accounts).toHaveLength(5);
+    expect(res.body.accounts).toHaveLength(6);
     expect(res.body.accounts).toContainEqual(
       { idStudent: 'fixture.admin', fullNameTh: null, role: null, scope: null }
     );
@@ -219,7 +219,7 @@ describe('GET /api/auth/mode', () => {
 
     // Still usable: the screen just cannot show a role beside each name.
     expect(res.status).toBe(200);
-    expect(res.body.accounts).toHaveLength(5);
+    expect(res.body.accounts).toHaveLength(6);
     expect(res.body.accounts).toContainEqual(
       { idStudent: 'fixture.admin', fullNameTh: null, role: null, scope: null }
     );

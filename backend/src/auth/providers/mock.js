@@ -33,6 +33,18 @@ const DIRECTORY = {
     LEVEL_DESC: 'ปริญญาตรี',
     STU_STATUS_DESC: 'กำลังศึกษา',
   },
+  // A student head of a different club, this time the one the D04 taxonomy
+  // seeds for the student council itself — for testing the ประธานสภานักศึกษา
+  // signature line (docs/DECISIONS.md, "E-signature") without inventing a
+  // sixth kind of account.
+  'fixture.council': {
+    displayname: 'สมคิด ประธานสภา',
+    prefix_th: 'นาย',
+    email: 'council@example.test',
+    type: 'students',
+    LEVEL_DESC: 'ปริญญาตรี',
+    STU_STATUS_DESC: 'กำลังศึกษา',
+  },
   'fixture.advisor': {
     displayname: 'สมหญิง ที่ปรึกษา',
     prefix_th: 'นางสาว',

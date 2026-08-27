@@ -202,6 +202,33 @@ async function seedFixtures(conn, log) {
     to_phase_id: phases[0].id, actor_person_id: otherStudent.id,
   });
 
+  // --- a third club: the student council itself ---
+  //
+  // สภานักศึกษา is seeded by taxonomy.js as an ordinary D04/CENTRAL club, so its
+  // head needs no special-casing anywhere — `clubHeadTitle` (assembler.js)
+  // already prints this membership's SH as "ประธานสภานักศึกษา มจพ.กรุงเทพฯ" on
+  // กนศ.04/06 the same way it prints any other club's SH as ประธาน + name. This
+  // account exists to make that scenario logged-in-and-clickable rather than
+  // only provable by reading the code. Matched by `cg.code` + campus + a name
+  // prefix, because CENTRAL holds two clubs per campus (องค์การ and สภา) and
+  // only the name tells them apart.
+  const councilClub = await one(conn, `
+    SELECT c.id, c.name_th
+      FROM club c
+      JOIN campus cam    ON cam.id = c.campus_id
+      JOIN club_group cg ON cg.id = c.club_group_id
+     WHERE cg.code = 'CENTRAL' AND cam.code = 'Bangkok' AND c.name_th LIKE 'สภานักศึกษา%'
+     ORDER BY c.code LIMIT 1`);
+
+  const councilStudent = {
+    id_student: 'fixture.council', full_name_th: 'สมคิด ประธานสภา',
+    account_type: 'students', email: 'council@example.test',
+  };
+  councilStudent.id = await insert(conn, 'person', councilStudent);
+  await insert(conn, 'membership', {
+    person_id: councilStudent.id, role: 'SH', academic_year: ACADEMIC_YEAR, club_id: councilClub.id,
+  });
+
   // An allocation generous enough that the fixtures sit inside it — the point is
   // to have a ceiling present, not to trip it.
   await insert(conn, 'agency_allocation', {
@@ -221,9 +248,10 @@ async function seedFixtures(conn, log) {
 
   log(`  club          ${club.name_th} (${club.code})  club_code ${clubCode}`);
   log(`  out of scope  ${otherClub.name_th} — 1 club, 1 SH, 1 project, different club group`);
-  log(`  person 5 · membership 5 · project ${projectIds.length + 1} (one per phase, plus the out-of-scope one)`);
+  log(`  council       ${councilClub.name_th} — 1 SH, no project yet (log in and create one to test signing)`);
+  log(`  person 6 · membership 6 · project ${projectIds.length + 1} (one per phase, plus the out-of-scope one)`);
   log(`  numbered projects: ${approvedSequence} (phases 3-7), first ${buildProjectNumber(clubCode, 1)}`);
-  log(`  logins: ${[...Object.values(people), otherStudent].map((p) => p.id_student).join(', ')}`);
+  log(`  logins: ${[...Object.values(people), otherStudent, councilStudent].map((p) => p.id_student).join(', ')}`);
 }
 
 module.exports = { seedFixtures, ACADEMIC_YEAR };
