@@ -1702,3 +1702,35 @@ by moving `check-phase3`'s `anyProject` fixture off `BUDGET_APPROVED` — the on
 required ordinal range the new content lock now closes — onto `REPORT_SUBMITTED`. **The lesson
 worth keeping**: this codebase has two test surfaces, not one, and "all green" from the mocked
 suite alone is not a claim about the live one. 524 passed, 0 failed once both were run.
+
+**A second correction: two authorization bugs, found by a security review before deploy.** The
+widened visibility above (a council head sees their whole campus, not just their own club) is
+exactly the kind of change this project's own habit is to re-check with fresh eyes rather than
+trust because the tests passed — 524 tests is not the same claim as "nobody can reach a control
+this was never meant to grant." A focused review the same day found two real ones, both traced
+to that one widening, neither caught by any of the 524:
+
+1. **`assertCanEdit`/`assertCanManageAttachments` never re-checked club ownership.** Before this
+   feature, visibility for `SH` was always exactly "own club", so passing `assertVisible` already
+   implied ownership — `assertCanEditBase` leaned on that implicitly. The council widening broke
+   the invariant for exactly one role-shape without anything noticing: a council head could
+   `PATCH`/edit-sections/rewrite-budget-lines/attach-or-delete-files on **any** club's
+   draft-phase project on their campus, not only endorse it. Confirmed live — a cross-club
+   `PATCH` returned `200` before the fix, `404` after. Closed by adding an explicit
+   `project.club_id === membership.club_id` check to `assertCanEditBase`, independent of
+   visibility.
+2. **`assertCanEndorseAsCouncil` never excluded the council's own club.** The council itself is
+   seeded as an ordinary club with its own `SH` (`fixtures.js`), free to submit its own projects
+   like any club head — so the same person could submit and then self-endorse, which is exactly
+   the self-approval `assertCanApproveBudget`'s own comment names as what that check exists to
+   prevent. STUACT/ADMIN budget approval is still a separate, independent gate, so this did not
+   release money by itself — it defeated the countersignature layer specifically. Confirmed live
+   — self-endorsement returned `200`/`endorsed:true` before the fix, `403` after. Closed by
+   rejecting `project.club_id === membership.club_id` in `assertCanEndorseAsCouncil`.
+
+Both fixes are in `scope.js`, both have regression tests, and both were re-verified by actually
+attempting the exploit against a live server after the fix — which surfaced its own small
+lesson: the first attempt to restart that server to pick up the fix silently failed
+(`EADDRINUSE`, the old process was still holding the port) and kept answering health checks from
+the *old* code, so "the health check passed" was not proof the fix was live. Checking the PID
+behind the port, not just the HTTP response, is what caught it.
