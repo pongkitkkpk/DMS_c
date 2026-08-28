@@ -222,7 +222,7 @@ export default function AllocationsPage() {
               hint={mayAllocate ? 'เลือกปีอื่นเพื่อดูปีที่กำหนดไว้แล้ว' : undefined}
             />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-x-wrap">
               <table className="table-x">
                 <thead>
                   <tr>

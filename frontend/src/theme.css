@@ -133,7 +133,11 @@ a:hover {
 .u-mono  { font-variant-numeric: tabular-nums; }
 .u-small { font-size: 0.85rem; }
 .u-stack { display: flex; flex-direction: column; gap: var(--s-4); }
-.u-row   { display: flex; align-items: center; gap: var(--s-3); }
+/* `flex-wrap: wrap` is inert wherever a row already fits on one line — it
+   only changes anything once the row's content genuinely cannot, e.g. the
+   search box + status filter + "create" button on the project list, which
+   overflowed a 390px phone by 57px as a single unbreakable line. */
+.u-row   { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
 .u-spacer { margin-left: auto; }
 
 /* -------------------------------------------------------------------------
@@ -383,6 +387,18 @@ a:hover {
    Data table
    ------------------------------------------------------------------------- */
 
+/* Every `.table-x` is meant to be wrapped in this on the page side. Columns
+   are left to size to their own content (`width: auto`, not the table's old
+   unconditional 100%) so a name column never gets crushed into a
+   one-word-per-line stack to make room for narrower numeric columns beside
+   it — found live on an iPad-width (768px) screen, where the club-name
+   column in the allocations table wrapped to five lines. `min-width: 100%`
+   keeps the table filling the card on anything wide enough to hold it
+   comfortably; past that, this wrapper scrolls horizontally instead of the
+   table shrinking, the same trade the page itself never makes. */
+.table-x-wrap { overflow-x: auto; }
+.table-x-wrap .table-x { width: auto; min-width: 100%; }
+
 .table-x {
   width: 100%;
   border-collapse: separate;
@@ -414,9 +430,19 @@ a:hover {
 .table-x tbody tr { transition: background 0.12s ease; }
 .table-x tbody tr:hover { background: var(--c-surface-2); }
 
+/* `inline-block` + `min-width` rather than nothing: Thai text has no spaces
+   for the browser to break on, so an unconstrained title cell wraps at
+   almost any character once the table is asked to shrink — found live at
+   768px, where a club name collapsed to one syllable per line, six lines
+   tall. A floor here means the column wraps at a sensible two or three
+   words instead, and only forces the table into the horizontal-scroll
+   fallback (`.table-x-wrap`) once every column together genuinely needs
+   more room than that. */
 .table-x__title {
   font-weight: 500;
   color: var(--c-text);
+  display: inline-block;
+  min-width: 9rem;
 }
 .table-x__title:hover { color: var(--c-accent); }
 
@@ -519,8 +545,40 @@ a:hover {
   font-weight: 600;
 }
 
+@media (max-width: 480px) {
+  /* Overrides `ListEditor.js`'s own inline `gridTemplateColumns` — the
+     `!important` is the only way to win against an inline style at a
+     breakpoint. A `date`/`number` input's native minimum width cannot be
+     shrunk to fit (unlike a plain text field, which `minmax(0, 1fr)`
+     already handles down to any width), so past this point the row's
+     fields wrap onto as many lines as they need instead of running off the
+     edge of the screen — a phone-width-only fallback; iPad and up keep the
+     one-row-per-item layout this component was built around. */
+  .le-fields { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+}
+
 @media (max-width: 640px) {
   .app-nav__link { padding: var(--s-2); }
+
+  /* One step further than the user-chip name already takes at the md
+     breakpoint (`d-none d-md-block` in App.js): below ~600px the brand
+     name, the chip and the sign-out button no longer fit one row together
+     at all — measured live, the row was still 596px wide inside a 576px
+     phone viewport, pushing the whole page into a horizontal scroll no
+     page here should ever have. The brand name is the purely decorative
+     part of the three (the มจพ mark plus the link's own aria-label already
+     say what this is), so it is what gives way, the same "one deliberate
+     step" reasoning `.app-brand__text`'s own comment already uses. */
+  .app-bar__inner { padding-left: var(--s-3); padding-right: var(--s-3); }
+  .app-bar__top { gap: var(--s-2); }
+  .app-brand { gap: var(--s-2); }
+  .app-brand__name { display: none; }
+  .user-chip { gap: var(--s-2); padding-right: var(--s-1); }
+  /* The sign-out button is the one Bootstrap control left in the bar at
+     this width — sized down alongside everything else here rather than
+     left to claim its usual roomier padding while its neighbours shrink
+     around it. */
+  .app-bar__top .btn { padding: 0.35rem 0.65rem; font-size: 0.82rem; }
 }
 
 /* -------------------------------------------------------------------------
@@ -542,7 +600,14 @@ a:hover {
    Each pair is one item of the outer grid so the two halves cannot be split
    across a row break, and the track is wide enough to hold both. The name gets
    the larger share; a phone number has a known width and a name does not. */
-.form-grid--pairs { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+/* `minmax(360px, 1fr)` alone is a hard floor: on a phone narrower than
+   360px plus the card's own padding, one single column still has to be at
+   least 360px, so the track overflows the card instead of shrinking to it
+   — found live at 390px, where a coordinator's name+phone pair ran 19px
+   past the edge. Wrapping the floor in `min(360px, 100%)` caps it at
+   whatever room is actually available, so it behaves exactly as before on
+   anything wide enough and simply narrows on anything that is not. */
+.form-grid--pairs { grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); }
 
 .field-pair {
   display: grid;

@@ -299,7 +299,7 @@ export default function DashboardPage() {
           {allocations.items.length === 0 && unfunded.length === 0 ? (
             <Empty mark="฿" title="ยังไม่มีวงเงินจัดสรรในขอบเขตของบัญชีนี้" />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-x-wrap">
               <table className="table-x">
                 <thead>
                   <tr>

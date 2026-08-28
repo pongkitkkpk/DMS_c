@@ -133,7 +133,7 @@ export default function ProjectsPage() {
 
       {data && data.items.length > 0 && (
         <div className="card-x" style={{ overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-x-wrap">
             <table className="table-x">
               <thead>
                 <tr>

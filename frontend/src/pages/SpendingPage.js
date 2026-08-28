@@ -93,7 +93,7 @@ function usagePercent(allocated, committed) {
 /** The table that carries the exact figures the chart above it draws. */
 function MoneyTable({ rows, firstColumn }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="table-x-wrap">
       <table className="table-x">
         <thead>
           <tr>

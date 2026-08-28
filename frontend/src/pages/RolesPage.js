@@ -436,7 +436,7 @@ export default function RolesPage() {
               hint={year !== session.academicYear ? 'สิทธิ์ของปีนี้ยังไม่ได้เตรียมไว้' : undefined}
             />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-x-wrap">
               <table className="table-x">
                 <thead>
                   <tr>
@@ -511,7 +511,7 @@ export default function RolesPage() {
           {events.length === 0 ? (
             <Empty mark="—" title="ยังไม่มีการเปลี่ยนแปลงสิทธิ์" />
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-x-wrap">
               <table className="table-x">
                 <thead>
                   <tr>

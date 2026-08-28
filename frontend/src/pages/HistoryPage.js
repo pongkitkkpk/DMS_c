@@ -82,7 +82,7 @@ export default function HistoryPage() {
       ) : (
         <div className="u-stack">
           <Card title="งบประมาณรายปี" aside="สรุปจากข้อมูลจริง ไม่ได้เก็บเป็นยอดสะสม">
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-x-wrap">
               <table className="table-x">
                 <thead>
                   <tr>
@@ -155,7 +155,7 @@ export default function HistoryPage() {
             {totalProjects === 0 ? (
               <Empty mark="□" title="ยังไม่มีโครงการในขอบเขตของบัญชีนี้" />
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="table-x-wrap">
                 <table className="table-x">
                   <thead>
                     <tr>

@@ -83,10 +83,22 @@ export default function ListEditor({
             </span>
 
             <div
+              className="le-fields"
               style={{
                 display: 'grid',
                 gap: 'var(--s-2)',
-                gridTemplateColumns: columns.map((c) => c.width || '1fr').join(' '),
+                // `minmax(0, 1fr)`, not a bare `1fr`: an unconstrained `1fr`
+                // track cannot shrink past its content's min-content width,
+                // which for a text `<input>` is wide enough on its own that
+                // four of them side by side (e.g. the indicators row) ran the
+                // whole row off the edge of a phone screen rather than
+                // narrowing to fit it — found live at 390px. Below that,
+                // `.le-fields`'s own phone-width rule in theme.css takes
+                // over: a `date` or `number` input has a real, un-shrinkable
+                // native minimum width no `minmax(0, …)` can get under, so
+                // narrowing the tracks stops being enough and they need to
+                // wrap onto more than one line instead.
+                gridTemplateColumns: columns.map((c) => c.width || 'minmax(0, 1fr)').join(' '),
                 flex: 1,
                 minWidth: 0,
               }}
