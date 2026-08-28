@@ -58,6 +58,12 @@ async function login(username) {
   const ad = await login('fixture.advisor');
   const stuact = await login('fixture.stuact');
   const admin = await login('fixture.admin');
+  // Migration 008 (docs/DECISIONS.md, "Council countersignature before budget
+  // approval") added a hard gate on PROJECT_APPROVED -> BUDGET_APPROVED: not
+  // this suite's concern any more than the signature requirement is, so the
+  // walk just endorses wherever that gate is reached, the same way it already
+  // supplies a signature wherever one is asked for.
+  const council = await login('fixture.council');
 
   console.log('\n--- scope: list ---');
   const shList = await call('GET', '/api/projects', { token: sh });
@@ -196,6 +202,12 @@ async function login(username) {
       });
       ok('STUACT approves the amount before the money gate', approvedAmount.status === 200,
         approvedAmount.text.slice(0, 200));
+
+      const endorsed = await call('POST', `/api/projects/${id}/council-endorsement`, {
+        token: council, body: { signatureImage: VALID_PNG },
+      });
+      ok('the campus council endorses before the transition is attempted', endorsed.status === 200,
+        endorsed.text.slice(0, 200));
     }
     if (code === 'REPORT_SUBMITTED') {
       await call('PUT', `/api/projects/${id}/budget/lines/ACTUAL`, {

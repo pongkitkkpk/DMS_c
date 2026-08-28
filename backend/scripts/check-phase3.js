@@ -62,6 +62,11 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   const stuact = await login('fixture.stuact');
   const admin = await login('fixture.admin');
   const otherSh = await login('fixture.otherstudent');
+  // Migration 008 gates PROJECT_APPROVED -> BUDGET_APPROVED on the campus
+  // council's endorsement. Not this suite's concern (it is testing the three
+  // money limits), so `p` is endorsed once, right before the one place this
+  // file crosses that gate.
+  const council = await login('fixture.council');
 
   /** Create a draft, state a plan, state its lines. Returns the project id. */
   async function draft(name, planned, requested) {
@@ -96,10 +101,13 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   console.log('\n--- derived totals: nothing summable is stored ---');
 
   const fixtures = await call('GET', '/api/projects', { token: sh });
-  // BUDGET_APPROVED: far enough along to have actuals and a disbursement, and
-  // still open, so the two refusal checks below are refused by the rule under
-  // test rather than by the project being closed.
-  const anyProject = fixtures.body.items.find((p) => p.phase.code === 'BUDGET_APPROVED');
+  // REPORT_SUBMITTED: far enough along to have actuals and a disbursement
+  // (fixtures.js seeds both from ordinal 4 onward) and still open, so the two
+  // refusal checks below are refused by the validation rule under test rather
+  // than by the project being closed — or, since migration 008, by
+  // BUDGET_APPROVED's own content lock, which is exactly the one other phase
+  // in that ordinal range this suite needs to steer clear of.
+  const anyProject = fixtures.body.items.find((p) => p.phase.code === 'REPORT_SUBMITTED');
   const overview = await call('GET', `/api/projects/${anyProject.id}/budget`, { token: sh });
   ok('budget reads in one call', overview.status === 200, overview.text.slice(0, 200));
 
@@ -220,6 +228,12 @@ const warnCodes = (list) => (list || []).map((w) => w.code);
   ok('raising the ceiling lets it through', approvedMoney.status === 200, approvedMoney.text.slice(0, 250));
   ok('the club-year figures come back with it',
     approvedMoney.body.money.clubYearCommitted !== null && approvedMoney.body.money.clubYearRemaining !== null);
+
+  const endorsed = await call('POST', `/api/projects/${p}/council-endorsement`, {
+    token: council, body: { signatureImage: VALID_PNG },
+  });
+  ok('the campus council endorses before the transition is attempted', endorsed.status === 200,
+    endorsed.text.slice(0, 200));
 
   const budgetApproved = await advance(stuact, p, 'BUDGET_APPROVED');
   ok('and the BUDGET_APPROVED gate now passes', budgetApproved.status === 200, budgetApproved.text.slice(0, 250));

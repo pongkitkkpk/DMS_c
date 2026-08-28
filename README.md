@@ -56,8 +56,8 @@ npm start                     # http://localhost:3000
 | คำสั่ง | ทำอะไร |
 | --- | --- |
 | `npm run db:reset` | ล้างและสร้างฐานข้อมูลใหม่พร้อมข้อมูลตั้งต้น |
-| `npm test` | ชุดตรวจ unit test 417 ข้อ — ครบทุกไฟล์ใน `backend/src/services/`, `backend/src/documents/`, `backend/src/lib/` (validate, money, clubCode), middleware หลัก, route wiring ที่มี logic จริง, ประตูความปลอดภัยก่อน deploy และ `academicYearService` — mock เฉพาะฐานข้อมูลเมื่อจำเป็น ไม่ต้องเปิด API หรือ MariaDB |
-| `npm run check:all` | ชุดตรวจทั้งหมด 521 ข้อ (ต้องเปิด API ไว้ก่อน — มันรีซีดให้เองระหว่าง suite) |
+| `npm test` | ชุดตรวจ unit test 443 ข้อ — ครบทุกไฟล์ใน `backend/src/services/`, `backend/src/documents/`, `backend/src/lib/` (validate, money, clubCode), middleware หลัก, route wiring ที่มี logic จริง, ประตูความปลอดภัยก่อน deploy และ `academicYearService` — mock เฉพาะฐานข้อมูลเมื่อจำเป็น ไม่ต้องเปิด API หรือ MariaDB |
+| `npm run check:all` | ชุดตรวจทั้งหมด 524 ข้อ (ต้องเปิด API ไว้ก่อน — มันรีซีดให้เองระหว่าง suite) |
 | `npm run forms:read -- --project <id>` | เรนเดอร์ฟอร์มของโครงการนั้นออกมาเป็นข้อความ อ่านได้โดยไม่ต้องเปิด Word |
 | `npm run forms:review` | สร้างโครงการที่กรอกเต็มทุกช่องแล้วเซฟไฟล์ `.docx` ทั้งสองใบไว้ที่ `generated/forms/` |
 | `npm run grant:admin -- --user <id_student> --year <ปี>` | ทางออกฉุกเฉินเมื่อปีการศึกษาไม่มีผู้ดูแลระบบเหลืออยู่ |
@@ -66,7 +66,7 @@ npm start                     # http://localhost:3000
 
 | คำสั่ง | ทำอะไร |
 | --- | --- |
-| `npm run test:once` | ชุดตรวจหน้าจอ 217 ข้อ (ไม่ต้องเปิด API — ทุกอย่างถูก mock) |
+| `npm run test:once` | ชุดตรวจหน้าจอ 219 ข้อ (ไม่ต้องเปิด API — ทุกอย่างถูก mock) |
 | `npm test` | เหมือนกัน แต่เฝ้าไฟล์ไว้ รันซ้ำเมื่อแก้โค้ด |
 
 ---

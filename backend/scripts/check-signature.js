@@ -98,6 +98,7 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
   const stuact = await login('fixture.stuact');
   const admin = await login('fixture.admin');
   const otherSh = await login('fixture.otherstudent');
+  const council = await login('fixture.council');
 
   // SH's own scope is exactly the one club the fixtures build one project per
   // phase for — no ambiguity with the out-of-scope club's single project.
@@ -167,6 +168,19 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
     JSON.stringify(stillNoSignature.body));
 
   // ------------------------------------------------------------------
+  // Migration 008 (docs/DECISIONS.md, "Council countersignature before budget
+  // approval") added a second gate on this same transition, on top of the
+  // signature this file exists to test — the campus council must have
+  // endorsed first, or STUACT's own valid signature below would still be
+  // refused for an unrelated reason.
+  console.log('\n--- the campus council endorses first (migration 008) ---');
+
+  const councilEndorsed = await call('POST', `/api/projects/${projectApproved.id}/council-endorsement`,
+    { token: council, body: { signatureImage: VALID_PNG } });
+  ok('the campus council endorses before STUACT approves the money',
+    councilEndorsed.status === 200 && councilEndorsed.body.endorsed === true, councilEndorsed.text.slice(0, 200));
+
+  // ------------------------------------------------------------------
   console.log('\n--- a real signature advances the project and is recorded ---');
 
   const approved = await advance(stuact, projectApproved.id, 'BUDGET_APPROVED', VALID_PNG);
@@ -174,8 +188,10 @@ const advance = (token, id, toPhaseCode, signatureImage) =>
   ok('the response says the transition was signed', approved.body && approved.body.signed === true);
 
   const sigList = await call('GET', `/api/projects/${projectApproved.id}/signatures`, { token: stuact });
-  ok('exactly one signature is now on record', sigList.body.signatures.length === 1, JSON.stringify(sigList.body));
-  const sig = sigList.body.signatures[0];
+  // Two by now: the council's endorsement above, and this transition's own.
+  ok('the council endorsement and this transition\'s signature are both on record',
+    sigList.body.signatures.length === 2, JSON.stringify(sigList.body));
+  const sig = sigList.body.signatures.find((s) => s.signerRole === 'STUACT');
   ok('recorded against the STUACT who signed it', sig.signerRole === 'STUACT', sig.signerRole);
   ok('carries a signer name for display', typeof sig.signerName === 'string' && sig.signerName.length > 0);
 

@@ -52,6 +52,11 @@ async function login(username) {
   const stuact = await login('fixture.stuact');
   const admin = await login('fixture.admin');
   const otherSh = await login('fixture.otherstudent');
+  // Migration 008 gates PROJECT_APPROVED -> BUDGET_APPROVED on the campus
+  // council's endorsement — not this suite's concern, which is that the
+  // screens' own calls can walk the machine at all, so the walk below just
+  // endorses wherever that gate is reached.
+  const council = await login('fixture.council');
 
   // ------------------------------------------------------------------
   console.log('\n--- reference data the screens load ---');
@@ -270,6 +275,10 @@ async function login(username) {
   for (const [code, token] of walk) {
     if (code === 'BUDGET_APPROVED') {
       await call('POST', `/api/projects/${id}/budget/approve`, { token: stuact, body: { approvedAmount: '5000' } });
+      await call('POST', `/api/projects/${id}/council-endorsement`, {
+        token: council,
+        body: { signatureImage: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' },
+      });
     }
     if (code === 'REPORT_SUBMITTED') {
       await call('PUT', `/api/projects/${id}/budget/lines/ACTUAL`, {
