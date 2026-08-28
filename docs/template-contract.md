@@ -321,7 +321,10 @@ Restating the contract as requirements (Q4/Q7/Q8):
    listed as such. Whether the form was meant to hold more is still a question for the owner,
    but the database is the uncapped side and loses nothing.
 
-5. **The code-format PDF remains unread** (`DECISIONS.md:271`) — unchanged by this work.
+5. ~~**The code-format PDF remains unread**~~ **Read and verified 2026-08-28** — see `DECISIONS.md`,
+   "Open items" → the code-format PDF entry. It confirms the 12-digit layout digit for digit and
+   surfaces no rule this document's format contract needs to account for; it is about project
+   *numbering*, a separate concern from the form's tag inventory.
 
 ## Found during Phase 4
 

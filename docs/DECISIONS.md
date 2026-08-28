@@ -30,7 +30,7 @@ not trust the old repo's `README.md`.
 | Org taxonomy source (seed data) | `…\Student-activity-system-DMS\frontend\src\views\setcode.json` |
 | Thesis / design docs, ER diagrams | `C:\Users\pongk\OneDrive\เดสก์ท็อป\งาน Dev\Dev KMUTNB\DMS_Fullversion\` |
 | Original table design notes | `…\DMS_Fullversion\paper old ver\Table *.txt`, `TABLE login.txt` |
-| Project code format spec (PDF, unread — no PDF renderer available) | `…\paper old ver\เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf` |
+| Project code format spec (PDF, read and verified 2026-08-28 — see "Open items") | `…\paper old ver\เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf` |
 | **New build target** | `C:\Users\pongk\OneDrive\เดสก์ท็อป\งาน Dev\Dev KMUTNB\DMS_c` (currently only docs) |
 
 Duplicates that are **not** separate systems — ignore them, they are copies:
@@ -572,7 +572,32 @@ copy — the close-out text is the full statement of each and is not repeated:
   `project_event.actor_person_id` is a `NOT NULL` FK, so this needs the same decision as the
   orphaned log rows: drop, placeholder, or relax the FK.
 - **Agency allocation has no historical data.** Allocations start empty; staff enter the first year by hand.
-- **The code-format PDF was never read** (`เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf`) — no PDF renderer on this machine. The format was derived from code and verified against live data instead, so this is low-risk, but the PDF may document rules the code doesn't implement.
+- ~~**The code-format PDF was never read**~~ **Read and verified 2026-08-28.** A PDF renderer is available now
+  (`เอกสารกำหนดรหัสโครงการกิจกรรมนักศึกษา.pdf`, กลุ่มงานกิจกรรมนักศึกษา's own 9-page spec). It confirms the
+  12-digit layout the format was reverse-engineered to, digit for digit:
+  ตำแหน่ง 1 วิทยาเขต, 2–3 ปีการศึกษา, 4–5 ส่วนงาน, 6–8 หน่วยงาน, 9–10 กลุ่มงาน/ภาควิชา, 11–12 รหัสกิจกรรม —
+  exactly `clubCode.js`'s `campus(1) + year(2) + division(2) + club(3) + workGroup(2)` + a 2-digit sequence.
+  Three things worth recording because the PDF is the first source that states them outright rather than
+  leaving them inferred from the dump:
+  1. **ส่วนงาน 01–05 are the five real divisions** (สนอ, คณะ/วิทยาลัย, สถาบัน/สำนัก/สมาคม, องค์กรนักศึกษา
+     ส่วนกลาง, หน่วยงานภายนอก) — `D01`–`D05` in `division`. **06–12 share the same digit position** but are
+     listed separately as "เทียบค่าประสบการณ์" (ผู้นำองค์กรนักศึกษา, กรรมการบริหาร, ตัวแทนมหาวิทยาลัย,
+     ความประพฤติดีเด่น, ความคิดสร้างสรรค์, กิจกรรมนอกหลักสูตร, กีฬาดีเด่น), each with a single `X001` code —
+     this is independent confirmation of Q35's finding in `domain-model.md` that `D06`–`D12` are student
+     award categories, not org units, and settles why they were deliberately kept out of the `division`
+     table rather than folded in as five-more-of-the-same.
+  2. **The central club-group's own numbering names the council explicitly, per campus**: `001`/`002` =
+     องค์การนักศึกษา/สภานักศึกษา มจพ.กรุงเทพฯ, `011`/`012` = the same pair for ปราจีนบุรี, `021`/`022` for
+     ระยอง. This is the same "two central bodies per campus, told apart only by which one" fact
+     `club.is_council` (migration 008, "Council countersignature before budget approval") was derived from
+     `setCode.json`'s names for — the PDF confirms it as the *intended* design, not a quirk of how the seed
+     data happens to be shaped.
+  3. **The activity sequence (position 11–12) is scoped per full 10-digit prefix, capped at 99, base-1** —
+     "ใส่ลำดับโครงการที่ขออนุมัติโครงการ เริ่มด้วย 01 ถึงจำนวนโครงการสุดท้ายของหน่วยงานนั้นขออนุมัติ" — which
+     is exactly `phaseService.issueProjectNumber`'s `(club_id, academic_year)` scope and
+     `buildProjectNumber`'s 1–99 range, both already built to this rule without having seen it written down.
+  No discrepancy surfaced anywhere in the format itself — the rebuild's numbering was derived correctly from
+  the dump alone. The only thing the PDF adds is a place-name for facts that were previously only inferred.
 
 ---
 
