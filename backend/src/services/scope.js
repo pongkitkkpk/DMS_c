@@ -210,8 +210,17 @@ function assertCanEndorseAsAdvisor(actor, project) {
  * Only the head of the project's own campus's student council may endorse it
  * — TODO.md, 2026-08-27. Scoped by campus rather than by "this project's
  * council" the way `assertCanEndorseAsAdvisor` is scoped to one advisor,
- * because the council endorses every club's project on its campus, not only
- * its own club's — that is the whole point of the widened visibility above.
+ * because the council endorses every *other* club's project on its campus,
+ * not only its own club's — that is the whole point of the widened
+ * visibility above.
+ *
+ * "Every other club's" is load-bearing: the council itself is seeded as an
+ * ordinary club with its own SH (`db/seeds/fixtures.js`), free to submit
+ * projects like any club head, so without an explicit exclusion the same
+ * person could submit their own club's project and then countersign it
+ * themselves — the exact self-approval `assertCanApproveBudget`'s own
+ * comment names as the thing that check exists to prevent. Found in review
+ * before this shipped, not after.
  */
 function assertCanEndorseAsCouncil(actor, project) {
   assertVisible(actor, project);
@@ -220,6 +229,9 @@ function assertCanEndorseAsCouncil(actor, project) {
   if (!membership || membership.role !== 'SH' || !membership.is_council ||
       Number(membership.campus_id) !== Number(project.campus_id)) {
     throw HttpError.forbidden('เซ็นรับรองโครงการได้เฉพาะประธานสภานักศึกษาของวิทยาเขตเดียวกันเท่านั้น');
+  }
+  if (Number(project.club_id) === Number(membership.club_id)) {
+    throw HttpError.forbidden('ประธานสภานักศึกษาไม่สามารถเซ็นรับรองโครงการของชมรมตนเองได้');
   }
   if (project.phase_code === 'CLOSED') {
     throw HttpError.forbidden('โครงการปิดแล้ว ไม่สามารถเซ็นรับรองได้');
@@ -290,6 +302,15 @@ function assertCanCreate(actor) {
  * - `STUACT`/`ADMIN` may edit anything in scope, in any phase before `CLOSED`.
  * - `AD` may not edit at all (Q5 — the adviser is a viewer in v1).
  *
+ * The `SH` branch checks `club_id` explicitly rather than leaning on
+ * `assertVisible` to have already narrowed it — that used to be a safe
+ * shortcut, because visibility for `SH` was always exactly "own club". It
+ * stopped being safe the moment a *council* head's visibility widened to
+ * "own campus" (`isInScope`, TODO.md): without this line, a council head
+ * could edit — not just endorse — every other club's draft, because
+ * `assertVisible` alone no longer implies ownership for that one role-shape.
+ * Found in review before this shipped, not after.
+ *
  * Split from `assertCanEdit` so the `BUDGET_APPROVED` content lock below can
  * sit on top of it without also reaching attachments — TODO.md is explicit
  * that "ยกเว้นแนบไฟล์" (attachments stay exempt).
@@ -305,10 +326,18 @@ function assertCanEditBase(actor, project) {
 
   if (role === 'AD') throw HttpError.forbidden('อาจารย์ที่ปรึกษาดูข้อมูลได้อย่างเดียว');
 
-  if (role === 'SH' && !STUDENT_EDIT_PHASES.includes(project.phase_code)) {
-    throw HttpError.forbidden(
-      `แก้ไขได้เฉพาะช่วงร่างเท่านั้น (สถานะปัจจุบัน: ${project.phase_name_th})`
-    );
+  if (role === 'SH') {
+    if (Number(project.club_id) !== Number(actor.membership.club_id)) {
+      // Visible (campus-wide, for a council head) is not the same as owned.
+      // 404, matching `assertVisible`'s own reasoning: this project's
+      // existence in another club is not this caller's to learn from a 403.
+      throw HttpError.notFound('ไม่พบโครงการ');
+    }
+    if (!STUDENT_EDIT_PHASES.includes(project.phase_code)) {
+      throw HttpError.forbidden(
+        `แก้ไขได้เฉพาะช่วงร่างเท่านั้น (สถานะปัจจุบัน: ${project.phase_name_th})`
+      );
+    }
   }
 }
 

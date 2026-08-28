@@ -228,6 +228,26 @@ describe('assertCanEdit', () => {
     expect(() => scope.assertCanEdit(actorWith('SH'), project({ phase_code: 'DRAFT_REPORT' })))
       .not.toThrow();
   });
+
+  // A council head's visibility widens to the whole campus (`isInScope`,
+  // TODO.md), which used to be the same thing as edit rights for every other
+  // `SH` — it is not, for this one role-shape, and `assertCanEditBase` has to
+  // say so explicitly rather than lean on visibility alone. Caught in review
+  // before this shipped: without the `club_id` check, a council head could
+  // edit — not just endorse — every other club's draft.
+  test('a council head cannot edit another club\'s project on their own campus — visible is not owned', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() =>
+      scope.assertCanEdit(councilHead, project({ club_id: 999, campus_id: 1, phase_code: 'DRAFT_PROPOSAL' }))
+    ).toThrow(expect.objectContaining({ status: 404 }));
+  });
+
+  test('a council head can still edit their own club\'s project as usual', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() =>
+      scope.assertCanEdit(councilHead, project({ club_id: 20, campus_id: 1, phase_code: 'DRAFT_PROPOSAL' }))
+    ).not.toThrow();
+  });
 });
 
 describe('assertCanManageAttachments — exempt from the BUDGET_APPROVED content lock', () => {
@@ -244,6 +264,13 @@ describe('assertCanManageAttachments — exempt from the BUDGET_APPROVED content
     expect(() => scope.assertCanManageAttachments(actorWith('ADMIN'), project({ phase_code: 'CLOSED' })))
       .toThrow(expect.objectContaining({ status: 403 }));
   });
+
+  test('a council head cannot attach files to another club\'s project — same club check as assertCanEdit', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() =>
+      scope.assertCanManageAttachments(councilHead, project({ club_id: 999, campus_id: 1, phase_code: 'DRAFT_PROPOSAL' }))
+    ).toThrow(expect.objectContaining({ status: 404 }));
+  });
 });
 
 describe('assertCanEndorseAsCouncil', () => {
@@ -257,6 +284,18 @@ describe('assertCanEndorseAsCouncil', () => {
     const ordinarySH = actorWith('SH', { is_council: 0, campus_id: 1, club_id: 10 });
     expect(() => scope.assertCanEndorseAsCouncil(ordinarySH, project({ club_id: 10, campus_id: 1 })))
       .toThrow(HttpError);
+  });
+
+  // The council itself is seeded as an ordinary club with its own SH
+  // (`db/seeds/fixtures.js`) — free to submit its own projects like any club
+  // head. Without this exclusion the same person could submit and then
+  // countersign their own project, the exact self-approval
+  // `assertCanApproveBudget`'s own comment names as what that check exists
+  // to prevent. Caught in review before this shipped.
+  test('the council head may not endorse their own club\'s project', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() => scope.assertCanEndorseAsCouncil(councilHead, project({ club_id: 20, campus_id: 1 })))
+      .toThrow(expect.objectContaining({ status: 403 }));
   });
 
   test('the council head of a different campus may not endorse', () => {
