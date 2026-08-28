@@ -204,3 +204,30 @@ describe('endorseAsAdvisor — the one-time guard', () => {
     expect(leftovers).toEqual([]);
   });
 });
+
+describe('endorseAsCouncil — the one-time guard (migration 008, TODO.md)', () => {
+  const actor = () => ({ person: { id: 9 } });
+  const project = () => ({ id: 1 });
+
+  test('records the endorsement under signer_role COUNCIL and event COUNCIL_ENDORSED', async () => {
+    const { signatureService, state } = await loadSignatureService({ signatureRow: null });
+
+    const result = await signatureService.endorseAsCouncil(actor(), project(), { signatureImage: dataUrlOf(TINY_PNG) });
+
+    expect(result.endorsed).toBe(true);
+    expect(state.events.map((e) => e.type)).toContain('COUNCIL_ENDORSED');
+    expect(state.signatures).toHaveLength(1);
+    expect(state.signatures[0]).toContain('COUNCIL');
+  });
+
+  test('refuses a second endorsement, and discards the newly staged image', async () => {
+    const { signatureService, uploadRoot } = await loadSignatureService({ signatureRow: { present: 1 } });
+
+    await expect(
+      signatureService.endorseAsCouncil(actor(), project(), { signatureImage: dataUrlOf(TINY_PNG) })
+    ).rejects.toMatchObject({ status: 409 });
+
+    const leftovers = await fs.readdir(path.join(uploadRoot, 'signatures', '1')).catch(() => []);
+    expect(leftovers).toEqual([]);
+  });
+});

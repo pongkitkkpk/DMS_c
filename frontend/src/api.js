@@ -153,6 +153,11 @@ export const api = {
   // does not own one of its own (the next step is shared with ADMIN/STUACT).
   endorseAsAdvisor: (id, signatureImage) =>
     client.post(`/projects/${id}/advisor-endorsement`, { signatureImage }).then((r) => r.data),
+  // The student council head's one-time endorsement (TODO.md, 2026-08-27) —
+  // also not a phase transition: the council gates PROJECT_APPROVED ->
+  // BUDGET_APPROVED rather than owning it.
+  endorseAsCouncil: (id, signatureImage) =>
+    client.post(`/projects/${id}/council-endorsement`, { signatureImage }).then((r) => r.data),
   phases: () => client.get('/reference/phases').then((r) => r.data),
   tags: () => client.get('/reference/tags').then((r) => r.data),
   advisors: () => client.get('/reference/advisors').then((r) => r.data),

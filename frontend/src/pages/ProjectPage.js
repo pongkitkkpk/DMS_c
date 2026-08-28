@@ -42,6 +42,7 @@ const EVENT_LABELS = {
   ATTACHMENT_ADDED: 'แนบไฟล์',
   ATTACHMENT_REMOVED: 'ลบไฟล์แนบ',
   ADVISOR_ENDORSED: 'เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)',
+  COUNCIL_ENDORSED: 'เซ็นรับรองโครงการ (ประธานสภานักศึกษา)',
 };
 
 /**
@@ -279,6 +280,28 @@ export default function ProjectPage() {
     }
   };
 
+  /**
+   * The student council head's one-time endorsement (TODO.md, 2026-08-27) —
+   * same shape as the advisor's above, but gates money rather than merely
+   * documenting an opinion: `PROJECT_APPROVED -> BUDGET_APPROVED` refuses to
+   * proceed without this on record first.
+   */
+  const endorseCouncil = async () => {
+    const signatureImage = await captureSignature('เซ็นรับรองโครงการในฐานะประธานสภานักศึกษา');
+    if (!signatureImage) return;
+
+    setBusy(true);
+    try {
+      await api.endorseAsCouncil(id, signatureImage);
+      await Swal.fire({ icon: 'success', title: 'เซ็นรับรองโครงการแล้ว' });
+      load();
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: 'เซ็นรับรองไม่สำเร็จ', text: messageOf(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error) {
     return (
       <Alert color="danger">
@@ -316,7 +339,8 @@ export default function ProjectPage() {
           <PhaseStepper phases={phases} currentOrdinal={project.phase.ordinal} />
         </div>
 
-        {(available.length > 0 || blocked.length > 0 || permissions.edit || permissions.delete || permissions.endorseAsAdvisor) && (
+        {(available.length > 0 || blocked.length > 0 || permissions.edit || permissions.delete ||
+          permissions.endorseAsAdvisor || permissions.endorseAsCouncil) && (
           <div
             className="card-x__body u-row"
             style={{ borderTop: '1px solid var(--c-border)', background: 'var(--c-surface-2)', flexWrap: 'wrap' }}
@@ -343,6 +367,11 @@ export default function ProjectPage() {
             {permissions.endorseAsAdvisor && (
               <Button color="primary" outline disabled={busy} onClick={endorse}>
                 เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)
+              </Button>
+            )}
+            {permissions.endorseAsCouncil && (
+              <Button color="primary" outline disabled={busy} onClick={endorseCouncil}>
+                เซ็นรับรองโครงการ (ประธานสภานักศึกษา)
               </Button>
             )}
             {permissions.delete && (

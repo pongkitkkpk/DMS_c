@@ -180,6 +180,23 @@ async function performTransition(actor, project, toPhaseCode, { signatureImage =
         throw HttpError.forbidden(`สถานะนี้เปลี่ยนได้โดย ${roles} เท่านั้น`);
       }
 
+      // TODO.md (2026-08-27), deliberate deviation — not a port, there is no
+      // such rule in the old system. A hard gate, the same shape Q26's
+      // budget check is: the transition itself throws out of the
+      // transaction rather than merely being warned about, so a project
+      // cannot reach `BUDGET_APPROVED` without the campus council's
+      // countersignature on record first. Checked here rather than left to
+      // `assertCanEndorseAsCouncil` alone, because that assertion only
+      // governs who may *write* the endorsement — nothing before this line
+      // stops the transition from proceeding without one.
+      if (current.phase_code === 'PROJECT_APPROVED' && target.code === 'BUDGET_APPROVED') {
+        if (!(await signatureService.hasSignature(current.id, 'COUNCIL', conn))) {
+          throw HttpError.badRequest(
+            'ต้องรอประธานสภานักศึกษาเซ็นรับรองโครงการก่อน จึงจะอนุมัติวงเงินได้'
+          );
+        }
+      }
+
       // Q26 hard-block point. `requires_budget_check` says *that* a gate exists;
       // `budgetService.TRANSITION_BLOCKS` says which of the three limits this
       // particular gate enforces. A violation throws out of the transaction, so a

@@ -81,6 +81,10 @@ function loadPhaseService(connState = {}) {
     stage: jest.fn(async () => ({ relativePath: 'sig.png', fullPath: '/tmp/sig.png', byteSize: 10 })),
     record: jest.fn(async () => {}),
     discard: jest.fn(async () => {}),
+    // The council-endorsement gate (migration 008, TODO.md) — true unless a
+    // test says otherwise, so every existing PROJECT_APPROVED -> anything
+    // test (none of which target BUDGET_APPROVED) is unaffected.
+    hasSignature: jest.fn(async () => true),
   };
   jest.doMock('./signatureService', () => signature);
 
@@ -251,6 +255,57 @@ describe('performTransition', () => {
 
     expect(result.signed).toBe(true);
     expect(signature.record).toHaveBeenCalledTimes(1);
+  });
+
+  test('refuses PROJECT_APPROVED -> BUDGET_APPROVED without a council endorsement on record (TODO.md, 2026-08-27)', async () => {
+    const { phaseService, signature } = loadPhaseService({
+      current: baseCurrent({ phase_code: 'PROJECT_APPROVED', phase_ordinal: 3 }),
+      targetPhase: { id: 202, code: 'BUDGET_APPROVED', name_th: 'เงินโครงการอนุมัติ', ordinal: 4 },
+      permitted: [{ allowed_role: 'STUACT', requires_budget_check: 1, requires_signature: 1 }],
+      plan: { planned_amount: '1000.00' },
+      requestedTotal: '500.00',
+      allocation: { id: 1, amount: '5000.00', campus_id: 1 },
+    });
+    signature.hasSignature.mockResolvedValue(false);
+    signature.isRequired.mockResolvedValue(true);
+
+    await expect(
+      phaseService.performTransition(
+        baseActor('STUACT'), baseProject(), 'BUDGET_APPROVED', { signatureImage: 'data:image/png;base64,x' }
+      )
+    ).rejects.toMatchObject({ status: 400 });
+    expect(signature.hasSignature).toHaveBeenCalledWith(1, 'COUNCIL', expect.anything());
+  });
+
+  test('allows PROJECT_APPROVED -> BUDGET_APPROVED once the council has endorsed', async () => {
+    const { phaseService, signature } = loadPhaseService({
+      current: baseCurrent({ phase_code: 'PROJECT_APPROVED', phase_ordinal: 3 }),
+      targetPhase: { id: 202, code: 'BUDGET_APPROVED', name_th: 'เงินโครงการอนุมัติ', ordinal: 4 },
+      permitted: [{ allowed_role: 'STUACT', requires_budget_check: 1, requires_signature: 1 }],
+      plan: { planned_amount: '1000.00' },
+      requestedTotal: '500.00',
+      allocation: { id: 1, amount: '5000.00', campus_id: 1 },
+    });
+    signature.hasSignature.mockResolvedValue(true);
+    signature.isRequired.mockResolvedValue(true);
+
+    const result = await phaseService.performTransition(
+      baseActor('STUACT'), baseProject(), 'BUDGET_APPROVED', { signatureImage: 'data:image/png;base64,x' }
+    );
+    expect(result.toPhase.code).toBe('BUDGET_APPROVED');
+  });
+
+  test('does not gate other transitions on a council endorsement — only PROJECT_APPROVED -> BUDGET_APPROVED', async () => {
+    const { phaseService, signature } = loadPhaseService({
+      current: baseCurrent(), // phase_code: 'DRAFT_SUBMITTED'
+      targetPhase: { id: 200, code: 'PROPOSAL_SUBMITTED', name_th: 'ส่งข้อเสนอแล้ว', ordinal: 2 },
+      permitted: [{ allowed_role: 'SH', requires_budget_check: 0, requires_signature: 0 }],
+    });
+    signature.hasSignature.mockResolvedValue(false);
+
+    const result = await phaseService.performTransition(baseActor('SH'), baseProject(), 'PROPOSAL_SUBMITTED');
+    expect(result.toPhase.code).toBe('PROPOSAL_SUBMITTED');
+    expect(signature.hasSignature).not.toHaveBeenCalled();
   });
 
   test('discards a staged signature image when the transaction fails after staging', async () => {

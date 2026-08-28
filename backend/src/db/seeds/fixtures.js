@@ -209,15 +209,15 @@ async function seedFixtures(conn, log) {
   // already prints this membership's SH as "ประธานสภานักศึกษา มจพ.กรุงเทพฯ" on
   // กนศ.04/06 the same way it prints any other club's SH as ประธาน + name. This
   // account exists to make that scenario logged-in-and-clickable rather than
-  // only provable by reading the code. Matched by `cg.code` + campus + a name
-  // prefix, because CENTRAL holds two clubs per campus (องค์การ and สภา) and
-  // only the name tells them apart.
+  // only provable by reading the code. `club.is_council` (migration 008) is
+  // what tells this club apart from CENTRAL's other one, องค์การนักศึกษา —
+  // `taxonomy.js` sets the flag once at seed time, so this is a plain lookup,
+  // not a re-derivation of it.
   const councilClub = await one(conn, `
     SELECT c.id, c.name_th
       FROM club c
-      JOIN campus cam    ON cam.id = c.campus_id
-      JOIN club_group cg ON cg.id = c.club_group_id
-     WHERE cg.code = 'CENTRAL' AND cam.code = 'Bangkok' AND c.name_th LIKE 'สภานักศึกษา%'
+      JOIN campus cam ON cam.id = c.campus_id
+     WHERE c.is_council = 1 AND cam.code = 'Bangkok'
      ORDER BY c.code LIMIT 1`);
 
   const councilStudent = {

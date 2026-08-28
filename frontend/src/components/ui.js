@@ -25,7 +25,11 @@ export const PHASE_TONE = {
 };
 
 /**
- * The four roles, in Thai. Here rather than beside one screen because the login
+ * The four membership roles, in Thai, plus `COUNCIL` — not a membership role
+ * itself (a council head's row is still `SH`), but the `signer_role`
+ * `SignaturesCard` shows for the student council's endorsement (migration
+ * 008, TODO.md), which needs a label distinct from an ordinary SH's own
+ * submission signature. Here rather than beside one screen because the login
  * page names them before a session exists and the roles page names them after,
  * and two spellings of `STUACT` on two screens is how a system starts calling
  * the same job two things.
@@ -35,6 +39,7 @@ export const ROLE_LABELS = {
   AD: 'อาจารย์ที่ปรึกษา',
   STUACT: 'กองกิจการนักศึกษา',
   ADMIN: 'ผู้ดูแลระบบ',
+  COUNCIL: 'ประธานสภานักศึกษา',
 };
 
 export function PhasePill({ code, children }) {

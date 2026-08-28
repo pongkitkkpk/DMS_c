@@ -1598,3 +1598,67 @@ module against no actual exposure would be dependency churn for its own
 sake. Revisit if this app ever needs to render `.pptx`, or if
 `docxtemplater-image-module-free` is ever reconfigured with a non-literal
 `fileType`.
+
+### Council countersignature before budget approval — closed (2026-08-28)
+
+**Built, on the owner's confirmation.** Recorded first as a parked item in
+`TODO.md` (2026-08-27): the head of a campus's student council must endorse a
+project before it may be approved for money, and a project's content locks
+while it waits on that approval. **Not a port** — the old code has no such
+rule; "สภานักศึกษา" appears in it only as a sample club name in a Swagger
+example. One question was left open when the plan was written down, and the
+owner's answer is what the implementation below follows:
+
+- **How far the content lock reaches.** The plan proposed locking editing only
+  while a project sits in `BUDGET_APPROVED` — the gap between money being
+  cleared and disbursement/report-drafting starting — rather than for the rest
+  of the project's life. **The owner confirmed the short lock**
+  ("ไม่ล็อกยาว"): `scope.assertCanEdit` refuses content edits only in that one
+  phase. `SH` regains its usual `STUDENT_EDIT_PHASES` rights the moment a
+  project reaches `DRAFT_REPORT`, unchanged — otherwise a project's own owner
+  could never write its กนศ.06 results. Attachments are explicitly exempt
+  (`scope.assertCanManageAttachments`), per TODO.md's own "ยกเว้นแนบไฟล์".
+
+**Shape of the implementation**, migration 008 and `scope.js`/
+`signatureService.js`/`phaseService.js`:
+
+- `club.is_council` — a typed flag, not a name match at request time. Every
+  campus's `CENTRAL` club group holds two bodies, องค์การนักศึกษา and
+  สภานักศึกษา, told apart only by name; `taxonomy.js` now derives which one is
+  which once, at seed time, and stores it — the same move already made for the
+  D02/D03 student-union prefix fix, and the opposite of the old system's habit
+  of re-deriving facts like this by string equality on every request
+  (`business-rules.md`'s `AgnecyGroupName`/`clubName` findings). `fixtures.js`
+  was updated to read the flag instead of the `LIKE 'สภานักศึกษา%'` lookup it
+  used before this column existed.
+- **Visibility widens for exactly one role-shape.** A council head's own
+  membership is an ordinary `SH` row, scoped to their own club like any other
+  — but `scope.visibilityClause`/`isInScope` now special-case `is_council`:
+  such a person's *project* visibility widens from "my club" to "my campus"
+  (`c.campus_id = ?`), because the whole point is endorsing other clubs'
+  projects. `AD` is untouched; this TODO never mentions advisors.
+- **The endorsement is standalone, not a transition** — same shape as
+  `endorseAsAdvisor` (migration 007) and for the same reason: the council does
+  not own `PROJECT_APPROVED -> BUDGET_APPROVED`, ADMIN/STUACT do. It gates
+  that transition instead. `signer_role`/`event_type` widen to `COUNCIL`/
+  `COUNCIL_ENDORSED`; `assertCanEndorseAsCouncil` checks both that the caller
+  heads a council and that it is *this project's own campus* — not "any
+  council can sign any project everywhere".
+- **The gate is hard, inside the transaction.** `phaseService.performTransition`
+  refuses `PROJECT_APPROVED -> BUDGET_APPROVED` with a 400 if
+  `signatureService.hasSignature(projectId, 'COUNCIL')` is false, checked
+  alongside the existing budget gate, before either commits. `assertCanEndorseAsCouncil`
+  alone was not enough — that assertion only governs who may *write* an
+  endorsement, not whether the transition may proceed without one.
+- Not printed on the government forms — same call as the advisor/STUACT
+  signatures in migration 006/007: kept as an audit trail (who, when, from
+  where) on the project page first, printing revisited later as its own piece
+  of work.
+
+**Test coverage**: `scope.test.js` (campus-wide visibility, the endorsement
+assertion, the `BUDGET_APPROVED` lock and its attachment exemption),
+`signatureService.test.js` (the one-time guard, mirroring
+`endorseAsAdvisor`'s), `phaseService.test.js` (the transition refuses without
+an endorsement and proceeds with one; unrelated transitions are not gated at
+all), `routes/projects.test.js` and `routes/attachments.test.js` (the
+permission flag and the route wiring). 443 backend, 219 frontend — all green.

@@ -52,6 +52,18 @@ const TEXT_CORRECTIONS = [
 // is what shows this is an omission rather than a naming convention.
 const PREFIX_STUDENT_UNION = 'สโมสร';
 
+// Every campus's CENTRAL group holds two bodies — องค์การนักศึกษา (student
+// government) and สภานักศึกษา (student council) — told apart only by name, the
+// same way `fixtures.js` already picked the council out before this flag
+// existed. Derived once here and stored as `club.is_council` so the council's
+// budget-endorsement gate (migration 008) never has to re-derive it by string
+// match at request time.
+const COUNCIL_CLUB_GROUP_NAME = 'องค์กรนักศึกษาส่วนกลาง';
+const COUNCIL_NAME_PREFIX = 'สภานักศึกษา';
+function isCouncilClub(clubGroupName, nameTh) {
+  return clubGroupName === COUNCIL_CLUB_GROUP_NAME && nameTh.startsWith(COUNCIL_NAME_PREFIX);
+}
+
 function isAgencyCode(k) { return /^A\d+$/.test(k); }
 function nameOf(v) { return typeof v === 'string' ? v : v && v.name; }
 
@@ -224,9 +236,12 @@ async function seedTaxonomy(conn, log) {
     clubGroupId[g.name_th] = r.insertId;
   }
 
+  let councilCount = 0;
   for (const c of t.clubs) {
+    const isCouncil = isCouncilClub(c.club_group_name, c.name_th);
+    if (isCouncil) councilCount += 1;
     await conn.query(
-      'INSERT INTO `club` (`club_group_id`,`campus_id`,`division_id`,`code`,`work_group_code`,`name_th`,`parent_agency_id`) VALUES (?,?,?,?,?,?,?)',
+      'INSERT INTO `club` (`club_group_id`,`campus_id`,`division_id`,`code`,`work_group_code`,`name_th`,`parent_agency_id`,`is_council`) VALUES (?,?,?,?,?,?,?,?)',
       [
         c.club_group_name ? clubGroupId[c.club_group_name] : null,
         campusId[c.campus_code],
@@ -235,6 +250,7 @@ async function seedTaxonomy(conn, log) {
         '00',
         c.name_th,
         c.parent_agency_code ? agencyId[`${c.division_code}.${c.parent_agency_code}`] : null,
+        isCouncil ? 1 : 0,
       ]
     );
   }
@@ -245,7 +261,7 @@ async function seedTaxonomy(conn, log) {
 
   const wgCount = t.agencies.reduce((n, a) => n + a.work_groups.length, 0);
   log(`  campus ${CAMPUSES.length} · division ${t.divisions.length} · agency ${t.agencies.length} · work_group ${wgCount}`);
-  log(`  club_group ${t.clubGroups.length} · club ${t.clubs.length} · award_category ${t.awards.length}`);
+  log(`  club_group ${t.clubGroups.length} · club ${t.clubs.length} (is_council ${councilCount}) · award_category ${t.awards.length}`);
 
   if (t.corrections.length) {
     log(`  corrections applied (${t.corrections.length}):`);

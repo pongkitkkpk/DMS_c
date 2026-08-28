@@ -17,6 +17,7 @@ const project = (overrides = {}) => ({
   id: 1,
   club_id: 10,
   club_group_id: 5,
+  campus_id: 1,
   phase_code: 'DRAFT_PROPOSAL',
   phase_name_th: 'ร่างข้อเสนอ',
   owner_person_id: 1,
@@ -40,6 +41,16 @@ describe('visibilityClause / clubVisibilityClause', () => {
   test('clubVisibilityClause keys SH/AD off the club row itself, not the project', () => {
     expect(scope.clubVisibilityClause(actorWith('SH', { club_id: 10 })))
       .toEqual({ sql: 'c.id = ?', params: [10] });
+  });
+
+  test('a council SH sees its whole campus, not just its own club (TODO.md, 2026-08-27)', () => {
+    const actor = actorWith('SH', { club_id: 10, is_council: 1, campus_id: 1 });
+    expect(scope.visibilityClause(actor)).toEqual({ sql: 'c.campus_id = ?', params: [1] });
+  });
+
+  test('an ordinary SH (is_council falsy) still sees only its own club', () => {
+    const actor = actorWith('SH', { club_id: 10, is_council: 0, campus_id: 1 });
+    expect(scope.visibilityClause(actor)).toEqual({ sql: 'p.club_id = ?', params: [10] });
   });
 });
 
@@ -134,6 +145,12 @@ describe('isInScope / assertVisible', () => {
     expect(scope.isInScope(actorWith(role), project(overrides))).toBe(expected);
   });
 
+  test('a council SH sees any project on its own campus, in or out of its own club', () => {
+    const councilHead = actorWith('SH', { club_id: 10, is_council: 1, campus_id: 1 });
+    expect(scope.isInScope(councilHead, project({ club_id: 999, campus_id: 1 }))).toBe(true);
+    expect(scope.isInScope(councilHead, project({ club_id: 999, campus_id: 2 }))).toBe(false);
+  });
+
   test('assertVisible answers 404, not 403, for an out-of-scope project', () => {
     // Deliberate: a 403 here would confirm a project with this id exists in
     // some other club, which is the same leak in a smaller form.
@@ -197,6 +214,71 @@ describe('assertCanEdit', () => {
   test.each(['STUACT', 'ADMIN'])('%s may edit an in-scope project in any non-closed phase', (role) => {
     expect(() => scope.assertCanEdit(actorWith(role), project({ phase_code: 'PROPOSAL_SUBMITTED' })))
       .not.toThrow();
+  });
+
+  test.each(['STUACT', 'ADMIN'])(
+    '%s may not edit content while BUDGET_APPROVED — locked pending the council/disbursement (TODO.md, 2026-08-27)',
+    (role) => {
+      expect(() => scope.assertCanEdit(actorWith(role), project({ phase_code: 'BUDGET_APPROVED' })))
+        .toThrow(expect.objectContaining({ status: 403 }));
+    }
+  );
+
+  test('SH regains edit rights once the project reaches DRAFT_REPORT — the lock is not "from here on"', () => {
+    expect(() => scope.assertCanEdit(actorWith('SH'), project({ phase_code: 'DRAFT_REPORT' })))
+      .not.toThrow();
+  });
+});
+
+describe('assertCanManageAttachments — exempt from the BUDGET_APPROVED content lock', () => {
+  test.each(['STUACT', 'ADMIN'])('%s may still attach a file while BUDGET_APPROVED', (role) => {
+    expect(() => scope.assertCanManageAttachments(actorWith(role), project({ phase_code: 'BUDGET_APPROVED' })))
+      .not.toThrow();
+  });
+
+  test('AD may still not attach anything — same base rule as assertCanEdit', () => {
+    expect(() => scope.assertCanManageAttachments(actorWith('AD'), project())).toThrow(HttpError);
+  });
+
+  test('nothing is attachable once CLOSED, regardless of role', () => {
+    expect(() => scope.assertCanManageAttachments(actorWith('ADMIN'), project({ phase_code: 'CLOSED' })))
+      .toThrow(expect.objectContaining({ status: 403 }));
+  });
+});
+
+describe('assertCanEndorseAsCouncil', () => {
+  test('out-of-scope is not-found, not forbidden', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1 });
+    expect(() => scope.assertCanEndorseAsCouncil(councilHead, project({ club_group_id: 6, campus_id: 2 })))
+      .toThrow(expect.objectContaining({ status: 404 }));
+  });
+
+  test('an ordinary club SH — not the council — may not endorse, even in scope', () => {
+    const ordinarySH = actorWith('SH', { is_council: 0, campus_id: 1, club_id: 10 });
+    expect(() => scope.assertCanEndorseAsCouncil(ordinarySH, project({ club_id: 10, campus_id: 1 })))
+      .toThrow(HttpError);
+  });
+
+  test('the council head of a different campus may not endorse', () => {
+    const otherCampusCouncil = actorWith('SH', { is_council: 1, campus_id: 2 });
+    // Widened visibility only reaches the council's own campus, so a project
+    // on another campus is 404 before the role check ever runs — the same
+    // "visibility first" shape every other assertion here follows.
+    expect(() => scope.assertCanEndorseAsCouncil(otherCampusCouncil, project({ campus_id: 1 })))
+      .toThrow(expect.objectContaining({ status: 404 }));
+  });
+
+  test('the campus council head may endorse any club’s project on that campus', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() => scope.assertCanEndorseAsCouncil(councilHead, project({ club_id: 10, campus_id: 1 })))
+      .not.toThrow();
+  });
+
+  test('a CLOSED project may not be endorsed even by the campus council head', () => {
+    const councilHead = actorWith('SH', { is_council: 1, campus_id: 1, club_id: 20 });
+    expect(() =>
+      scope.assertCanEndorseAsCouncil(councilHead, project({ campus_id: 1, phase_code: 'CLOSED' }))
+    ).toThrow(HttpError);
   });
 });
 

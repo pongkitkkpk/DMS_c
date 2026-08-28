@@ -43,6 +43,7 @@ function loadApp(project, actor, overrides = {}) {
     hasSignature,
     listForProject: jest.fn(async () => []),
     endorseAsAdvisor: jest.fn(async () => ({ endorsed: true })),
+    endorseAsCouncil: overrides.endorseAsCouncil || jest.fn(async () => ({ endorsed: true })),
     find: overrides.find || jest.fn(async () => null),
     readImage: jest.fn(async () => Buffer.from('png-bytes')),
   }));
@@ -58,7 +59,7 @@ function loadApp(project, actor, overrides = {}) {
 }
 
 const project = (overrides = {}) => ({
-  id: 1, club_id: 10, phase_code: 'PROPOSAL_SUBMITTED', phase_name_th: 'ส่งข้อเสนอแล้ว',
+  id: 1, club_id: 10, club_group_id: 5, campus_id: 1, phase_code: 'PROPOSAL_SUBMITTED', phase_name_th: 'ส่งข้อเสนอแล้ว',
   advisor_person_id: 7, owner_person_id: 1, ...overrides,
 });
 
@@ -82,6 +83,62 @@ describe('GET /projects/:id — permissions.endorseAsAdvisor', () => {
     const { app } = loadApp(project(), someoneElse, { hasSignature: jest.fn(async () => false) });
     const res = await request(app).get('/api/projects/1');
     expect(res.body.permissions.endorseAsAdvisor).toBe(false);
+  });
+});
+
+describe('GET /projects/:id — permissions.endorseAsCouncil (migration 008, TODO.md)', () => {
+  const councilHead = { person: { id: 20 }, membership: { role: 'SH', is_council: 1, campus_id: 1, club_id: 30 } };
+
+  test('true for the campus council head, for a project on that campus, not yet endorsed', async () => {
+    const { app } = loadApp(project(), councilHead, { hasSignature: jest.fn(async () => false) });
+    const res = await request(app).get('/api/projects/1');
+    expect(res.body.permissions.endorseAsCouncil).toBe(true);
+  });
+
+  test('false once already endorsed', async () => {
+    const { app } = loadApp(project(), councilHead, { hasSignature: jest.fn(async () => true) });
+    const res = await request(app).get('/api/projects/1');
+    expect(res.body.permissions.endorseAsCouncil).toBe(false);
+  });
+
+  test('false for an ordinary club SH, even one that is otherwise in scope', async () => {
+    const ordinarySH = { person: { id: 1 }, membership: { role: 'SH', club_id: 10, is_council: 0 } };
+    const { app } = loadApp(project(), ordinarySH, { hasSignature: jest.fn(async () => false) });
+    const res = await request(app).get('/api/projects/1');
+    expect(res.body.permissions.endorseAsCouncil).toBe(false);
+  });
+});
+
+describe('POST /projects/:id/council-endorsement', () => {
+  test('calls signatureService.endorseAsCouncil for the campus council head', async () => {
+    const councilHead = { person: { id: 20 }, membership: { role: 'SH', is_council: 1, campus_id: 1, club_id: 30 } };
+    const endorseAsCouncil = jest.fn(async () => ({ endorsed: true }));
+    const { app } = loadApp(project(), councilHead, {
+      hasSignature: jest.fn(async () => false),
+      endorseAsCouncil,
+    });
+
+    const res = await request(app)
+      .post('/api/projects/1/council-endorsement')
+      .send({ signatureImage: 'data:image/png;base64,x' });
+
+    expect(res.status).toBe(200);
+    expect(endorseAsCouncil).toHaveBeenCalledWith(
+      councilHead, project(), expect.objectContaining({ signatureImage: 'data:image/png;base64,x' })
+    );
+  });
+
+  test('refuses an ordinary club SH with 403, before ever calling endorseAsCouncil', async () => {
+    const ordinarySH = { person: { id: 1 }, membership: { role: 'SH', club_id: 10, is_council: 0 } };
+    const endorseAsCouncil = jest.fn(async () => ({ endorsed: true }));
+    const { app } = loadApp(project(), ordinarySH, { endorseAsCouncil });
+
+    const res = await request(app)
+      .post('/api/projects/1/council-endorsement')
+      .send({ signatureImage: 'data:image/png;base64,x' });
+
+    expect(res.status).toBe(403);
+    expect(endorseAsCouncil).not.toHaveBeenCalled();
   });
 });
 

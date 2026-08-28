@@ -47,11 +47,12 @@ router.post('/projects', asyncRoute(async (req, res) => {
 // --------------------------------------------------------------------------
 
 router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
-  const [sections, budget, transitions, advisorEndorsed] = await Promise.all([
+  const [sections, budget, transitions, advisorEndorsed, councilEndorsed] = await Promise.all([
     projects.loadSections(req.project.id),
     budgetService.loadSummary(req.project),
     availableTransitions(pool, req.project, req.actor),
     signatures.hasSignature(req.project.id, 'AD'),
+    signatures.hasSignature(req.project.id, 'COUNCIL'),
   ]);
 
   res.json({
@@ -72,6 +73,9 @@ router.get('/projects/:id', loadProject, asyncRoute(async (req, res) => {
       // one-time action), so it is folded in here rather than left for the
       // client to combine with a separate "already endorsed" read.
       endorseAsAdvisor: scope.permits(() => scope.assertCanEndorseAsAdvisor(req.actor, req.project)) && !advisorEndorsed,
+      // Same shape as `endorseAsAdvisor` — a one-time action folded with
+      // "already happened" rather than left for the client to combine.
+      endorseAsCouncil: scope.permits(() => scope.assertCanEndorseAsCouncil(req.actor, req.project)) && !councilEndorsed,
     },
   });
 }));
@@ -160,6 +164,21 @@ router.post('/projects/:id/advisor-endorsement', loadProject, asyncRoute(async (
   scope.assertCanEndorseAsAdvisor(req.actor, req.project);
   const signatureImage = req.body && typeof req.body.signatureImage === 'string' ? req.body.signatureImage : null;
   const result = await signatures.endorseAsAdvisor(req.actor, req.project, { signatureImage, ip: req.ip });
+  res.json(result);
+}));
+
+/**
+ * The student council head's one-time endorsement (migration 008, TODO.md
+ * 2026-08-27) — not a phase transition, because the council does not own
+ * `PROJECT_APPROVED -> BUDGET_APPROVED`, it gates it: `performTransition`
+ * refuses that move until this exists. `assertCanEndorseAsCouncil` checks
+ * both that the caller heads a council and that it is *this project's*
+ * campus; `endorseAsCouncil` itself refuses a second call with a 409.
+ */
+router.post('/projects/:id/council-endorsement', loadProject, asyncRoute(async (req, res) => {
+  scope.assertCanEndorseAsCouncil(req.actor, req.project);
+  const signatureImage = req.body && typeof req.body.signatureImage === 'string' ? req.body.signatureImage : null;
+  const result = await signatures.endorseAsCouncil(req.actor, req.project, { signatureImage, ip: req.ip });
   res.json(result);
 }));
 

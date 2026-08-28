@@ -337,6 +337,47 @@ async function endorseAsAdvisor(actor, project, { signatureImage, ip = null } = 
   }
 }
 
+/**
+ * The student council head's one-time endorsement (migration 008, TODO.md
+ * 2026-08-27) — not a phase transition, for the same reason
+ * `endorseAsAdvisor` is not one: the council does not own
+ * `PROJECT_APPROVED -> BUDGET_APPROVED`, it gates it. `phaseService.
+ * performTransition` refuses that transition until this exists
+ * (`hasSignature(projectId, 'COUNCIL')`); this function is the only writer of
+ * it. Locks the project row the same way `endorseAsAdvisor` does, for the
+ * same reason: "one `COUNCIL` row per project" is not a uniqueness MySQL can
+ * express, since ADMIN/STUACT rows on the same project are supposed to repeat.
+ */
+async function endorseAsCouncil(actor, project, { signatureImage, ip = null } = {}) {
+  const staged = await stage(project.id, signatureImage);
+  try {
+    return await transaction(async (conn) => {
+      await conn.query('SELECT id FROM project WHERE id = ? FOR UPDATE', [project.id]);
+      if (await hasSignature(project.id, 'COUNCIL', conn)) {
+        throw HttpError.conflict('โครงการนี้มีการเซ็นรับรองจากประธานสภานักศึกษาแล้ว');
+      }
+
+      const eventId = await recordEvent(conn, {
+        projectId: project.id,
+        type: 'COUNCIL_ENDORSED',
+        actorPersonId: actor.person.id,
+      });
+      await record(conn, {
+        projectId: project.id,
+        eventId,
+        personId: actor.person.id,
+        role: 'COUNCIL',
+        relativePath: staged.relativePath,
+        ip,
+      });
+      return { endorsed: true };
+    });
+  } catch (err) {
+    await discard(staged);
+    throw err;
+  }
+}
+
 /** One signature's row, scoped to its project so an id alone reaches nothing (same rule as `attachmentService.find`). */
 async function find(projectId, signatureId, conn = pool) {
   const [[row]] = await conn.query(
@@ -359,5 +400,5 @@ async function readImage(row) {
 
 module.exports = {
   isRequired, stage, discard, record, listForProject, find, readImage,
-  hasSignature, findForDocument, endorseAsAdvisor,
+  hasSignature, findForDocument, endorseAsAdvisor, endorseAsCouncil,
 };

@@ -24,6 +24,11 @@ const STUDENT_EDIT_PHASES = ['DRAFT_PROPOSAL', 'DRAFT_REPORT'];
  * - `ADMIN`   — everything.
  * - `STUACT`  — clubs inside the club group they oversee (`jurisdiction_club_group_id`).
  * - `SH`/`AD` — their own club. Adviser is read-only, which is a separate rule below.
+ *   The one exception is the head of a campus's student council
+ *   (`club.is_council`, migration 008, TODO.md): every other club's project
+ *   on their own campus is theirs to endorse before it may be funded, so
+ *   their visibility widens from "my club" to "my campus" — never further,
+ *   and never for AD, who this TODO does not touch.
  * - no membership — nothing. Not an error: a person can be known and enrolled in nothing.
  */
 function visibilityClause(actor) {
@@ -36,6 +41,10 @@ function visibilityClause(actor) {
     case 'STUACT':
       return { sql: 'c.club_group_id = ?', params: [membership.jurisdiction_club_group_id] };
     case 'SH':
+      if (membership.is_council) {
+        return { sql: 'c.campus_id = ?', params: [membership.campus_id] };
+      }
+      return { sql: 'p.club_id = ?', params: [membership.club_id] };
     case 'AD':
       return { sql: 'p.club_id = ?', params: [membership.club_id] };
     default:
@@ -197,7 +206,32 @@ function assertCanEndorseAsAdvisor(actor, project) {
   }
 }
 
-/** True if `project` (a row carrying `club_id` and `club_group_id`) is inside the actor's scope. */
+/**
+ * Only the head of the project's own campus's student council may endorse it
+ * — TODO.md, 2026-08-27. Scoped by campus rather than by "this project's
+ * council" the way `assertCanEndorseAsAdvisor` is scoped to one advisor,
+ * because the council endorses every club's project on its campus, not only
+ * its own club's — that is the whole point of the widened visibility above.
+ */
+function assertCanEndorseAsCouncil(actor, project) {
+  assertVisible(actor, project);
+
+  const membership = actor.membership;
+  if (!membership || membership.role !== 'SH' || !membership.is_council ||
+      Number(membership.campus_id) !== Number(project.campus_id)) {
+    throw HttpError.forbidden('เซ็นรับรองโครงการได้เฉพาะประธานสภานักศึกษาของวิทยาเขตเดียวกันเท่านั้น');
+  }
+  if (project.phase_code === 'CLOSED') {
+    throw HttpError.forbidden('โครงการปิดแล้ว ไม่สามารถเซ็นรับรองได้');
+  }
+}
+
+/**
+ * True if `project` (a row carrying `club_id`, `club_group_id` and
+ * `campus_id`) is inside the actor's scope. Mirrors `visibilityClause` —
+ * including the council-head widening to "my campus" — so a single project
+ * read (`loadProject`) agrees with what the list query would have returned.
+ */
 function isInScope(actor, project) {
   const membership = actor.membership;
   if (!membership) return false;
@@ -209,6 +243,10 @@ function isInScope(actor, project) {
       return project.club_group_id != null &&
         Number(project.club_group_id) === Number(membership.jurisdiction_club_group_id);
     case 'SH':
+      if (membership.is_council) {
+        return Number(project.campus_id) === Number(membership.campus_id);
+      }
+      return Number(project.club_id) === Number(membership.club_id);
     case 'AD':
       return Number(project.club_id) === Number(membership.club_id);
     default:
@@ -251,8 +289,12 @@ function assertCanCreate(actor) {
  * - `SH` may edit their own club's project only while it is in a drafting phase.
  * - `STUACT`/`ADMIN` may edit anything in scope, in any phase before `CLOSED`.
  * - `AD` may not edit at all (Q5 — the adviser is a viewer in v1).
+ *
+ * Split from `assertCanEdit` so the `BUDGET_APPROVED` content lock below can
+ * sit on top of it without also reaching attachments — TODO.md is explicit
+ * that "ยกเว้นแนบไฟล์" (attachments stay exempt).
  */
-function assertCanEdit(actor, project) {
+function assertCanEditBase(actor, project) {
   assertVisible(actor, project);
 
   if (project.phase_code === 'CLOSED') {
@@ -268,6 +310,42 @@ function assertCanEdit(actor, project) {
       `แก้ไขได้เฉพาะช่วงร่างเท่านั้น (สถานะปัจจุบัน: ${project.phase_name_th})`
     );
   }
+}
+
+/**
+ * Content edits — `assertCanEditBase` plus the council lock (TODO.md,
+ * 2026-08-27, deliberate deviation): once a project reaches `BUDGET_APPROVED`
+ * nobody may change its "รายละเอียดโครงการ" any more, not even STUACT/ADMIN,
+ * because the council's endorsement (`assertCanEndorseAsCouncil` below)
+ * certified a specific version of that content before money was cleared to
+ * approve. The lock is scoped to this one phase, not "from here on": SH
+ * regains its usual drafting rights the moment the project reaches
+ * `DRAFT_REPORT`, via `STUDENT_EDIT_PHASES` unchanged — otherwise a project's
+ * own owner could never write its กนศ.06 results. `SH` and `AD` never reach
+ * this line in `BUDGET_APPROVED` anyway (the checks above already refuse
+ * them there), so in practice this is the rule that now also stops
+ * STUACT/ADMIN.
+ */
+function assertCanEdit(actor, project) {
+  assertCanEditBase(actor, project);
+
+  if (project.phase_code === 'BUDGET_APPROVED') {
+    throw HttpError.forbidden(
+      'ล็อกแก้ไขระหว่างรอเบิกจ่ายเงิน — แก้ไขได้อีกครั้งเมื่อเริ่มร่างสรุปผลโครงการ'
+    );
+  }
+}
+
+/**
+ * Attachments are exempt from the `BUDGET_APPROVED` content lock
+ * (TODO.md: "ยกเว้นแนบไฟล์") — a supporting file (a receipt, a permit) may
+ * still need to be added while a project waits on disbursement, even though
+ * its narrative and figures are frozen. Same base rule as `assertCanEdit`
+ * otherwise: visible, not `CLOSED`, not `AD`, SH still only in its own
+ * drafting phases.
+ */
+function assertCanManageAttachments(actor, project) {
+  assertCanEditBase(actor, project);
 }
 
 /**
@@ -321,11 +399,13 @@ module.exports = {
   GRANTABLE_ROLES,
   assertCanApproveBudget,
   assertCanEndorseAsAdvisor,
+  assertCanEndorseAsCouncil,
   permits,
   isInScope,
   assertVisible,
   assertCanCreate,
   assertCanEdit,
+  assertCanManageAttachments,
   assertCanDelete,
   STUDENT_EDIT_PHASES,
 };

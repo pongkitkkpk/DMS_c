@@ -87,7 +87,7 @@ async function findPersonById(id) {
 async function loadMemberships(personId, academicYear) {
   const [rows] = await pool.query(
     `SELECT m.id, m.role, m.academic_year, m.department_th, m.advisor_agency,
-            m.club_id, c.name_th AS club_name, c.code AS club_code,
+            m.club_id, c.name_th AS club_name, c.code AS club_code, c.is_council,
             cam.id AS campus_id, cam.code AS campus_code, cam.name_th AS campus_name,
             COALESCE(m.jurisdiction_club_group_id, c.club_group_id) AS club_group_id,
             cg.code    AS club_group_code,

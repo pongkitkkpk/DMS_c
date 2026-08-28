@@ -21,6 +21,7 @@ jest.mock('../api', () => ({
     transition: jest.fn(),
     deleteProject: jest.fn(),
     endorseAsAdvisor: jest.fn(),
+    endorseAsCouncil: jest.fn(),
   },
   messageOf: () => 'error',
 }));
@@ -279,6 +280,28 @@ it('hides the advisor endorsement action when the server did not grant it', asyn
 
   await screen.findByText('โครงการตัวอย่าง');
   expect(screen.queryByText('เซ็นรับรองโครงการ (อาจารย์ที่ปรึกษา)')).not.toBeInTheDocument();
+});
+
+it('offers the council endorsement action only when the server granted it (TODO.md, 2026-08-27)', async () => {
+  api.getProject.mockResolvedValue({ ...baseProject, permissions: { edit: false, delete: false, endorseAsCouncil: true } });
+  mockCaptureSignature.mockResolvedValue('data:image/png;base64,BBBB');
+  api.endorseAsCouncil.mockResolvedValue({ endorsed: true });
+  show();
+
+  await userEvent.click(await screen.findByText('เซ็นรับรองโครงการ (ประธานสภานักศึกษา)'));
+
+  await waitFor(() =>
+    expect(api.endorseAsCouncil).toHaveBeenCalledWith('1', 'data:image/png;base64,BBBB')
+  );
+  await waitFor(() => expect(api.getProject).toHaveBeenCalledTimes(2));
+});
+
+it('hides the council endorsement action when the server did not grant it', async () => {
+  api.getProject.mockResolvedValue({ ...baseProject, permissions: { edit: false, delete: false, endorseAsCouncil: false } });
+  show();
+
+  await screen.findByText('โครงการตัวอย่าง');
+  expect(screen.queryByText('เซ็นรับรองโครงการ (ประธานสภานักศึกษา)')).not.toBeInTheDocument();
 });
 
 it('offers edit only when the server granted it', async () => {

@@ -7,12 +7,15 @@
  * non-`HttpError` errors into the Thai 400s the rest of the API answers with.
  * `requireAuth`/`loadProject` are stubbed (both are tested on their own
  * elsewhere); `attachmentService` is stubbed except where a test is about
- * multer itself, which never reaches the service at all.
+ * multer itself, which never reaches the service at all. `phaseCode` is
+ * overridable per test so the `BUDGET_APPROVED` content lock's attachment
+ * exemption (`scope.assertCanManageAttachments`, TODO.md 2026-08-27) can be
+ * exercised without a real database.
  */
 const request = require('supertest');
 const express = require('express');
 
-function loadApp(actor, { findResult = null, serviceOverrides = {} } = {}) {
+function loadApp(actor, { findResult = null, serviceOverrides = {}, phaseCode = 'DRAFT_PROPOSAL' } = {}) {
   jest.resetModules();
   process.env.UPLOAD_MAX_BYTES = '10'; // tiny, so the size-limit test is cheap
 
@@ -21,7 +24,7 @@ function loadApp(actor, { findResult = null, serviceOverrides = {} } = {}) {
   }));
   jest.doMock('../middleware/loadProject', () => ({
     loadProject: (req, res, next) => {
-      req.project = { id: Number(req.params.id), phase_code: 'DRAFT_PROPOSAL', club_id: actor.membership && actor.membership.club_id };
+      req.project = { id: Number(req.params.id), phase_code: phaseCode, club_id: actor.membership && actor.membership.club_id };
       next();
     },
   }));
@@ -71,7 +74,7 @@ describe('GET /projects/:id/attachments/:attachmentId — download headers', () 
   });
 });
 
-describe('DELETE /projects/:id/attachments/:attachmentId — wired to assertCanEdit', () => {
+describe('DELETE /projects/:id/attachments/:attachmentId — wired to assertCanManageAttachments', () => {
   test('an adviser (view-only) may not delete an attachment', async () => {
     const app = loadApp(actorWith('AD'), { findResult: { id: 1, original_name: 'x.pdf' } });
     const res = await request(app).delete('/api/projects/1/attachments/1');
@@ -80,6 +83,15 @@ describe('DELETE /projects/:id/attachments/:attachmentId — wired to assertCanE
 
   test('the project’s own SH may delete', async () => {
     const app = loadApp(actorWith('SH'), { findResult: { id: 1, original_name: 'x.pdf' } });
+    const res = await request(app).delete('/api/projects/1/attachments/1');
+    expect(res.status).toBe(200);
+  });
+
+  test('ADMIN may still delete an attachment while BUDGET_APPROVED — exempt from the content lock (TODO.md)', async () => {
+    const app = loadApp(actorWith('ADMIN'), {
+      findResult: { id: 1, original_name: 'x.pdf' },
+      phaseCode: 'BUDGET_APPROVED',
+    });
     const res = await request(app).delete('/api/projects/1/attachments/1');
     expect(res.status).toBe(200);
   });

@@ -9,8 +9,12 @@
  * membership, answering 404 rather than 403 so a refusal cannot confirm that a
  * project exists in a club the caller may not see.
  *
- * Reading follows visibility; writing and deleting follow `assertCanEdit`, the
- * same rule as any other part of a project.
+ * Reading follows visibility; writing and deleting follow
+ * `assertCanManageAttachments` — the same rule as `assertCanEdit` for
+ * everything except the `BUDGET_APPROVED` content lock (TODO.md,
+ * 2026-08-27): a project waiting on the student council's endorsement or on
+ * disbursement may still need a supporting file attached even though its
+ * narrative and figures are frozen.
  */
 const express = require('express');
 const multer = require('multer');
@@ -68,14 +72,14 @@ const loadAttachment = asyncRoute(async (req, res, next) => {
 router.get('/projects/:id/attachments', loadProject, asyncRoute(async (req, res) => {
   res.json({
     attachments: await attachments.list(req.project.id),
-    canEdit: scope.permits(() => scope.assertCanEdit(req.actor, req.project)),
+    canEdit: scope.permits(() => scope.assertCanManageAttachments(req.actor, req.project)),
     maxBytes: config.uploadMaxBytes,
     allowedExtensions: [...attachments.ALLOWED_EXTENSIONS.keys()],
   });
 }));
 
 router.post('/projects/:id/attachments', loadProject, receiveOne, asyncRoute(async (req, res) => {
-  scope.assertCanEdit(req.actor, req.project);
+  scope.assertCanManageAttachments(req.actor, req.project);
   const saved = await attachments.add(req.actor, req.project, req.file);
   res.status(201).json(saved);
 }));
@@ -103,7 +107,7 @@ router.get('/projects/:id/attachments/:attachmentId', loadProject, loadAttachmen
 
 router.delete('/projects/:id/attachments/:attachmentId', loadProject, loadAttachment,
   asyncRoute(async (req, res) => {
-    scope.assertCanEdit(req.actor, req.project);
+    scope.assertCanManageAttachments(req.actor, req.project);
     await attachments.remove(req.actor, req.project, req.attachment);
     res.json({ deleted: req.attachment.id });
   }));
