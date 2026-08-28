@@ -1690,3 +1690,15 @@ assertion, the `BUDGET_APPROVED` lock and its attachment exemption),
 an endorsement and proceeds with one; unrelated transitions are not gated at
 all), `routes/projects.test.js` and `routes/attachments.test.js` (the
 permission flag and the route wiring). 443 backend, 219 frontend — all green.
+
+**Correction: that was not the whole suite.** `npm test` is jest against mocks; it says nothing
+about whether the new gate agrees with the *other* tests that hit a real, running API.
+`npm run check:all` was not run before this feature's own commit landed, and when it was run
+afterward it failed in four suites at once (`check-phase2`, `check-phase3`, `check-phase5`,
+`check-signature`) — every one of them walks a project through `PROJECT_APPROVED ->
+BUDGET_APPROVED` and none of them knew to endorse first. Fixed by having each supply a council
+endorsement at the same point it already supplies a signature (see the scripts themselves), and
+by moving `check-phase3`'s `anyProject` fixture off `BUDGET_APPROVED` — the one phase in its
+required ordinal range the new content lock now closes — onto `REPORT_SUBMITTED`. **The lesson
+worth keeping**: this codebase has two test surfaces, not one, and "all green" from the mocked
+suite alone is not a claim about the live one. 524 passed, 0 failed once both were run.
