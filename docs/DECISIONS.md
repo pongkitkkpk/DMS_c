@@ -231,8 +231,8 @@ Stack: CRA + Bootstrap 4/reactstrap + React Router **v5** + `AuthContext` + swee
 | Q34 | `setcode.json` **seeds `division`/`agency`/`work_group`/`club` tables**, served from the API. Keep the JSON in-repo as the seed source. |
 | Q35 | **Split** `D06`–`D12` (award categories) from `D01`–`D05` (org units). |
 | Q36 | **Campus becomes a column** on every org unit; flatten `D04`'s nesting; fix taxonomy typos during seed and log them. |
-| Q37 | Money columns → **`DECIMAL(12,2)`**. Migration **reports every unparseable value** rather than coercing to 0. *(recommended; not explicitly confirmed)* |
-| Q38 | **Surrogate `int` PK everywhere** for joins; `project_number` as a separate unique business key. *(recommended; not explicitly confirmed)* |
+| Q37 | Money columns → **`DECIMAL(12,2)`**. Migration **reports every unparseable value** rather than coercing to 0. *(= A1, confirmed 2026-08-12 — "Open items")* |
+| Q38 | **Surrogate `int` PK everywhere** for joins; `project_number` as a separate unique business key. *(= A2, confirmed 2026-08-12 — "Open items")* |
 
 ### Lifecycle
 
@@ -251,7 +251,7 @@ Stack: CRA + Bootstrap 4/reactstrap + React Router **v5** + `AuthContext` + swee
 | Q27 | Replace the `project_name` string join with a **real FK**. One plan line ↔ one project. |
 | Q26 | **Warn** on draft submit; **hard-block** at `โครงการอนุมัติ`, `เงินโครงการอนุมัติ`, `ดำเนินการสรุปผล`; **re-check on every budget write**, not only on transitions. Reject edits that would push an approved project over. |
 | Q28 | Check and commit **in one transaction**; approved amounts written as **immutable ledger rows** so "remaining" is a sum over committed rows. |
-| Q41 | Build that ledger on the existing **`logstudentgetmoney`** rather than a parallel structure. Add FK, convert `remainingBudget` to DECIMAL, make it append-only. *(recommended; not explicitly confirmed)* |
+| Q41 | Build that ledger on the existing **`logstudentgetmoney`** rather than a parallel structure. Add FK, convert `remainingBudget` to DECIMAL, make it append-only. *(= A3, confirmed 2026-08-12 — "Open items")* |
 | Q30 | **Admin and STUACT** both enter allocations. Adviser/Student read-only. |
 | Q31 | Allocation grain: **`(responsible_agency, campus, yearly)`**. (Confirmed by the dump — `netprojectbudget` has no `AgnecyGroupName`.) |
 | Q32 | **Two separate checks** — plan-level and commitment-level — with distinct error messages. |
@@ -525,7 +525,10 @@ copy — the close-out text is the full statement of each and is not repeated:
   phases, had no answer in the old system. The rule now implemented is written out under
   "Phase 2 close-out → Editing rights"; it needs confirmation from someone who runs the
   process, and it is cheap to change because it lives in one file.
-- **Q37, Q38, Q41** — recommended and not objected to, but never explicitly confirmed. Re-confirm before implementing.
+- ~~**Q37, Q38, Q41** — recommended and not objected to, but never explicitly confirmed. Re-confirm before implementing.~~
+  **Confirmed 2026-08-12** as A1/A2/A3 below — this bullet was left unedited when that confirmation landed
+  elsewhere in this same section, which is its own small lesson: a decision recorded in two places needs
+  both places updated, not just the one being written at the time.
 - ~~**Q35** — assumed `D06`–`D12` are project classifications.~~ **Closed by `domain-model.md`.**
   Their `name` fields in `setCode.json` name *students*, not units or projects
   (`ผู้นำองค์กรนักศึกษา…`, `นักศึกษาที่มีความประพฤติดีเด่น`, …). They are **student award
